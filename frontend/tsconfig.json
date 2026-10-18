@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./libs/core/*"],
+      "@shared/*": ["./libs/shared/*"]
     }
   },
   "include": [
