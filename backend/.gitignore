@@ -1,0 +1,13 @@
+# Bỏ qua file .env khỏi git (bảo mật)
+.env
+.env.local
+.env.production
+
+# Node modules
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
