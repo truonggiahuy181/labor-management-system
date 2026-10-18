@@ -1,0 +1,53 @@
+{
+  "common": {
+    "submit": "Xác nhận",
+    "logout": "Đăng xuất",
+    "language": "Ngôn ngữ",
+    "required": "Không được để trống",
+    "unknownError": "Có lỗi xảy ra, vui lòng thử lại",
+    "missingInfo": "Thiếu thông tin",
+    "appName": "Phần Mềm Quản lý - Tạo Lập Cở sở Dữ Liệu An Toàn Vệ sinh lao động"
+  },
+  "login": {
+    "remember": "Ghi nhớ đăng nhập",
+    "forgotPassword": "Quên mật khẩu?",
+    "title": "Đăng nhập",
+    "username": "Tên đăng nhập",
+    "password": "Mật khẩu",
+    "noAccount": "Chưa có tài khoản?",
+    "goSignup": "Đăng ký",
+    "success": "Đăng nhập thành công"
+  },
+  "signup": {
+    "title": "Tạo tài khoản",
+    "email": "Email",
+    "companyName": "Tên cơ quan",
+    "taxCode": "Mã số thuế",
+    "phone": "Số điện thoại",
+    "invalidEmail": "Email không hợp lệ",
+    "confirmPassword": "Nhập lại mật khẩu",
+    "passwordMismatch": "Mật khẩu nhập lại không khớp",
+    "passwordMin": "Mật khẩu tối thiểu {{min}} ký tự",
+    "hasAccount": "Đã có tài khoản?",
+    "success": "Đăng ký thành công, hãy đăng nhập"
+  },
+  "changePassword": {
+    "title": "Đổi mật khẩu",
+    "oldPassword": "Mật khẩu hiện tại",
+    "newPassword": "Mật khẩu mới",
+    "sameAsOld": "Mật khẩu mới phải khác mật khẩu hiện tại",
+    "success": "Đổi mật khẩu thành công"
+  },
+  "errors": {
+    "WRONG_PASSWORD": "Sai tên đăng nhập hoặc mật khẩu",
+    "WRONG_OLD_PASSWORD": "Mật khẩu hiện tại không đúng",
+    "USERNAME_EXISTS": "Tên đăng nhập đã tồn tại",
+    "EMAIL_EXISTS": "Email đã được sử dụng"
+  },
+  "forgotPassword": {
+    "title": "Quên mật khẩu",
+    "enterEmail": "Vui lòng nhập email",
+    "success": "Vui lòng kiểm tra email để đặt lại mật khẩu",
+    "sendOtp": "Gửi mã xác thực"
+  }
+}
