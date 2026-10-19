@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,6 +21,7 @@ import {
   ResetPasswordDto,
   VerifyEmailOtpDto,
   ConfirmEmailChangeDto,
+  RefreshTokenDto,
 } from './dto/auth.dto.js';
 import { Public } from '../../commons/decorators/public.decorator.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
@@ -40,13 +42,14 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Đăng nhập thành công. Trả về accessToken và thông tin user.',
+    description: 'Đăng nhập thành công. Trả về accessToken, refreshToken và thông tin user.',
     schema: {
       example: {
         statusCode: 200,
         message: 'Thành công',
         data: {
-          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlSWQiOjF9...',
+          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          refreshToken: 'a3f1b2c4d5e6...',
           expiresIn: '8h',
           user: {
             id: 1,
@@ -124,8 +127,51 @@ export class AuthController {
       },
     },
   })
-  logout(@CurrentUser() user: { id: number }) {
-    return this.authService.logout(user.id);
+  logout(@CurrentUser() user: { id: number }, @Req() req: any) {
+    const authHeader: string = req.headers?.authorization ?? '';
+    const rawToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    return this.authService.logout(user.id, rawToken);
+  }
+
+  // ─── 2b. LÀM MỚI ACCESS TOKEN ────────────────────────────────────────────────
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Làm mới access token',
+    description:
+      'Dùng refresh token để cấp cặp token mới (xoay vòng). ' +
+      'Refresh token cũ sẽ bị xóa ngay sau khi gọi thành công.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cấp token mới thành công.',
+    schema: {
+      example: {
+        statusCode: 200,
+        message: 'Thành công',
+        data: {
+          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          refreshToken: 'abc123...',
+          expiresIn: '8h',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Refresh token không hợp lệ hoặc đã hết hạn.',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Refresh token không hợp lệ. Vui lòng đăng nhập lại.',
+        timestamp: '2026-10-18T16:00:00.000Z',
+        path: '/api/v1/auth/refresh',
+      },
+    },
+  })
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshTokens(dto.refreshToken);
   }
 
   // ─── 3. ĐỔI MẬT KHẨU (khi đã đăng nhập) ─────────────────────────────────
