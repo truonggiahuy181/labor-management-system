@@ -26,7 +26,7 @@ const realAuthApi = {
 
   register: (body: RegisterBody) =>
     api.post<ApiResponse<null>>('/auth/register', body).then((r) => r.data),
-
+  logout: () => api.post<ApiResponse<null>>('/auth/logout').then((r) => r.data),
   // Quên mật khẩu bước 1: server gửi mã OTP về email
   forgotPassword: (body: { email: string }) =>
     api.post<ApiResponse<null>>('/auth/forgot-password', body).then((r) => r.data),

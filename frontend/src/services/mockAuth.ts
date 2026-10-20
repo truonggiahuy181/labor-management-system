@@ -1,11 +1,11 @@
 // src/services/mockAuth.ts
 // API giả để làm giao diện khi backend chưa xong. Bật bằng NEXT_PUBLIC_MOCK_API=true.
 // Có API thật rồi thì xoá file này và dòng import nó trong auth.ts.
-import { tokenStorage } from './api';
-import type { ApiResponse, authApi, RegisterBody, User } from './auth';
+import type { ApiResponse, AuthApi, RegisterBody, User } from './auth';
 
 const DB_KEY = 'mockUsers';      // danh sách tài khoản giả trong localStorage
 const OTP_KEY = 'mockOtp';       // OTP vừa "gửi" + email nhận
+const SESSION_KEY = 'mockSession'; // id user đang đăng nhập – đóng vai cookie của server thật
 const MOCK_OTP = '123456';
 const DELAY_MS = 600;            // giả lập độ trễ mạng để thấy nút bị khoá khi đang gửi
 
@@ -39,9 +39,9 @@ const saveUsers = (users: MockUser[]) => localStorage.setItem(DB_KEY, JSON.strin
 // Không bao giờ trả password ra ngoài, giống server thật
 const toUser = ({ id, username, email }: MockUser): User => ({ id, username, email });
 
-// Token giả có dạng "mock-token-<id>" để biết ai đang đăng nhập
+// Server thật đọc cookie; mock đọc id đã lưu lúc login
 const currentUser = () => {
-  const id = tokenStorage.get()?.replace('mock-token-', '');
+  const id = localStorage.getItem(SESSION_KEY);
   return loadUsers().find((u) => u.id === id);
 };
 
@@ -57,9 +57,14 @@ const fail = (code: string) => respond<never>({ success: false, data: null as ne
 export const mockAuthApi: AuthApi = {
   login: ({ username, password }) => {
     const user = loadUsers().find((u) => u.username === username && u.password === password);
-    return user
-      ? ok({ accessToken: `mock-token-${user.id}`, user: toUser(user) })
-      : fail('WRONG_PASSWORD');
+    if (!user) return fail('WRONG_PASSWORD');
+    localStorage.setItem(SESSION_KEY, user.id);
+    return ok({ user: toUser(user) });
+  },
+
+  logout: () => {
+    localStorage.removeItem(SESSION_KEY);
+    return ok(null);
   },
 
   register: (body: RegisterBody) => {
@@ -100,7 +105,7 @@ export const mockAuthApi: AuthApi = {
 
   me: () => {
     const me = currentUser();
-    // Token sai → ném lỗi giống server trả 401, useAuth sẽ xoá token
+    // Chưa đăng nhập → ném lỗi giống server trả 401
     return me ? ok(toUser(me)) : Promise.reject(new Error('UNAUTHORIZED'));
   },
 };

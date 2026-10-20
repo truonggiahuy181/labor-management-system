@@ -10,6 +10,7 @@ import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import useAuth from '@/Hooks/useAuth';
 import { authApi, getErrorCode } from '@/services/auth';
+import BusinessRegisterDialog from '@/Components/BusinessRegister/BusinessRegisterDialog';
 
 type LoginForm = { username: string; password: string; remember: boolean };
 
@@ -19,8 +20,9 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const [alert, setAlert] = useState('');
+  const [registerOpen, setRegisterOpen] = useState(false)
 
-  const { control, handleSubmit, formState: { isSubmitting } } = useForm<LoginForm>({
+  const { control, handleSubmit, setValue, formState: { isSubmitting } } = useForm<LoginForm>({
     defaultValues: { username: '', password: '', remember: true },
   });
 
@@ -29,9 +31,9 @@ export default function LoginPage() {
     try {
       const res = await authApi.login(body);
       if (!res.success) return setAlert(translateError(res.code));
-      login(res.data.accessToken, res.data.user, remember);
+      login(res.data.user);
+      router.replace('/account');
       enqueueSnackbar(translate('login.success'), { variant: 'success' });
-      router.replace('/');
     } catch (err) {
       setAlert(translateError(getErrorCode(err)));
     }
@@ -96,9 +98,14 @@ export default function LoginPage() {
       <Button type="submit" variant="contained" disabled={isSubmitting}>
         {translate('login.title')}
       </Button>
-      <Button component={Link} href="/signup" variant="outlined">
+      <Button variant="outlined" onClick={() => setRegisterOpen(true)}>
         {translate('login.goSignup')}
       </Button>
+      <BusinessRegisterDialog
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        onRegistered={(username) => setValue('username', username)}
+      />
     </Stack>
   );
 }
