@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { UserModule } from './modules/user/user.module.js';
 import { UserEntity } from './modules/user/user.entity.js';
 import { JwtAuthGuard } from './commons/guards/jwt-auth.guard.js';
+import { CsrfGuard } from './commons/guards/csrf.guard.js';
 import { ResponseInterceptor } from './commons/interceptors/response.interceptor.js';
 import { GlobalExceptionFilter } from './commons/filters/global-exception.filter.js';
 
@@ -16,7 +17,7 @@ import { GlobalExceptionFilter } from './commons/filters/global-exception.filter
     // Cấu hình env toàn cục
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['.env', 'backend/.env'],
     }),
 
     // Kết nối Database
@@ -42,6 +43,11 @@ import { GlobalExceptionFilter } from './commons/filters/global-exception.filter
   controllers: [AppController],
   providers: [
     AppService,
+    // Guard CSRF bảo vệ các request mutating khi dùng cookie auth
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
+    },
     // Guard JWT áp dụng toàn cục – dùng @Public() để bỏ qua
     {
       provide: APP_GUARD,

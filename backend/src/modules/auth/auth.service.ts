@@ -62,10 +62,10 @@ export class AuthService {
       jti,
     };
 
-    const expiresIn = dto.rememberMe
-      ? '30d'
-      : this.configService.get<string>('JWT_EXPIRES_IN', '8h');
-    const accessToken = this.jwtService.sign(payload, { expiresIn } as any);
+    // Access Token luôn giữ thời hạn ngắn cấu hình trong JWT_EXPIRES_IN (không kéo dài 30 ngày)
+    // Chỉ có refresh token mới kéo dài theo rememberMe để tăng tính an toàn
+    const accessExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '8h');
+    const accessToken = this.jwtService.sign(payload, { expiresIn: accessExpiresIn } as any);
 
     // Tạo refresh token ngẫu nhiên và lưu hash vào Redis
     const refreshToken = crypto.randomBytes(40).toString('hex');
@@ -79,7 +79,9 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn,
+      expiresIn: accessExpiresIn,
+      refreshExpiresInSeconds: refreshTtl,
+      rememberMe: dto.rememberMe,
       user: {
         id: user.id,
         username: user.username,
@@ -99,67 +101,157 @@ export class AuthService {
       .update(refreshToken)
       .digest('hex');
 
-    const userId = await this.redisService.getUserIdByRefreshToken(incomingHash);
-    if (!userId) {
-      throw new UnauthorizedException('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
-    }
-
-    const user = await this.userService.findOne({ where: { id: userId } });
-    if (!user || !user.isActive) {
-      await this.redisService.deleteRefreshToken(userId);
-      throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.');
-    }
-
-    // Xoay vòng: tạo cặp token mới (saveRefreshToken sẽ tự ghi đè/xóa token cũ)
-    const jti = crypto.randomUUID();
-    const payload: JwtPayload = {
-      sub: user.id,
-      username: user.username,
-      roleId: user.roleId,
-      jti,
-    };
-
-    const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '8h');
-    const newAccessToken = this.jwtService.sign(payload, { expiresIn } as any);
-
-    const newRefreshToken = crypto.randomBytes(40).toString('hex');
-    const newRefreshTokenHash = crypto
-      .createHash('sha256')
-      .update(newRefreshToken)
-      .digest('hex');
-    await this.redisService.saveRefreshToken(user.id, newRefreshTokenHash, 24 * 60 * 60);
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      expiresIn,
-    };
-  }
-
-  // ─── 2. ĐĂNG XUẤT ───────────────────────────────────────────────────────────
-  async logout(userId: number, accessToken: string) {
-    // Giải mã token để lấy jti và exp mà không cần xác minh lại
-    let decoded: (JwtPayload & { exp?: number }) | null = null;
-    try {
-      decoded = this.jwtService.decode(accessToken) as (JwtPayload & { exp?: number }) | null;
-    } catch {
-      throw new UnauthorizedException('Token không hợp lệ.');
-    }
-
-    if (!decoded) {
-      throw new UnauthorizedException('Token không hợp lệ.');
-    }
-
-    // Blacklist access token đến hết hạn của nó
-    if (decoded.jti && decoded.exp) {
-      const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-      if (ttl > 0) {
-        await this.redisService.blacklistAccessToken(decoded.jti, ttl);
+    // 1. Kiểm tra cache grace period (15s): nếu token này vừa được xoay vòng bởi request trước đó:
+    const cachedRotation = await this.redisService.getRotatedTokenResult(incomingHash);
+    if (cachedRotation) {
+      try {
+        const parsed = JSON.parse(cachedRotation);
+        // BẢO VỆ CHỐNG REPLAY VÀ RÒ RỈ CREDENTIAL MỚI:
+        // Request thứ hai sử dụng cùng token cũ trong grace period CHỈ nhận accessToken mới để tiếp tục gọi API,
+        // TUYỆT ĐỐI KHÔNG cấp lại raw refreshToken mới từ cache.
+        // Điều này ngăn chặn kẻ trộm token cũ dùng grace period để chiếm đoạt refreshToken mới của nạn nhân.
+        return {
+          accessToken: parsed.accessToken,
+          expiresIn: parsed.expiresIn,
+        };
+      } catch {
+        // Bỏ qua lỗi parse JSON nếu có
       }
     }
 
-    // Xóa refresh token khỏi Redis
-    await this.redisService.deleteRefreshToken(userId);
+    // 2. Kiểm tra token có hợp lệ và còn hoạt động không
+    const userId = await this.redisService.getUserIdByRefreshToken(incomingHash);
+    if (!userId) {
+      throw new UnauthorizedException(
+        'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    // 3. Khóa nguyên tử ngắn hạn (5s) có gắn Owner ID ngẫu nhiên để chống race condition
+    const lockOwner = crypto.randomUUID();
+    const lockAcquired = await this.redisService.acquireRotationLock(incomingHash, lockOwner, 5);
+    if (!lockAcquired) {
+      // Một request khác đang xoay vòng token này -> chờ ngắn và đọc kết quả xoay vòng đã cache
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const retryCached = await this.redisService.getRotatedTokenResult(incomingHash);
+      if (retryCached) {
+        const parsed = JSON.parse(retryCached);
+        return {
+          accessToken: parsed.accessToken,
+          expiresIn: parsed.expiresIn,
+        };
+      }
+      throw new UnauthorizedException(
+        'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    try {
+      const user = await this.userService.findOne({ where: { id: userId } });
+      if (!user || !user.isActive) {
+        await this.redisService.deleteRefreshToken(userId);
+        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.');
+      }
+
+      // Bảo tồn thời gian sống còn lại của phiên làm việc (nếu người dùng đăng nhập bằng rememberMe)
+      const remainingTtl = await this.redisService.getRefreshTokenTtl(userId);
+      const refreshTtl = remainingTtl > 0 ? remainingTtl : 24 * 60 * 60;
+
+      // Xoay vòng: tạo cặp token mới
+      const jti = crypto.randomUUID();
+      const payload: JwtPayload = {
+        sub: user.id,
+        username: user.username,
+        roleId: user.roleId,
+        jti,
+      };
+
+      const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '8h');
+      const newAccessToken = this.jwtService.sign(payload, { expiresIn } as any);
+
+      const newRefreshToken = crypto.randomBytes(40).toString('hex');
+      const newRefreshTokenHash = crypto
+        .createHash('sha256')
+        .update(newRefreshToken)
+        .digest('hex');
+
+      // Thu hồi ngay lập tức token cũ và lưu token mới
+      await this.redisService.saveRefreshToken(
+        user.id,
+        newRefreshTokenHash,
+        refreshTtl,
+        incomingHash,
+      );
+
+      // Lưu kết quả xoay vòng vào cache grace period 15 giây cho token cũ.
+      // CHỈ lưu accessToken và expiresIn, TUYỆT ĐỐI KHÔNG lưu refreshToken để chống replay/token leakage.
+      await this.redisService.saveRotatedTokenResult(
+        incomingHash,
+        JSON.stringify({
+          accessToken: newAccessToken,
+          expiresIn,
+        }),
+        15,
+      );
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresIn,
+        refreshExpiresInSeconds: refreshTtl,
+      };
+    } finally {
+      await this.redisService.releaseRotationLock(incomingHash, lockOwner);
+    }
+  }
+
+  // ─── 2. ĐĂNG XUẤT ───────────────────────────────────────────────────────────
+  async logout(
+    userId?: number | null,
+    accessToken?: string | null,
+    refreshToken?: string | null,
+  ) {
+    // 1. Nếu có accessToken: BẮT BUỘC xác minh chữ ký (cho phép token hết hạn)
+    // TUYỆT ĐỐI không dùng jwtService.decode không xác thực để tránh kẻ tấn công giả mạo claims sub/jti
+    if (accessToken) {
+      let verifiedPayload: (JwtPayload & { exp?: number }) | null = null;
+      try {
+        verifiedPayload = this.jwtService.verify(accessToken, {
+          ignoreExpiration: true,
+        }) as (JwtPayload & { exp?: number }) | null;
+      } catch {
+        // Token giả mạo hoặc sai chữ ký -> Bỏ qua, không tin tưởng claims
+        verifiedPayload = null;
+      }
+
+      if (verifiedPayload) {
+        if (!userId && verifiedPayload.sub) {
+          userId = verifiedPayload.sub;
+        }
+
+        // Blacklist access token vào Redis đến khi hết hạn
+        if (verifiedPayload.jti && verifiedPayload.exp) {
+          const ttl = verifiedPayload.exp - Math.floor(Date.now() / 1000);
+          if (ttl > 0) {
+            await this.redisService.blacklistAccessToken(verifiedPayload.jti, ttl);
+          }
+        }
+      }
+    }
+
+    // 2. Nếu chưa có userId nhưng có refreshToken: tra cứu userId từ hash ngẫu nhiên trong Redis
+    if (!userId && refreshToken) {
+      const refreshTokenHash = crypto
+        .createHash('sha256')
+        .update(refreshToken)
+        .digest('hex');
+      userId = await this.redisService.getUserIdByRefreshToken(refreshTokenHash);
+    }
+
+    // 3. Xóa refresh token khỏi Redis nếu xác định được userId hợp lệ
+    if (userId) {
+      await this.redisService.deleteRefreshToken(userId);
+    }
 
     return {
       message: 'Đăng xuất thành công.',

@@ -18,22 +18,37 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Lỗi máy chủ nội bộ';
+    let message: any = 'Lỗi máy chủ nội bộ';
+    let errorData: any = null;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const res = exception.getResponse();
-      message =
-        typeof res === 'string'
-          ? res
-          : (res as any).message || exception.message;
+      if (typeof res === 'string') {
+        message = res;
+      } else if (typeof res === 'object' && res !== null) {
+        message = (res as any).message || exception.message;
+        if ((res as any).errors) {
+          errorData = (res as any).errors;
+        }
+      } else {
+        message = exception.message;
+      }
     } else {
       this.logger.error('Unhandled exception', exception);
     }
 
+    const formattedMessage = Array.isArray(message)
+      ? message.join(', ')
+      : typeof message === 'string'
+        ? message
+        : JSON.stringify(message);
+
     response.status(statusCode).json({
-      statusCode,
-      message: Array.isArray(message) ? message.join(', ') : message,
+      message: formattedMessage,
+      success: false,
+      data: errorData,
+      code: statusCode,
       timestamp: new Date().toISOString(),
       path: request.url,
     });

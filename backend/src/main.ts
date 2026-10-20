@@ -1,18 +1,51 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Kích hoạt middleware phân tích cookie
+  app.use(cookieParser());
+
   // Global prefix
   app.setGlobalPrefix('api/v1');
 
-  // CORS
+  const port = Number(process.env.PORT ?? 3000);
+
+  // Cấu hình CORS: hỗ trợ credentials cho Cookie và chỉ định rõ origins
+  const configuredOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3001')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const allowedOrigins = Array.from(
+    new Set([
+      ...configuredOrigins,
+      `http://localhost:${port}`,
+      `http://127.0.0.1:${port}`,
+    ]),
+  );
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Cho phép requests không có Origin (ví dụ Swagger, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, '').toLowerCase();
+      if (allowedOrigins.some((allowed) => allowed.toLowerCase() === cleanOrigin)) {
+        return callback(null, true);
+      }
+      // Từ chối origin không hợp lệ một cách êm đẹp (trình duyệt tự chặn CORS)
+      return callback(null, false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   });
 
   // Validation pipe toàn cục
@@ -50,7 +83,6 @@ async function bootstrap() {
     },
   });
 
-  const port = process.env.PORT ?? 3000;
   await app.listen(port);
 
   console.log(`🚀 Server đang chạy tại: http://localhost:${port}`);

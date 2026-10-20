@@ -57,16 +57,81 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ─── Refresh token (Dual-index: rt:<tokenHash> -> userId và user_rt:<userId> -> tokenHash)
-  async saveRefreshToken(userId: number, tokenHash: string, ttlSeconds: number): Promise<void> {
-    // Xóa token cũ của user nếu có để tránh tồn đọng
-    const oldHash = await this.client.get(`user_rt:${userId}`);
+  async saveRefreshToken(
+    userId: number,
+    tokenHash: string,
+    ttlSeconds: number,
+    oldTokenHash?: string,
+  ): Promise<void> {
     const multi = this.client.multi();
-    if (oldHash) {
-      multi.del(`rt:${oldHash}`);
+    // Thu hồi ngay lập tức token cũ khỏi danh sách active token để KHÔNG THỂ tái sử dụng để tạo token mới
+    if (oldTokenHash) {
+      multi.del(`rt:${oldTokenHash}`);
+    } else {
+      const oldHash = await this.client.get(`user_rt:${userId}`);
+      if (oldHash && oldHash !== tokenHash) {
+        multi.del(`rt:${oldHash}`);
+      }
     }
     multi.set(`rt:${tokenHash}`, userId.toString(), 'EX', ttlSeconds);
     multi.set(`user_rt:${userId}`, tokenHash, 'EX', ttlSeconds);
     await multi.exec();
+  }
+
+  // Lưu kết quả xoay vòng của token cũ trong grace period (15s) để các tab đồng thời nhận cùng 1 kết quả
+  async saveRotatedTokenResult(
+    oldTokenHash: string,
+    resultJson: string,
+    graceSeconds = 15,
+  ): Promise<void> {
+    await this.client.set(`rt_rotated:${oldTokenHash}`, resultJson, 'EX', graceSeconds);
+  }
+
+  // Lấy kết quả xoay vòng đã cache của token cũ
+  async getRotatedTokenResult(tokenHash: string): Promise<string | null> {
+    return await this.client.get(`rt_rotated:${tokenHash}`);
+  }
+
+  // Khóa phân tán nguyên tử ngắn hạn (5s) có gắn Owner ID duy nhất để chống race condition
+  async acquireRotationLock(
+    tokenHash: string,
+    ownerId: string,
+    ttlSeconds = 5,
+  ): Promise<boolean> {
+    const res = await this.client.set(
+      `rt_lock:${tokenHash}`,
+      ownerId,
+      'EX',
+      ttlSeconds,
+      'NX',
+    );
+    return res === 'OK';
+  }
+
+  // Giải phóng khóa nguyên tử bằng Lua script (CHỈ xóa khi giá trị trong Redis khớp đúng ownerId)
+  async releaseRotationLock(tokenHash: string, ownerId: string): Promise<boolean> {
+    const luaScript = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    try {
+      const res = await this.client.eval(luaScript, 1, `rt_lock:${tokenHash}`, ownerId);
+      return res === 1;
+    } catch {
+      return false;
+    }
+  }
+
+  async getRefreshTokenTtl(userId: number): Promise<number> {
+    try {
+      const ttl = await this.client.ttl(`user_rt:${userId}`);
+      return ttl > 0 ? ttl : 24 * 60 * 60;
+    } catch {
+      return 24 * 60 * 60;
+    }
   }
 
   async getUserIdByRefreshToken(tokenHash: string): Promise<number | null> {

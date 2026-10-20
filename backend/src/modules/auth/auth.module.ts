@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
+import { AuthCookieService } from './auth-cookie.service.js';
 import { UserModule } from '../user/user.module.js';
 import { RedisModule } from '../../commons/redis/redis.module.js';
 
@@ -31,7 +32,7 @@ import { RedisModule } from '../../commons/redis/redis.module.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy, AuthCookieService],
+  exports: [AuthService, AuthCookieService],
 })
 export class AuthModule {}

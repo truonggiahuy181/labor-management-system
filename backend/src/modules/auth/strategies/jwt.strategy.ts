@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../user/user.service.js';
 import { RedisService } from '../../../commons/redis/redis.service.js';
 
+import type { Request } from 'express';
+
 export interface JwtPayload {
   sub: number;
   username: string;
@@ -25,8 +27,23 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new Error('JWT_SECRET chưa được cấu hình trong biến môi trường.');
     }
 
+    const cookieName = configService.get<string>(
+      'COOKIE_ACCESS_TOKEN_NAME',
+      'access_token',
+    );
+
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        // Ưu tiên 1: Đọc từ HttpOnly Cookie
+        (req: Request) => {
+          if (req && req.cookies && req.cookies[cookieName]) {
+            return req.cookies[cookieName];
+          }
+          return null;
+        },
+        // Ưu tiên 2: Fallback đọc từ Authorization: Bearer <token> (cho Swagger / Postman / Migration)
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     });

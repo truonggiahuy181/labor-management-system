@@ -143,8 +143,13 @@ export class ConfirmEmailChangeDto {
 
 // ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
 export class RefreshTokenDto {
-  @ApiProperty({ description: 'Refresh token nhận được khi đăng nhập', example: 'abc123...' })
+  @ApiPropertyOptional({
+    description:
+      'Refresh token nhận được khi đăng nhập (không bắt buộc nếu đã gửi qua refresh_token cookie)',
+    example: 'abc123...',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'refreshToken không được để trống' })
-  refreshToken: string;
+  refreshToken?: string;
 }
+
