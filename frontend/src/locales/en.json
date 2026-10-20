@@ -78,7 +78,9 @@
     "notReceived": "Didn't receive the code?",
     "resend": "Resend",
     "submit": "Confirm",
-    "resendOtp": "Resend"
+    "resendOtp": "Resend",
+    "sendSuccess": "Verification code sent successfully",
+    "resetsuccess": "Password reset successfully. Please log in with your new password"
   },
   "menu": {
     "toggle": "Collapse / expand menu",
