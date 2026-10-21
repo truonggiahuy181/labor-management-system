@@ -5,7 +5,11 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Req,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -13,6 +17,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
+import { AuthCookieService } from './auth-cookie.service.js';
 import {
   LoginDto,
   ChangePasswordDto,
@@ -20,6 +25,7 @@ import {
   ResetPasswordDto,
   VerifyEmailOtpDto,
   ConfirmEmailChangeDto,
+  RefreshTokenDto,
 } from './dto/auth.dto.js';
 import { Public } from '../../commons/decorators/public.decorator.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
@@ -28,7 +34,10 @@ import { JwtAuthGuard } from '../../commons/guards/jwt-auth.guard.js';
 @ApiTags('Auth – Xác thực')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly authCookieService: AuthCookieService,
+  ) {}
 
   // ─── 1. ĐĂNG NHẬP ─────────────────────────────────────────────────────────
   @Public()
@@ -36,18 +45,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Đăng nhập hệ thống',
-    description: 'Xác thực tài khoản và trả về JWT Bearer token cùng thông tin người dùng.',
+    description:
+      'Xác thực tài khoản, thiết lập HttpOnly cookie (access_token, refresh_token) và trả về thông tin người dùng.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Đăng nhập thành công. Trả về accessToken và thông tin user.',
+    description:
+      'Đăng nhập thành công. Token được lưu trong HttpOnly cookie an toàn; trả về thông tin user.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
-          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlSWQiOjF9...',
-          expiresIn: '8h',
           user: {
             id: 1,
             username: 'admin',
@@ -58,6 +67,7 @@ export class AuthController {
             isActive: true,
           },
         },
+        code: 200,
       },
     },
   })
@@ -66,8 +76,10 @@ export class AuthController {
     description: 'Bỏ trống tên đăng nhập hoặc mật khẩu.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Vui lòng nhập đầy đủ thông tin.',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/login',
       },
@@ -78,54 +90,150 @@ export class AuthController {
     description: 'Tài khoản hoặc mật khẩu không đúng.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Tài khoản hoặc mật khẩu không đúng. Xin vui lòng thử lại.',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/login',
       },
     },
   })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+
+    // Gắn HttpOnly cookies an toàn cho access_token và refresh_token
+    this.authCookieService.setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      accessExpiresIn: result.expiresIn,
+      rememberMe: dto.rememberMe,
+      refreshMaxAgeMs: result.refreshExpiresInSeconds
+        ? result.refreshExpiresInSeconds * 1000
+        : undefined,
+    });
+
+    // Trả về thông tin người dùng (không để lộ raw token trong response body)
+    return {
+      user: result.user,
+    };
   }
 
   // ─── 2. ĐĂNG XUẤT ─────────────────────────────────────────────────────────
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Đăng xuất',
-    description: 'Yêu cầu token JWT hợp lệ. Trả về action CLEAR_TOKEN để client xóa token.',
+    description:
+      'Thu hồi access token (blacklist jti) và refresh token trong Redis, đồng thời xóa sạch cookie xác thực.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Đăng xuất thành công.',
+    description: 'Đăng xuất thành công. Xóa cookie và thu hồi token trong Redis.',
     schema: {
       example: {
-        statusCode: 200,
-        message: 'Thành công',
+        message: 'Đăng xuất thành công.',
+        success: true,
         data: {
           message: 'Đăng xuất thành công.',
           action: 'CLEAR_TOKEN',
         },
+        code: 200,
+      },
+    },
+  })
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const rawAccessToken = this.authCookieService.extractAccessToken(req);
+    const rawRefreshToken = this.authCookieService.extractRefreshToken(req);
+
+    // Thu hồi token trong Redis (nếu có)
+    await this.authService.logout(null, rawAccessToken, rawRefreshToken);
+
+    // Xóa cookies khỏi trình duyệt
+    this.authCookieService.clearAuthCookies(res);
+
+    return {
+      message: 'Đăng xuất thành công.',
+      action: 'CLEAR_TOKEN',
+    };
+  }
+
+  // ─── 2b. LÀM MỚI ACCESS TOKEN ────────────────────────────────────────────────
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Làm mới access token',
+    description:
+      'Dùng refresh token từ HttpOnly cookie (hoặc body) để cấp lại cặp token mới (xoay vòng). ' +
+      'Refresh token cũ bị hủy trong Redis và các cookie mới được gắn vào response.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cấp token mới thành công qua HttpOnly cookies.',
+    schema: {
+      example: {
+        message: 'Cấp token mới thành công.',
+        success: true,
+        data: {
+          message: 'Cấp token mới thành công.',
+        },
+        code: 200,
       },
     },
   })
   @ApiResponse({
     status: 401,
-    description: 'Chưa xác thực hoặc token không hợp lệ.',
+    description: 'Refresh token không hợp lệ hoặc đã hết hạn.',
     schema: {
       example: {
-        statusCode: 401,
-        message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        message: 'Refresh token không hợp lệ. Vui lòng đăng nhập lại.',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
-        path: '/api/v1/auth/logout',
+        path: '/api/v1/auth/refresh',
       },
     },
   })
-  logout(@CurrentUser() user: { id: number }) {
-    return this.authService.logout(user.id);
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() dto: RefreshTokenDto,
+  ) {
+    const refreshToken = this.authCookieService.extractRefreshToken(
+      req,
+      dto?.refreshToken,
+    );
+
+    if (!refreshToken) {
+      throw new UnauthorizedException(
+        'Không tìm thấy refresh token. Vui lòng đăng nhập lại.',
+      );
+    }
+
+    const result = await this.authService.refreshTokens(refreshToken);
+
+    // Cập nhật cặp cookie mới (xoay vòng token)
+    this.authCookieService.setAuthCookies(res, {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      accessExpiresIn: result.expiresIn,
+      refreshMaxAgeMs: result.refreshExpiresInSeconds
+        ? result.refreshExpiresInSeconds * 1000
+        : undefined,
+    });
+
+    return {
+      message: 'Cấp token mới thành công.',
+    };
   }
 
   // ─── 3. ĐỔI MẬT KHẨU (khi đã đăng nhập) ─────────────────────────────────
@@ -136,20 +244,20 @@ export class AuthController {
   @ApiOperation({
     summary: 'Đổi mật khẩu',
     description:
-      'Sau khi đổi thành công, toàn bộ token cũ sẽ bị vô hiệu hóa. ' +
-      'Client phải xóa token và chuyển người dùng về trang đăng nhập.',
+      'Sau khi đổi thành công, toàn bộ token cũ bị vô hiệu hóa trong Redis và cookie bị xóa bỏ.',
   })
   @ApiResponse({
     status: 200,
     description: 'Đổi mật khẩu thành công. action=FORCE_LOGOUT báo client đăng xuất.',
     schema: {
       example: {
-        statusCode: 200,
-        message: 'Thành công',
+        message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.',
+        success: true,
         data: {
           message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.',
           action: 'FORCE_LOGOUT',
         },
+        code: 200,
       },
     },
   })
@@ -158,8 +266,10 @@ export class AuthController {
     description: 'Mật khẩu cũ sai / Mật khẩu mới không khớp / Trùng mật khẩu cũ',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Mật khẩu hiện tại không đúng',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/change-password',
       },
@@ -170,18 +280,26 @@ export class AuthController {
     description: 'Chưa đăng nhập hoặc token đã hết hạn',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/change-password',
       },
     },
   })
-  changePassword(
+  async changePassword(
     @CurrentUser() user: { id: number },
     @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.changePassword(user.id, dto);
+    const result = await this.authService.changePassword(user.id, dto);
+
+    // Xóa cookies để bắt buộc đăng nhập lại
+    this.authCookieService.clearAuthCookies(res);
+
+    return result;
   }
 
   // ─── 4. QUÊN MẬT KHẨU – BƯỚC 1: Gửi OTP ──────────────────────────────────
@@ -197,12 +315,13 @@ export class AuthController {
     description: 'Gửi mã OTP thành công.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           message: 'Gửi email thành công.',
           expiresInMinutes: 5,
         },
+        code: 200,
       },
     },
   })
@@ -211,8 +330,10 @@ export class AuthController {
     description: 'Lỗi xác thực dữ liệu đầu vào (Validation Error: Email không đúng định dạng hoặc để trống).',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Vui lòng nhập đúng định dạng email (ví dụ: username@domain.com).',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/forgot-password',
       },
@@ -223,8 +344,10 @@ export class AuthController {
     description: 'Không tìm thấy tài khoản (Email chưa được đăng ký trong hệ thống).',
     schema: {
       example: {
-        statusCode: 404,
         message: 'Email chưa được đăng ký. Xin vui lòng thử lại.',
+        success: false,
+        data: null,
+        code: 404,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/forgot-password',
       },
@@ -249,12 +372,13 @@ export class AuthController {
     description: 'Khôi phục thành công. Báo client chuyển về màn hình đăng nhập.',
     schema: {
       example: {
-        statusCode: 200,
-        message: 'Thành công',
+        message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
+        success: true,
         data: {
           message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
           action: 'REDIRECT_TO_LOGIN',
         },
+        code: 200,
       },
     },
   })
@@ -263,8 +387,10 @@ export class AuthController {
     description: 'Mã OTP không đúng, đã hết hạn hoặc mật khẩu xác nhận không khớp.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Mã OTP không chính xác hoặc đã hết hạn',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/reset-password',
       },
@@ -288,12 +414,13 @@ export class AuthController {
     description: 'Mã OTP đã được gửi về email hiện tại.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           message: 'Mã OTP đã được gửi đến email hiện tại của bạn. Vui lòng kiểm tra hộp thư.',
           expiresInMinutes: 5,
         },
+        code: 200,
       },
     },
   })
@@ -302,8 +429,10 @@ export class AuthController {
     description: 'Tài khoản chưa có email để gửi OTP.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Tài khoản chưa có email để gửi mã OTP',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/request-email-change',
       },
@@ -314,8 +443,10 @@ export class AuthController {
     description: 'Chưa đăng nhập.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/request-email-change',
       },
@@ -339,12 +470,13 @@ export class AuthController {
     description: 'OTP hợp lệ. Có thể tiến hành nhập email mới.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           message: 'Xác thực mã OTP thành công. Bạn có thể tiến hành đổi email.',
           verified: true,
         },
+        code: 200,
       },
     },
   })
@@ -353,8 +485,10 @@ export class AuthController {
     description: 'OTP sai hoặc đã hết hạn.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Mã OTP không chính xác hoặc đã hết hạn',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/verify-email-otp',
       },
@@ -365,8 +499,10 @@ export class AuthController {
     description: 'Chưa đăng nhập.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/verify-email-otp',
       },
@@ -393,12 +529,13 @@ export class AuthController {
     description: 'Cập nhật email thành công.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           message: 'Cập nhật email thành công.',
           newEmail: 'newemail@example.com',
         },
+        code: 200,
       },
     },
   })
@@ -407,8 +544,10 @@ export class AuthController {
     description: 'Mã OTP không hợp lệ hoặc đã hết hiệu lực.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Mã OTP không hợp lệ.',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/confirm-email-change',
       },
@@ -419,8 +558,10 @@ export class AuthController {
     description: 'Xung đột dữ liệu – Email mới đã được sử dụng bởi tài khoản khác.',
     schema: {
       example: {
-        statusCode: 409,
         message: 'Email này đã được sử dụng bởi tài khoản khác.',
+        success: false,
+        data: null,
+        code: 409,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/confirm-email-change',
       },
@@ -431,8 +572,10 @@ export class AuthController {
     description: 'Chưa đăng nhập.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/auth/confirm-email-change',
       },

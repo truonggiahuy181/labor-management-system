@@ -36,8 +36,8 @@ export class UserController {
     description: 'Thông tin tài khoản thành công.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           id: 1,
           username: 'admin',
@@ -58,6 +58,7 @@ export class UserController {
           createdAt: '2026-10-18T10:00:00.000Z',
           updatedAt: '2026-10-18T15:00:00.000Z',
         },
+        code: 200,
       },
     },
   })
@@ -66,8 +67,10 @@ export class UserController {
     description: 'Chưa đăng nhập hoặc token không hợp lệ.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/users/me',
       },
@@ -115,8 +118,8 @@ export class UserController {
     description: 'Cập nhật thành công.',
     schema: {
       example: {
-        statusCode: 200,
         message: 'Thành công',
+        success: true,
         data: {
           id: 1,
           username: 'admin',
@@ -134,6 +137,7 @@ export class UserController {
           roleId: 1,
           updatedAt: '2026-10-18T16:05:00.000Z',
         },
+        code: 200,
       },
     },
   })
@@ -142,8 +146,10 @@ export class UserController {
     description: 'Dữ liệu cập nhật không hợp lệ.',
     schema: {
       example: {
-        statusCode: 400,
         message: 'Dữ liệu không hợp lệ',
+        success: false,
+        data: null,
+        code: 400,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/users/me',
       },
@@ -154,8 +160,10 @@ export class UserController {
     description: 'Chưa đăng nhập.',
     schema: {
       example: {
-        statusCode: 401,
         message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 401,
         timestamp: '2026-10-18T16:00:00.000Z',
         path: '/api/v1/users/me',
       },

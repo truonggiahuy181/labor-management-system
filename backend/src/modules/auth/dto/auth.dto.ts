@@ -38,9 +38,9 @@ export class ChangePasswordDto {
     description: 'Mật khẩu hiện tại',
     example: 'admin1234',
   })
-  @IsOptional()
   @IsString()
-  currentPassword?: string;
+  @IsNotEmpty({ message: 'Mật khẩu hiện tại không được để trống' })
+  currentPassword: string;
 
 
 
@@ -140,3 +140,16 @@ export class ConfirmEmailChangeDto {
   @Length(6, 6, { message: 'OTP phải có đúng 6 chữ số' })
   otp: string;
 }
+
+// ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
+export class RefreshTokenDto {
+  @ApiPropertyOptional({
+    description:
+      'Refresh token nhận được khi đăng nhập (không bắt buộc nếu đã gửi qua refresh_token cookie)',
+    example: 'abc123...',
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+}
+
