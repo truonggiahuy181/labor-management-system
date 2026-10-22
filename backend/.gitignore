@@ -11,3 +11,8 @@ dist/
 
 # Test coverage
 coverage/
+
+# Postman
+*.postman_collection.json
+postman/
+
