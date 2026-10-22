@@ -21,9 +21,14 @@ import {
 } from './dto/auth.dto.js';
 import type { JwtPayload } from './strategies/jwt.strategy.js';
 import { RedisService } from '../../commons/redis/redis.service.js';
+import { ErrorCode } from '../../commons/constants/error-codes.js';
 
 
 const OTP_EXPIRY_MINUTES = 5;
+// Phải chờ bao lâu mới được gửi lại OTP (khớp RESEND_SECONDS ở frontend)
+const OTP_RESEND_SECONDS = 60;
+// Số lần nhập sai tối đa trước khi OTP bị hủy
+const OTP_MAX_ATTEMPTS = 5;
 
 // Thời hạn refresh token (30 ngày)
 const REFRESH_TOKEN_EXPIRY_SECONDS = 30 * 24 * 60 * 60;
@@ -341,44 +346,39 @@ export class AuthService {
   }
 
   // ─── 4b. QUÊN MẬT KHẨU – BƯỚC 2: Xác nhận OTP + Đặt mật khẩu mới ──────────
+    // ─── 4b. QUÊN MẬT KHẨU – BƯỚC 2: Xác nhận OTP + Đặt mật khẩu mới ──────────
   async resetPasswordWithOtp(dto: ResetPasswordDto) {
-    if (dto.newPassword !== dto.confirmNewPassword) {
-      throw new BadRequestException(
-        'Mật khẩu mới và xác nhận mật khẩu không khớp',
-      );
+    // confirmNewPassword không bắt buộc (frontend tự kiểm tra), chỉ so sánh khi có gửi lên
+    if (
+      dto.confirmNewPassword !== undefined &&
+      dto.newPassword !== dto.confirmNewPassword
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.PASSWORD_MISMATCH,
+        message: 'Mật khẩu mới và xác nhận mật khẩu không khớp',
+      });
     }
 
     const user = await this.userService.findByEmail(dto.email);
 
     if (!user || !user.isActive) {
-      throw new NotFoundException(
-        'Email chưa được đăng ký. Xin vui lòng thử lại.',
-      );
+      throw new NotFoundException({
+        code: ErrorCode.EMAIL_NOT_FOUND,
+        message: 'Email chưa được đăng ký. Xin vui lòng thử lại.',
+      });
     }
 
-    // Kiểm tra OTP tồn tại
-    if (!user.resetPasswordToken || !user.resetPasswordExpires) {
-      throw new BadRequestException(
-        'Chưa có yêu cầu khôi phục mật khẩu. Vui lòng bắt đầu lại.',
-      );
-    }
-
-    // Kiểm tra OTP hết hạn
-    if (new Date() > user.resetPasswordExpires) {
-      // Xóa OTP đã hết hạn
-      await this.userService.update(user.id, {
-        resetPasswordToken: null,
-        resetPasswordExpires: null,
-      } as any);
-      throw new BadRequestException(
-        `Mã OTP đã hết hạn sau ${OTP_EXPIRY_MINUTES} phút. Vui lòng yêu cầu mã mới.`,
-      );
-    }
-
-    // Kiểm tra OTP khớp
-    if (user.resetPasswordToken !== dto.otp) {
-      throw new BadRequestException('Mã OTP không đúng. Vui lòng kiểm tra lại.');
-    }
+    await this.assertOtp(
+      `fp:${user.id}`,
+      user.resetPasswordToken,
+      user.resetPasswordExpires,
+      dto.otp,
+      () =>
+        this.userService.update(user.id, {
+          resetPasswordToken: null,
+          resetPasswordExpires: null,
+        } as any),
+    );
 
     const newPasswordHash = await argon2.hash(dto.newPassword);
     const now = new Date();
@@ -393,6 +393,7 @@ export class AuthService {
 
     // Thu hồi refresh token trong Redis để hủy bỏ các phiên đăng nhập cũ
     await this.redisService.deleteRefreshToken(user.id);
+    await this.redisService.clearOtpAttempts(`fp:${user.id}`);
 
     return {
       message:
@@ -400,7 +401,6 @@ export class AuthService {
       action: 'REDIRECT_TO_LOGIN',
     };
   }
-
   // ─── 5. THAY ĐỔI EMAIL – BƯỚC 1: Gửi OTP ───────────────────────────────────
   async requestEmailChangeOtp(userId: number) {
     const user = await this.userService.findOneOrFail({ where: { id: userId } });
@@ -497,7 +497,62 @@ export class AuthService {
   }
 
   // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
+  // Chặn gửi lại OTP trong vòng OTP_RESEND_SECONDS giây
+  private async assertOtpCooldown(scope: string): Promise<void> {
+    const allowed = await this.redisService.acquireOtpCooldown(scope, OTP_RESEND_SECONDS);
+    if (!allowed) {
+      throw new BadRequestException({
+        code: ErrorCode.OTP_RESEND_TOO_SOON,
+        message: `Vui lòng đợi ${OTP_RESEND_SECONDS} giây trước khi gửi lại mã.`,
+      });
+    }
+  }
 
+  /**
+   * Kiểm tra OTP: đã yêu cầu chưa, còn hạn không, có khớp không.
+   * Sai quá OTP_MAX_ATTEMPTS lần thì hủy OTP (gọi `invalidate`) để chống dò mã.
+   */
+  private async assertOtp(
+    scope: string,
+    storedOtp: string | null,
+    expiresAt: Date | null,
+    inputOtp: string,
+    invalidate: () => Promise<unknown>,
+  ): Promise<void> {
+    if (!storedOtp || !expiresAt) {
+      throw new BadRequestException({
+        code: ErrorCode.OTP_NOT_REQUESTED,
+        message: 'Chưa có yêu cầu gửi mã OTP. Vui lòng bắt đầu lại.',
+      });
+    }
+
+    if (new Date() > expiresAt) {
+      await invalidate();
+      throw new BadRequestException({
+        code: ErrorCode.OTP_EXPIRED,
+        message: `Mã OTP đã hết hạn sau ${OTP_EXPIRY_MINUTES} phút. Vui lòng yêu cầu mã mới.`,
+      });
+    }
+
+    if (storedOtp !== inputOtp) {
+      const attempts = await this.redisService.incrementOtpAttempts(
+        scope,
+        OTP_EXPIRY_MINUTES * 60,
+      );
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        await invalidate();
+        await this.redisService.clearOtpAttempts(scope);
+        throw new BadRequestException({
+          code: ErrorCode.OTP_TOO_MANY_ATTEMPTS,
+          message: 'Nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới.',
+        });
+      }
+      throw new BadRequestException({
+        code: ErrorCode.OTP_INVALID,
+        message: 'Mã OTP không đúng. Vui lòng kiểm tra lại.',
+      });
+    }
+  }
   private generateOtp(): string {
     // Dùng crypto để đảm bảo tính ngẫu nhiên bảo mật
     const num = Number(crypto.randomBytes(3).readUIntBE(0, 3)) % 1_000_000;
