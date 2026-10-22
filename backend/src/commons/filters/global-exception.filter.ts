@@ -63,6 +63,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message: formattedMessage,
       success: false,
       data: errorData,
+      code: errorCode ?? DEFAULT_ERROR_CODES[statusCode] ?? ErrorCode.INTERNAL_ERROR,
       statusCode,
       timestamp: new Date().toISOString(),
       path: request.url,
