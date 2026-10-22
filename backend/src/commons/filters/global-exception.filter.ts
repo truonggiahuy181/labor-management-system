@@ -7,7 +7,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { ErrorCode } from '../constants/error-codes.js';
 
+// Mã lỗi mặc định theo HTTP status khi exception không gắn `code` nghiệp vụ
+const DEFAULT_ERROR_CODES: Record<number, string> = {
+  [HttpStatus.BAD_REQUEST]: ErrorCode.VALIDATION_ERROR,
+  [HttpStatus.UNAUTHORIZED]: ErrorCode.UNAUTHORIZED,
+  [HttpStatus.FORBIDDEN]: ErrorCode.FORBIDDEN,
+  [HttpStatus.NOT_FOUND]: ErrorCode.NOT_FOUND,
+  [HttpStatus.CONFLICT]: ErrorCode.CONFLICT,
+  [HttpStatus.PAYLOAD_TOO_LARGE]: ErrorCode.FILE_TOO_LARGE,
+  [HttpStatus.SERVICE_UNAVAILABLE]: ErrorCode.SERVICE_UNAVAILABLE,
+};
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -20,6 +31,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: any = 'Lỗi máy chủ nội bộ';
     let errorData: any = null;
+    let errorCode: string | undefined;
 
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
@@ -30,6 +42,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = (res as any).message || exception.message;
         if ((res as any).errors) {
           errorData = (res as any).errors;
+        }
+        if (typeof (res as any).code === 'string') {
+          errorCode = (res as any).code;
         }
       } else {
         message = exception.message;
@@ -48,7 +63,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message: formattedMessage,
       success: false,
       data: errorData,
-      code: statusCode,
+      code: errorCode ?? DEFAULT_ERROR_CODES[statusCode] ?? ErrorCode.INTERNAL_ERROR,
+      statusCode,
       timestamp: new Date().toISOString(),
       path: request.url,
     });

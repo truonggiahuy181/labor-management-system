@@ -106,13 +106,13 @@ export class ResetPasswordDto {
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   newPassword: string;
 
-  @ApiProperty({
-    description: 'Nhập lại mật khẩu mới để xác nhận',
+  @ApiPropertyOptional({
+    description: 'Nhập lại mật khẩu mới để xác nhận (không bắt buộc, chỉ kiểm tra khi có gửi)',
     example: 'NewPass@2024',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Vui lòng xác nhận mật khẩu mới' })
-  confirmNewPassword: string;
+  confirmNewPassword?: string;
 }
 
 // ─── EMAIL CHANGE – BƯỚC 1: Yêu cầu gửi OTP ─────────────────────────────────

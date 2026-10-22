@@ -8,6 +8,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  Get,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
@@ -120,6 +121,53 @@ export class AuthController {
     return {
       user: result.user,
     };
+  }
+  
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Lấy thông tin người dùng đang đăng nhập',
+    description:
+      'Frontend gọi khi mở app để biết phiên đăng nhập (cookie HttpOnly) còn hiệu lực không.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Phiên còn hiệu lực.',
+    schema: {
+      example: {
+        message: 'Thành công',
+        success: true,
+        data: {
+          id: 1,
+          username: 'admin',
+          fullName: 'Quản trị viên',
+          email: 'admin@example.com',
+          roleId: 1,
+          enterpriseId: null,
+          avatarUrl: null,
+          isActive: true,
+        },
+        code: 200,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Chưa đăng nhập hoặc phiên đã hết hạn.',
+    schema: {
+      example: {
+        message: 'Bạn cần đăng nhập để thực hiện thao tác này',
+        success: false,
+        data: null,
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
+        timestamp: '2026-10-18T16:00:00.000Z',
+        path: '/api/v1/auth/me',
+      },
+    },
+  })
+  me(@CurrentUser() user: { id: number }) {
+    return this.authService.getMe(user.id);
   }
 
   // ─── 2. ĐĂNG XUẤT ─────────────────────────────────────────────────────────
@@ -301,7 +349,6 @@ export class AuthController {
 
     return result;
   }
-
   // ─── 4. QUÊN MẬT KHẨU – BƯỚC 1: Gửi OTP ──────────────────────────────────
   @Public()
   @Post('forgot-password')

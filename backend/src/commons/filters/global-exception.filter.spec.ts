@@ -34,7 +34,7 @@ describe('GlobalExceptionFilter', () => {
     } as unknown as ArgumentsHost;
   });
 
-  it('should format HttpException with message, success: false, data: null, code, timestamp, path', () => {
+  it('should format HttpException with message, success: false, data: null, code, statusCode, timestamp, path', () => {
     const exception = new UnauthorizedException('Tài khoản hoặc mật khẩu không đúng.');
 
     filter.catch(exception, mockHost);
@@ -45,13 +45,30 @@ describe('GlobalExceptionFilter', () => {
         message: 'Tài khoản hoặc mật khẩu không đúng.',
         success: false,
         data: null,
-        code: 401,
+        code: 'UNAUTHORIZED',
+        statusCode: 401,
         path: '/api/v1/test-endpoint',
         timestamp: expect.any(String),
       }),
     );
-    const sentData = mockResponse.json.mock.calls[0][0];
-    expect(sentData.statusCode).toBeUndefined();
+  });
+
+  it('should use the business error code attached to the exception', () => {
+    const exception = new BadRequestException({
+      code: 'OTP_INVALID',
+      message: 'Mã OTP không đúng.',
+    });
+
+    filter.catch(exception, mockHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Mã OTP không đúng.',
+        code: 'OTP_INVALID',
+        statusCode: 400,
+      }),
+    );
   });
 
   it('should format validation errors array by joining into a single message string', () => {
@@ -73,7 +90,8 @@ describe('GlobalExceptionFilter', () => {
         message: 'Email không đúng định dạng, Mật khẩu phải có ít nhất 6 ký tự',
         success: false,
         data: null,
-        code: 400,
+        code: 'VALIDATION_ERROR',
+        statusCode: 400,
         path: '/api/v1/test-endpoint',
       }),
     );
@@ -90,7 +108,8 @@ describe('GlobalExceptionFilter', () => {
         message: 'Lỗi máy chủ nội bộ',
         success: false,
         data: null,
-        code: 500,
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
         path: '/api/v1/test-endpoint',
       }),
     );

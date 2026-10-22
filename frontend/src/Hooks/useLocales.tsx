@@ -16,5 +16,8 @@ export default function useLocales() {
     document.documentElement.lang = lang; // cập nhật <html lang> cho trình đọc màn hình
   };
 
-  return { translate, onChangeLang, currentLang, allLang: LANGS };
+  const translateError = (code?: string) =>
+  translate(`errors.${code}`, { defaultValue: translate('common.unknownError') });
+
+  return { translate, onChangeLang, currentLang, allLang: LANGS, translateError };
 }
