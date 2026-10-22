@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Body,
   UseGuards,
@@ -15,6 +16,8 @@ import {
 } from '@nestjs/swagger';
 import { UserService } from './user.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { CreateUserDto } from './dto/create-user.dto.js';
+import { UserMapper } from './user.mapper.js';
 import { JwtAuthGuard } from '../../commons/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
 
@@ -24,6 +27,66 @@ import { CurrentUser } from '../../commons/decorators/current-user.decorator.js'
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  // ─── TẠO MỚI NGƯỜI DÙNG ──────────────────────────────────────────────────
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Tạo mới người dùng (Quản trị viên)',
+    description:
+      'Tạo tài khoản người dùng mới với thông tin cá nhân, phân quyền và liên hệ. ' +
+      'Mật khẩu sẽ được băm tự động bằng Argon2.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Tạo người dùng mới thành công.',
+    schema: {
+      example: {
+        message: 'Thành công',
+        success: true,
+        data: {
+          id: 2,
+          username: 'admin-vna',
+          fullName: 'Nguyễn Văn A',
+          dob: '1995-06-01',
+          gender: 1,
+          email: 'phanthanhthung093@gmail.com',
+          phoneNumber: '0901234567',
+          title: 'Chuyên viên',
+          avatarUrl: 'https://example.com/avatar.jpg',
+          provinceId: '79',
+          districtId: '764',
+          wardId: '26740',
+          address: 'Phường Gò Vấp, TP Hồ Chí Minh',
+          roleId: 2,
+          enterpriseId: null,
+          isActive: true,
+          createdAt: '2026-10-22T08:00:00.000Z',
+          updatedAt: '2026-10-22T08:00:00.000Z',
+        },
+        code: 201,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dữ liệu đầu vào không hợp lệ.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Chưa đăng nhập.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Tên đăng nhập hoặc Email đã tồn tại trong hệ thống.',
+  })
+  async createUser(
+    @CurrentUser() user: { id: number },
+    @Body() dto: CreateUserDto,
+  ) {
+    const newUser = await this.userService.createUser(dto, user?.id);
+    return UserMapper.toResponse(newUser);
+  }
 
   // ─── XEM THÔNG TIN TÀI KHOẢN ──────────────────────────────────────────────
   @Get('me')
@@ -80,28 +143,7 @@ export class UserController {
     const profile = await this.userService.findOneOrFail({
       where: { id: user.id },
     });
-
-    // Trả về các trường hiển thị; các trường nhạy cảm đã bị @Exclude() trong entity
-    return {
-      id: profile.id,
-      username: profile.username,         // Read-only – chỉ hiển thị, không cho sửa
-      fullName: profile.fullName,
-      dob: profile.dob,
-      gender: profile.gender,
-      email: profile.email,
-      phoneNumber: profile.phoneNumber,
-      title: profile.title,
-      avatarUrl: profile.avatarUrl,
-      provinceId: profile.provinceId,
-      districtId: profile.districtId,
-      wardId: profile.wardId,
-      address: profile.address,
-      roleId: profile.roleId,
-      enterpriseId: profile.enterpriseId,
-      isActive: profile.isActive,
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
-    };
+    return UserMapper.toResponse(profile);
   }
 
   // ─── CẬP NHẬT THÔNG TIN TÀI KHOẢN ────────────────────────────────────────
