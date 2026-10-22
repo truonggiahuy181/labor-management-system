@@ -138,6 +138,39 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const userIdStr = await this.client.get(`rt:${tokenHash}`);
     return userIdStr ? parseInt(userIdStr, 10) : null;
   }
+  // ─── OTP: chống gửi lại quá nhanh và chống dò mã ─────────────────────────────
+  // key: `otp_cd:<scope>` – tồn tại trong thời gian chờ gửi lại
+  // Trả về false nếu vẫn còn trong thời gian chờ
+  async acquireOtpCooldown(scope: string, ttlSeconds: number): Promise<boolean> {
+    const res = await this.client.set(`otp_cd:${scope}`, '1', 'EX', ttlSeconds, 'NX');
+    return res === 'OK';
+  }
+
+  // key: `otp_try:<scope>` – số lần nhập sai, tự hết hạn cùng OTP
+  async incrementOtpAttempts(scope: string, ttlSeconds: number): Promise<number> {
+    const multi = this.client.multi();
+    multi.incr(`otp_try:${scope}`);
+    multi.expire(`otp_try:${scope}`, ttlSeconds);
+    const results = await multi.exec();
+    return Number(results?.[0]?.[1] ?? 0);
+  }
+
+  async clearOtpAttempts(scope: string): Promise<void> {
+    await this.client.del(`otp_try:${scope}`);
+  }
+
+  // ─── Lưu trữ tạm (OTP đăng ký, verify token) ─────────────────────────────────
+  async setTemp(key: string, value: string, ttlSeconds: number): Promise<void> {
+    await this.client.set(key, value, 'EX', ttlSeconds);
+  }
+
+  async getTemp(key: string): Promise<string | null> {
+    return await this.client.get(key);
+  }
+
+  async deleteTemp(key: string): Promise<void> {
+    await this.client.del(key);
+  }
 
   async deleteRefreshToken(userId: number): Promise<void> {
     const tokenHash = await this.client.get(`user_rt:${userId}`);
