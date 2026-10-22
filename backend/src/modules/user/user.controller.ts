@@ -20,15 +20,17 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UserMapper } from './user.mapper.js';
 import { JwtAuthGuard } from '../../commons/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
+import { Public } from '../../commons/decorators/public.decorator.js';
 
 @ApiTags('Users – Người dùng')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   // ─── TẠO MỚI NGƯỜI DÙNG ──────────────────────────────────────────────────
+  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
