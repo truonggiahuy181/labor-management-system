@@ -34,7 +34,8 @@ export class UpdateUserDto extends UpdateProfileDto {
   password?: string;
 
   @ApiPropertyOptional({
-    description: 'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên/Doanh nghiệp,...)',
+    description:
+      'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên/Doanh nghiệp,...)',
     example: 2,
   })
   @IsOptional()
@@ -49,7 +50,7 @@ export class UpdateUserDto extends UpdateProfileDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'ID doanh nghiệp phải là số nguyên' })
-  enterpriseId?: number;
+  enterpriseId?: number | null;
 
   @ApiPropertyOptional({
     description: 'Trạng thái kích hoạt tài khoản',

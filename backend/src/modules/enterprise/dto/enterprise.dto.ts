@@ -1,115 +1,117 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
   IsEmail,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
+  Min,
   Matches,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
 const PHONE_RE = /^0\d{9}$/;
-const LEVEL_FOUR_INDUSTRY_CODE_RE = /^\d{4}$/;
 
 export class CreateEnterpriseDto {
-  @ApiProperty({ example: 'Công ty TNHH ABC' })
+  @ApiProperty({ example: 'Công ty TNHH ABC', maxLength: 255 })
   @IsString()
   @IsNotEmpty()
-  companyName: string;
+  @MaxLength(255)
+  enterpriseName: string;
 
   @ApiProperty({ example: '0101234567' })
   @Matches(TAX_CODE_RE, { message: 'Mã số thuế không hợp lệ' })
+  @MaxLength(50)
   taxCode: string;
 
-  @ApiProperty({ example: 'TNHH1' })
-  @IsString()
+  @ApiProperty({ example: 1, description: 'ID loại hình kinh doanh' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   @IsNotEmpty()
-  businessType: string;
+  businessTypeId: number;
 
-  @ApiProperty({ example: '6201', description: 'Mã ngành nghề kinh doanh cấp 4' })
-  @Matches(LEVEL_FOUR_INDUSTRY_CODE_RE, {
-    message: 'Ngành nghề kinh doanh phải là mã ngành cấp 4 gồm 4 chữ số',
-  })
-  mainIndustry: string;
+  @ApiProperty({ example: 1, description: 'ID ngành nghề kinh doanh chính' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsNotEmpty()
+  industryId: number;
 
   @ApiProperty({ example: '2020-01-15' })
   @IsDateString({}, { message: 'Ngày cấp phép không hợp lệ' })
-  licenseDate: string;
+  registrationDate: string;
 
-  @ApiProperty({ example: 'HCM' })
+  @ApiProperty({ example: '79', maxLength: 20 })
   @IsString()
   @IsNotEmpty()
-  province: string;
+  @MaxLength(20)
+  provinceId: string;
 
-  @ApiProperty({ example: 'TAN_DINH' })
+  @ApiProperty({ example: '26734', maxLength: 20 })
   @IsString()
   @IsNotEmpty()
-  ward: string;
+  @MaxLength(20)
+  wardId: string;
 
-  @ApiProperty({ example: '12 Nguyễn Huệ' })
+  @ApiProperty({ example: '12 Nguyễn Huệ', maxLength: 255 })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   address: string;
 
-  @ApiProperty({ example: 'contact@company.vn' })
+  @ApiProperty({ example: 'contact@company.vn', maxLength: 100 })
   @IsEmail({}, { message: 'Email không hợp lệ' })
+  @MaxLength(100)
   email: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   foreignName?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 20 })
   @IsOptional()
   @IsString()
-  officePhone?: string;
+  @Matches(PHONE_RE, { message: 'Số điện thoại không hợp lệ' })
+  phoneNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 100 })
   @IsOptional()
   @IsString()
-  leaderName?: string;
+  @MaxLength(100)
+  representativeName?: string;
 
   @ApiPropertyOptional({ example: '0912345678' })
   @IsOptional()
   @Matches(PHONE_RE, { message: 'Số điện thoại không hợp lệ' })
-  leaderPhone?: string;
+  representativePhone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 20 })
   @IsOptional()
   @IsString()
-  operatingProvince?: string;
+  @MaxLength(20)
+  operatingProvinceId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 20 })
   @IsOptional()
   @IsString()
-  operatingWard?: string;
+  @MaxLength(20)
+  operatingWardId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()
   @IsString()
-  businessLocation?: string;
-
-  @ApiPropertyOptional({ description: 'Đường dẫn giấy phép kinh doanh đã tải lên' })
-  @IsOptional()
-  @IsString()
-  businessLicensePath?: string;
-
-  @ApiPropertyOptional({ description: 'Đường dẫn giấy tờ đính kèm khác đã tải lên' })
-  @IsOptional()
-  @IsString()
-  otherDocumentPath?: string;
+  @MaxLength(255)
+  operatingAddress?: string;
 }
 
-export class UpdateEnterpriseDto extends PartialType(CreateEnterpriseDto) {
-  @ApiPropertyOptional({ description: 'Trạng thái hoạt động' })
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
-}
+export class UpdateEnterpriseDto extends PartialType(CreateEnterpriseDto) {}
 
 export class UpdateEnterpriseStatusDto {
   @ApiProperty({ example: true })

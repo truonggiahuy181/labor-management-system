@@ -14,7 +14,11 @@ import { Type } from 'class-transformer';
 export class UpdateProfileDto {
   // ── Tên đăng nhập & Email: KHÔNG được phép thay đổi qua endpoint này (xử lý ở service/luồng OTP)
 
-  @ApiPropertyOptional({ description: 'Họ và tên', example: 'Nguyễn Văn A', maxLength: 100 })
+  @ApiPropertyOptional({
+    description: 'Họ và tên',
+    example: 'Nguyễn Văn A',
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   @MaxLength(100, { message: 'Họ và tên không được vượt quá 100 ký tự' })
@@ -36,10 +40,15 @@ export class UpdateProfileDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Giới tính phải là số nguyên' })
-  @IsIn([0, 1, 2], { message: 'Giới tính không hợp lệ (0: Nữ, 1: Nam, 2: Khác)' })
+  @IsIn([0, 1, 2], {
+    message: 'Giới tính không hợp lệ (0: Nữ, 1: Nam, 2: Khác)',
+  })
   gender?: number;
 
-  @ApiPropertyOptional({ description: 'Số điện thoại (10-11 số)', example: '0901234567' })
+  @ApiPropertyOptional({
+    description: 'Số điện thoại (10-11 số)',
+    example: '0901234567',
+  })
   @IsOptional()
   @IsString({ message: 'Số điện thoại phải là chuỗi ký tự' })
   @Matches(/^[0-9]{10,11}$/, {
@@ -47,7 +56,11 @@ export class UpdateProfileDto {
   })
   phoneNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Chức danh', example: 'Chuyên viên', maxLength: 100 })
+  @ApiPropertyOptional({
+    description: 'Chức danh',
+    example: 'Chuyên viên',
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Chức danh phải là chuỗi ký tự' })
   @MaxLength(100, { message: 'Chức danh không được vượt quá 100 ký tự' })
@@ -60,23 +73,38 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsString({ message: 'URL ảnh đại diện phải là chuỗi ký tự' })
-  @IsUrl({}, { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' })
+  @IsUrl(
+    {},
+    { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' },
+  )
   @MaxLength(255, { message: 'URL ảnh đại diện không được vượt quá 255 ký tự' })
   avatarUrl?: string;
 
-  @ApiPropertyOptional({ description: 'Mã tỉnh/thành phố', example: '79', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã tỉnh/thành phố',
+    example: '79',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã tỉnh/thành phố phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã tỉnh/thành phố không được vượt quá 20 ký tự' })
   provinceId?: string;
 
-  @ApiPropertyOptional({ description: 'Mã quận/huyện', example: '764', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã quận/huyện',
+    example: '764',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã quận/huyện phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã quận/huyện không được vượt quá 20 ký tự' })
   districtId?: string;
 
-  @ApiPropertyOptional({ description: 'Mã phường/xã', example: '26740', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã phường/xã',
+    example: '26740',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã phường/xã phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã phường/xã không được vượt quá 20 ký tự' })

@@ -36,10 +36,6 @@ export abstract class BaseService<T extends BaseEntity> {
     return this.findOneOrFail({ where: { id } as any });
   }
 
-  async softDelete(id: number): Promise<void> {
-    await this.repository.softDelete(id);
-  }
-
   async paginate(
     page: number,
     pageSize: number,

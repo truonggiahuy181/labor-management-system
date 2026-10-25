@@ -1,11 +1,9 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
 import { DataSource, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
@@ -17,16 +15,19 @@ import {
 } from './dto/enterprise.dto.js';
 import { EnterpriseEntity } from './enterprise.entity.js';
 import { EnterpriseMapper, EnterpriseResponse } from './enterprise.mapper.js';
-
-const LEVEL_FOUR_INDUSTRY_CODE_RE = /^\d{4}$/;
+import { BusinessTypeService } from '../business-type/business-type.service.js';
+import { IndustryService } from '../industry/industry.service.js';
+import { RoleService } from '../role/role.service.js';
 
 @Injectable()
 export class EnterpriseService {
   constructor(
     @InjectRepository(EnterpriseEntity)
     private readonly enterpriseRepository: Repository<EnterpriseEntity>,
+    private readonly businessTypeService: BusinessTypeService,
+    private readonly industryService: IndustryService,
+    private readonly roleService: RoleService,
     private readonly userService: UserService,
-    private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -45,12 +46,15 @@ export class EnterpriseService {
     dto: CreateEnterpriseDto,
     creatorId?: number,
   ): Promise<EnterpriseResponse> {
-    this.assertLevelFourIndustry(dto.mainIndustry);
+    await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
+    await this.industryService.getLevelFourByIdOrFail(dto.industryId);
     await this.assertTaxCodeAvailable(dto.taxCode);
     await this.assertEmailAvailable(dto.email);
 
+    const enterpriseRole =
+      await this.roleService.getByCodeOrFail('ENTERPRISE_USER');
+
     const passwordHash = await argon2.hash('1-8');
-    const roleId = Number(this.configService.get('ENTERPRISE_ROLE_ID', 2));
 
     const enterprise = await this.dataSource.transaction(async (manager) => {
       const newEnterprise = await manager.save(
@@ -58,14 +62,12 @@ export class EnterpriseService {
           ...dto,
           email: dto.email.trim().toLowerCase(),
           foreignName: dto.foreignName ?? null,
-          officePhone: dto.officePhone ?? null,
-          leaderName: dto.leaderName ?? null,
-          leaderPhone: dto.leaderPhone ?? null,
-          operatingProvince: dto.operatingProvince ?? null,
-          operatingWard: dto.operatingWard ?? null,
-          businessLocation: dto.businessLocation ?? null,
-          businessLicensePath: dto.businessLicensePath ?? null,
-          otherDocumentPath: dto.otherDocumentPath ?? null,
+          phoneNumber: dto.phoneNumber ?? null,
+          representativeName: dto.representativeName ?? null,
+          representativePhone: dto.representativePhone ?? null,
+          operatingProvinceId: dto.operatingProvinceId ?? null,
+          operatingWardId: dto.operatingWardId ?? null,
+          operatingAddress: dto.operatingAddress ?? null,
           isActive: true,
           createdBy: creatorId ?? null,
           updatedBy: creatorId ?? null,
@@ -76,10 +78,10 @@ export class EnterpriseService {
         manager.create(UserEntity, {
           username: dto.taxCode,
           passwordHash,
-          fullName: dto.leaderName || dto.companyName,
+          fullName: dto.representativeName || dto.enterpriseName,
           email: dto.email.trim().toLowerCase(),
-          phoneNumber: dto.leaderPhone ?? null,
-          roleId,
+          phoneNumber: dto.representativePhone ?? null,
+          roleId: enterpriseRole.id,
           enterpriseId: newEnterprise.id,
           isActive: true,
           createdBy: creatorId ?? null,
@@ -98,16 +100,24 @@ export class EnterpriseService {
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
     const enterprise = await this.findEntityOrFail(id);
-    if (dto.mainIndustry !== undefined) {
-      this.assertLevelFourIndustry(dto.mainIndustry);
+    if (dto.businessTypeId !== undefined) {
+      await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
+    }
+    if (dto.industryId !== undefined) {
+      await this.industryService.getLevelFourByIdOrFail(dto.industryId);
     }
     if (dto.taxCode && dto.taxCode !== enterprise.taxCode) {
       await this.assertTaxCodeAvailable(dto.taxCode);
     }
 
+    const normalizedEmail = dto.email?.trim().toLowerCase();
+    if (normalizedEmail && normalizedEmail !== enterprise.email) {
+      await this.assertEmailAvailable(normalizedEmail);
+    }
+
     const updateData: Partial<EnterpriseEntity> = {
       ...dto,
-      email: dto.email?.trim().toLowerCase(),
+      email: normalizedEmail,
       updatedBy: updaterId ?? null,
     };
     Object.keys(updateData).forEach((key) => {
@@ -133,15 +143,15 @@ export class EnterpriseService {
     return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
   }
 
-  async remove(id: number): Promise<void> {
-    await this.findEntityOrFail(id);
-    await this.enterpriseRepository.softDelete(id);
-  }
-
   private async findEntityOrFail(id: number): Promise<EnterpriseEntity> {
-    const enterprise = await this.enterpriseRepository.findOne({ where: { id } });
+    const enterprise = await this.enterpriseRepository.findOne({
+      where: { id },
+    });
     if (!enterprise) {
-      throw new NotFoundException('Không tìm thấy doanh nghiệp');
+      throw new NotFoundException({
+        code: ErrorCode.ENTERPRISE_NOT_FOUND,
+        message: 'Không tìm thấy doanh nghiệp.',
+      });
     }
     return enterprise;
   }
@@ -166,15 +176,6 @@ export class EnterpriseService {
       throw new ConflictException({
         code: ErrorCode.EMAIL_EXISTS,
         message: 'Email đã được sử dụng.',
-      });
-    }
-  }
-
-  private assertLevelFourIndustry(mainIndustry: string): void {
-    if (!LEVEL_FOUR_INDUSTRY_CODE_RE.test(mainIndustry)) {
-      throw new BadRequestException({
-        code: ErrorCode.INVALID_MAIN_INDUSTRY,
-        message: 'Chỉ được chọn ngành nghề kinh doanh cấp 4.',
       });
     }
   }

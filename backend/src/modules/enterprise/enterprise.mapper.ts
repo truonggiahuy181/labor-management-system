@@ -2,24 +2,22 @@ import { EnterpriseEntity } from './enterprise.entity.js';
 
 export interface EnterpriseResponse {
   id: number;
-  companyName: string;
+  enterpriseName: string;
   taxCode: string;
-  businessType: string;
-  mainIndustry: string;
-  licenseDate: string;
-  province: string;
-  ward: string;
+  businessTypeId: number;
+  industryId: number;
+  registrationDate: string;
+  provinceId: string;
+  wardId: string;
   address: string;
   foreignName: string | null;
   email: string;
-  officePhone: string | null;
-  leaderName: string | null;
-  leaderPhone: string | null;
-  operatingProvince: string | null;
-  operatingWard: string | null;
-  businessLocation: string | null;
-  businessLicensePath: string | null;
-  otherDocumentPath: string | null;
+  phoneNumber: string | null;
+  representativeName: string | null;
+  representativePhone: string | null;
+  operatingProvinceId: string | null;
+  operatingWardId: string | null;
+  operatingAddress: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -29,24 +27,22 @@ export class EnterpriseMapper {
   static toResponse(entity: EnterpriseEntity): EnterpriseResponse {
     return {
       id: entity.id,
-      companyName: entity.companyName,
+      enterpriseName: entity.enterpriseName,
       taxCode: entity.taxCode,
-      businessType: entity.businessType,
-      mainIndustry: entity.mainIndustry,
-      licenseDate: entity.licenseDate,
-      province: entity.province,
-      ward: entity.ward,
+      businessTypeId: entity.businessTypeId,
+      industryId: entity.industryId,
+      registrationDate: entity.registrationDate,
+      provinceId: entity.provinceId,
+      wardId: entity.wardId,
       address: entity.address,
       foreignName: entity.foreignName,
       email: entity.email,
-      officePhone: entity.officePhone,
-      leaderName: entity.leaderName,
-      leaderPhone: entity.leaderPhone,
-      operatingProvince: entity.operatingProvince,
-      operatingWard: entity.operatingWard,
-      businessLocation: entity.businessLocation,
-      businessLicensePath: entity.businessLicensePath,
-      otherDocumentPath: entity.otherDocumentPath,
+      phoneNumber: entity.phoneNumber,
+      representativeName: entity.representativeName,
+      representativePhone: entity.representativePhone,
+      operatingProvinceId: entity.operatingProvinceId,
+      operatingWardId: entity.operatingWardId,
+      operatingAddress: entity.operatingAddress,
       isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,

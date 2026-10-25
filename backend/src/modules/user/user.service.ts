@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as argon2 from 'argon2';
@@ -8,12 +12,18 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UserMapper, UserResponse } from './user.mapper.js';
+import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
+import { RoleService } from '../role/role.service.js';
+import { ErrorCode } from '../../commons/constants/error-codes.js';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(EnterpriseEntity)
+    private readonly enterpriseRepository: Repository<EnterpriseEntity>,
+    private readonly roleService: RoleService,
   ) {
     super(userRepository);
   }
@@ -53,7 +63,10 @@ export class UserService extends BaseService<UserEntity> {
     return UserMapper.toResponse(user);
   }
 
-  async createUser(dto: CreateUserDto, creatorId?: number): Promise<UserResponse> {
+  async createUser(
+    dto: CreateUserDto,
+    creatorId?: number,
+  ): Promise<UserResponse> {
     // 1. Kiểm tra username đã tồn tại chưa
     const existingUsername = await this.findByUsername(dto.username);
     if (existingUsername) {
@@ -67,6 +80,8 @@ export class UserService extends BaseService<UserEntity> {
         throw new ConflictException('Email đã tồn tại trong hệ thống.');
       }
     }
+
+    await this.assertReferences(dto.roleId, dto.enterpriseId);
 
     // 3. Băm mật khẩu bằng Argon2
     const passwordHash = await argon2.hash(dto.password);
@@ -131,6 +146,7 @@ export class UserService extends BaseService<UserEntity> {
         throw new ConflictException('Email đã tồn tại trong hệ thống.');
       }
     }
+    await this.assertReferences(dto.roleId, dto.enterpriseId);
 
     // 2. Chuẩn bị dữ liệu cập nhật
     const updateData: Partial<UserEntity> = {
@@ -192,5 +208,26 @@ export class UserService extends BaseService<UserEntity> {
       updatedBy: adminId ?? null,
     });
     return UserMapper.toResponse(updatedUser);
+  }
+
+  private async assertReferences(
+    roleId?: number,
+    enterpriseId?: number | null,
+  ): Promise<void> {
+    if (roleId !== undefined) {
+      await this.roleService.getByIdOrFail(roleId);
+    }
+
+    if (enterpriseId !== undefined && enterpriseId !== null) {
+      const enterpriseExists = await this.enterpriseRepository.exists({
+        where: { id: enterpriseId },
+      });
+      if (!enterpriseExists) {
+        throw new BadRequestException({
+          code: ErrorCode.ENTERPRISE_NOT_FOUND,
+          message: 'Doanh nghiệp không tồn tại.',
+        });
+      }
+    }
   }
 }

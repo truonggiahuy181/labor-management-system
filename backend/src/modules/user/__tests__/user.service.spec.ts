@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { UserService } from '../user.service.js';
 import type { UserEntity } from '../user.entity.js';
@@ -15,6 +19,8 @@ vi.mock('argon2', () => ({
 describe('UserService', () => {
   let service: UserService;
   let repository: Partial<Repository<UserEntity>>;
+  let enterpriseRepository: { exists: ReturnType<typeof vi.fn> };
+  let roleService: { getByIdOrFail: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     repository = {
@@ -25,7 +31,18 @@ describe('UserService', () => {
       update: vi.fn().mockResolvedValue({ affected: 1 } as any),
     };
 
-    service = new UserService(repository as Repository<UserEntity>);
+    enterpriseRepository = {
+      exists: vi.fn().mockResolvedValue(true),
+    };
+    roleService = {
+      getByIdOrFail: vi.fn().mockResolvedValue({ id: 1 }),
+    };
+
+    service = new UserService(
+      repository as Repository<UserEntity>,
+      enterpriseRepository as any,
+      roleService as any,
+    );
   });
 
   describe('getAllUsers', () => {
@@ -63,8 +80,12 @@ describe('UserService', () => {
 
       const result = await service.createUser(dto, 1);
 
-      expect(repository.findOne).toHaveBeenCalledWith({ where: { username: 'admin-vna' } });
-      expect(repository.findOne).toHaveBeenCalledWith({ where: { email: 'phanthanhthung093@gmail.com' } });
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { username: 'admin-vna' },
+      });
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { email: 'phanthanhthung093@gmail.com' },
+      });
       expect(repository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           username: 'admin-vna',
@@ -101,8 +122,12 @@ describe('UserService', () => {
         roleId: 2,
       };
 
-      await expect(service.createUser(dto, 1)).rejects.toThrow(ConflictException);
-      await expect(service.createUser(dto, 1)).rejects.toThrow('Tên đăng nhập đã tồn tại trong hệ thống.');
+      await expect(service.createUser(dto, 1)).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(service.createUser(dto, 1)).rejects.toThrow(
+        'Tên đăng nhập đã tồn tại trong hệ thống.',
+      );
     });
 
     it('nên ném ConflictException nếu email đã tồn tại', async () => {
@@ -121,8 +146,53 @@ describe('UserService', () => {
         roleId: 2,
       };
 
-      await expect(service.createUser(dto, 1)).rejects.toThrow(ConflictException);
-      await expect(service.createUser(dto, 1)).rejects.toThrow('Email đã tồn tại trong hệ thống.');
+      await expect(service.createUser(dto, 1)).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(service.createUser(dto, 1)).rejects.toThrow(
+        'Email đã tồn tại trong hệ thống.',
+      );
+    });
+
+    it('nên từ chối roleId không tồn tại', async () => {
+      (repository.findOne as any).mockResolvedValue(null);
+      roleService.getByIdOrFail.mockRejectedValue(
+        new BadRequestException('Vai trò không tồn tại.'),
+      );
+
+      await expect(
+        service.createUser(
+          {
+            username: 'new-user',
+            password: 'PlainPassword123',
+            fullName: 'Người dùng mới',
+            email: 'new-user@example.com',
+            roleId: 999,
+          },
+          1,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
+    it('nên từ chối enterpriseId không tồn tại', async () => {
+      (repository.findOne as any).mockResolvedValue(null);
+      enterpriseRepository.exists.mockResolvedValue(false);
+
+      await expect(
+        service.createUser(
+          {
+            username: 'enterprise-user',
+            password: 'PlainPassword123',
+            fullName: 'Người dùng doanh nghiệp',
+            email: 'enterprise-user@example.com',
+            roleId: 2,
+            enterpriseId: 999,
+          },
+          1,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -209,7 +279,9 @@ describe('UserService', () => {
 
       const dto: UpdateProfileDto = { fullName: 'Tên mới' };
 
-      await expect(service.updateProfile(999, dto)).rejects.toThrow(NotFoundException);
+      await expect(service.updateProfile(999, dto)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -278,8 +350,40 @@ describe('UserService', () => {
         email: 'taken@example.com',
       };
 
-      await expect(service.updateUser(2, dto, 1)).rejects.toThrow(ConflictException);
-      await expect(service.updateUser(2, dto, 1)).rejects.toThrow('Email đã tồn tại trong hệ thống.');
+      await expect(service.updateUser(2, dto, 1)).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(service.updateUser(2, dto, 1)).rejects.toThrow(
+        'Email đã tồn tại trong hệ thống.',
+      );
+    });
+
+    it('nên từ chối roleId không tồn tại trước khi cập nhật', async () => {
+      (repository.findOne as any).mockResolvedValue({
+        id: 2,
+        email: 'user@example.com',
+      });
+      roleService.getByIdOrFail.mockRejectedValue(
+        new BadRequestException('Vai trò không tồn tại.'),
+      );
+
+      await expect(service.updateUser(2, { roleId: 999 }, 1)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('nên từ chối enterpriseId không tồn tại trước khi cập nhật', async () => {
+      (repository.findOne as any).mockResolvedValue({
+        id: 2,
+        email: 'user@example.com',
+      });
+      enterpriseRepository.exists.mockResolvedValue(false);
+
+      await expect(
+        service.updateUser(2, { enterpriseId: 999 }, 1),
+      ).rejects.toThrow(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
     });
   });
 
@@ -304,7 +408,9 @@ describe('UserService', () => {
     });
 
     it('nên ném BadRequestException nếu Quản trị viên tự khóa tài khoản của chính mình', async () => {
-      await expect(service.updateStatus(1, false, 1)).rejects.toThrow(BadRequestException);
+      await expect(service.updateStatus(1, false, 1)).rejects.toThrow(
+        BadRequestException,
+      );
       await expect(service.updateStatus(1, false, 1)).rejects.toThrow(
         'Bạn không thể tự khóa tài khoản của chính mình.',
       );
@@ -326,7 +432,9 @@ describe('UserService', () => {
     it('nên ném NotFoundException nếu người dùng không tồn tại', async () => {
       (repository.findOne as any).mockResolvedValue(null);
 
-      await expect(service.updateStatus(999, false, 1)).rejects.toThrow(NotFoundException);
+      await expect(service.updateStatus(999, false, 1)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
