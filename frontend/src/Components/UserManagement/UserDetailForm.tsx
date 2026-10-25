@@ -3,7 +3,7 @@
 //   user = null → thêm mới (POST /users), user có giá trị → sửa (PATCH /users/:id, không đổi tên đăng nhập / mật khẩu / email)
 // Giao diện dùng chung với trang Thông tin tài khoản (Components/UserProfile)
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
 import { MenuItem, TextField } from '@mui/material';
@@ -17,7 +17,7 @@ import ProfileSections from '@/Components/UserProfile/ProfileSections';
 import { GENDERS, PROVINCES, WARDS } from '@/Components/UserProfile/options';
 import useLocales from '@/Hooks/useLocales';
 import { ROLE } from '@/constants/roles';
-import { adminUserApi, getErrorMessage, type Profile, type UserBody } from '@/services/user';
+import { adminUserApi, getErrorMessage, roleApi, type Profile, type Role, type UserBody } from '@/services/user';
 import { ROLE_OPTIONS } from './roleOptions';
 
 type Form = {
@@ -54,6 +54,15 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
 
   useEffect(() => { reset(toForm(user)); }, [user, reset]);
 
+  // Danh sách vai trò đang hoạt động trong DB; null = chưa tải được → dùng ROLE_OPTIONS cố định
+  const [roles, setRoles] = useState<Role[] | null>(null);
+  useEffect(() => {
+    roleApi.list().then((rs) => setRoles(rs.filter((r) => r.isActive))).catch(() => setRoles(null));
+  }, []);
+  const roleOptions = roles
+    ? roles.map((r) => ({ value: r.id, label: r.roleName }))
+    : ROLE_OPTIONS.map((o) => ({ value: o.value, label: translate(o.label) }));
+
   const required = translate('common.required');
   const maxLength = (value: number) => ({ value, message: translate('users.maxLength', { max: value }) });
 
@@ -76,6 +85,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
         pattern: { value: /^[a-zA-Z0-9_-]+$/, message: translate('users.invalidUsername') },
       }} />
   );
+  
   const passwordField = (
     <Controller name="password" control={control}
       rules={{ required, minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) } }}
@@ -92,11 +102,18 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const titleField = <FormTextField control={control} name="title" label="account.title" rules={{ maxLength: maxLength(MAX.title) }} />;
   const roleField = (
     <Controller name="roleId" control={control}
-      render={({ field: f }) => (
-        <TextField {...f} select fullWidth size="small" required label={translate('account.role')}>
-          {ROLE_OPTIONS.map((o) => <MenuItem key={o.value} value={o.value}>{translate(o.label)}</MenuItem>)}
-        </TextField>
-      )} />
+      rules={{ validate: (v) => !roles || roles.some((r) => r.id === v) || translate('users.roleInactive') }}
+      render={({ field: f, fieldState }) => {
+        // Vai trò hiện tại không còn trong DB → vẫn hiện để người dùng thấy và chọn lại
+        const missing = !roleOptions.some((o) => o.value === f.value);
+        return (
+          <TextField {...f} select fullWidth size="small" required label={translate('account.role')}
+            error={!!fieldState.error} helperText={fieldState.error?.message}>
+            {missing && <MenuItem value={f.value} disabled>{translate('account.roleUnknown', { id: f.value })}</MenuItem>}
+            {roleOptions.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+          </TextField>
+        );
+      }} />
   );
   const emailField = (
     <FormTextField control={control} name="email" label="account.email" disabled={isEdit}

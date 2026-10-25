@@ -116,16 +116,28 @@ export default function UsersPage() {
     }
   };
 
-  const deleteSelected = async () => {
-    try {
-      const { deleted } = await adminUserApi.remove(selected);
-      enqueueSnackbar(translate('users.deleteSuccess', { count: deleted }), { variant: 'success' });
-      setSelected([]);
-      setConfirmDelete(false);
-      load();
-    } catch (err) {
-      enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
-    }
+  const lockSelected = async () => {
+    // 1. Bỏ tài khoản đang đăng nhập ra khỏi danh sách cần khoá
+    const ids = selected.filter((id) => id !== Number(user?.id));
+
+    // 2. Gọi PATCH /users/:id/status { isActive: false } cho từng user, chạy song song
+    const results = await Promise.allSettled(ids.map((id) => adminUserApi.updateStatus(id, false)));
+
+    // 3. Đếm số request thành công
+    const locked = results.filter((r) => r.status === 'fulfilled').length;
+
+    // 4. Lấy request lỗi đầu tiên (nếu có) để hiện thông báo lỗi của backend
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+    // 5. Thông báo kết quả
+    if (locked) enqueueSnackbar(translate('users.lockSuccess', { count: locked }), { variant: 'success' });
+    if (ids.length < selected.length) enqueueSnackbar(translate('users.lockSelfSkipped'), { variant: 'warning' });
+    if (failed) enqueueSnackbar(getErrorMessage(failed.reason, translate('common.unknownError')), { variant: 'error' });
+
+    // 6. Dọn trạng thái và tải lại bảng
+    setSelected([]);
+    setConfirmDelete(false);
+    load();
   };
 
   // Xuất các dòng đang hiển thị ra CSV (BOM để Excel đọc đúng tiếng Việt)
@@ -273,7 +285,7 @@ export default function UsersPage() {
         <DialogContent>{translate('users.deleteConfirm', { count: selected.length })}</DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmDelete(false)}>{translate('common.cancel')}</Button>
-          <Button variant="contained" color="error" onClick={deleteSelected}>{translate('users.delete')}</Button>
+          <Button variant="contained" color="error" onClick={lockSelected}>{translate('users.lock')}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

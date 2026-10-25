@@ -3,8 +3,10 @@
 //   1. Thông tin doanh nghiệp → "Tiếp tục" gửi OTP về email
 //   2. Hộp thoại Xác thực email → nhập OTP đúng thì sang bước xác nhận
 //   3. Xác nhận đăng ký → "Xác nhận" tạo tài khoản; dùng được ngay, tên đăng nhập = mã số thuế
+// mode="admin" (Quản trị viên, trang Quản lý doanh nghiệp): bỏ bước OTP, thêm mới bằng POST /enterprises,
+// truyền `enterprise` để cập nhật bằng PATCH /enterprises/:id.
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Step, StepLabel, Stepper,
@@ -16,6 +18,11 @@ import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
+import {
+  ENTERPRISE_DEFAULT_PASSWORD, enterpriseApi, toBusinessInfo, toEnterpriseBody, type Enterprise,
+} from '@/services/enterprise';
+import { getErrorMessage } from '@/services/user';
+import type { CatalogOptions } from './options';
 import BusinessInfoStep from './BusinessInfoStep';
 import ConfirmStep from './ConfirmStep';
 import EmailOtpDialog from './EmailOtpDialog';
@@ -34,10 +41,14 @@ type Props = {
   onClose: () => void;
   mode?: 'register' | 'admin';
   onRegistered?: (username: string) => void;   // ví dụ: điền sẵn tên đăng nhập ở trang login
-  onCreated?: () => void;   // admin thêm doanh nghiệp thành công (mở popup CreatedAccountDialog)
+  onCreated?: () => void;   // admin thêm / cập nhật doanh nghiệp thành công (ví dụ: tải lại danh sách)
+  enterprise?: Enterprise | null;   // admin: có giá trị = cập nhật doanh nghiệp này
+  catalog?: CatalogOptions;         // admin: danh mục loại hình / ngành nghề thật từ API
 };
 
-export default function BusinessRegisterDialog({ open, onClose, onRegistered, mode = 'register', onCreated }: Props) {
+export default function BusinessRegisterDialog({
+  open, onClose, onRegistered, mode = 'register', onCreated, enterprise = null, catalog,
+}: Props) {
   const { translate, translateError } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
@@ -51,6 +62,12 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered, mo
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState<RegisteredAccount | null>(null);
   const isAdmin = mode === 'admin';
+  const isEdit = isAdmin && !!enterprise;
+
+  // Mở để sửa → điền sẵn dữ liệu doanh nghiệp (form.reset không phải setState của React)
+  useEffect(() => {
+    if (open) form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_INFO);
+  }, [open, enterprise, form]);
 
   const reset = () => {
     form.reset(EMPTY_INFO);
@@ -68,9 +85,10 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered, mo
   // Bước 1 → gửi OTP. Bắt buộc có Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
     async ({ email, taxCode }) => {
+      // Quản trị viên: backend chưa lưu file đính kèm (BACKEND_CHANGES.md) nên không bắt buộc GPKD
+      if (isAdmin) { setError(''); return setStep(1); }
       if (!files.businessLicense) return setError(t('licenseRequired'));
       setError('');
-      if (isAdmin) return setStep(1);
       setBusy(true);
       try {
         const res = await businessApi.sendOtp({ email, taxCode });
@@ -91,7 +109,33 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered, mo
     setStep(1);
   };
 
+  const submitAdmin = async () => {
+    const info = form.getValues();
+    setError('');
+    setBusy(true);
+    try {
+      if (enterprise) {
+        await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
+        enqueueSnackbar(translate('enterprises.updateSuccess'), { variant: 'success' });
+      } else {
+        const created = await enterpriseApi.create(toEnterpriseBody(info));
+        enqueueSnackbar(translate('enterprises.createSuccess'), { variant: 'success' });
+        setAccount({
+          username: created.taxCode, tempPassword: ENTERPRISE_DEFAULT_PASSWORD,
+          companyName: created.enterpriseName, email: created.email,
+        });
+      }
+      onCreated?.();
+      close();
+    } catch (err) {
+      setError(getErrorMessage(err, translate('common.unknownError')));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
+    if (isAdmin) return submitAdmin();
     setError('');
     setBusy(true);
     try {
@@ -123,8 +167,8 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered, mo
         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
           {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
           {step === 0
-            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} />
-            : <ConfirmStep info={form.getValues()} files={files} />}
+            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalog} isEdit={isEdit} />
+            : <ConfirmStep info={form.getValues()} files={files} catalog={catalog} />}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 1.5 }}>

@@ -79,7 +79,8 @@
     "notReceived": "Không nhận được mã xác thực?",
     "resend": "Gửi lại",
     "resendOtp": "Gửi lại mã xác thực",
-    "submit": "Xác nhận"
+    "submit": "Xác nhận",
+    "recentlySent": "Mã xác thực đã được gửi gần đây, vui lòng đợi {{seconds}} giây trước khi gửi lại"
   },
   "menu": {
     "toggle": "Thu gọn / mở menu",
@@ -229,6 +230,27 @@
     "invalidPhone": "Số điện thoại gồm 10–11 chữ số",
     "of": "{{from}} - {{to}} của {{count}}",
     "loadFailed": "Không tải được danh sách người dùng",
-    "adminOnly": "Chỉ Quản trị viên được xem trang này"
+    "adminOnly": "Chỉ Quản trị viên được xem trang này",
+    "lock": "Khoá",
+    "lockConfirmTitle": "Khoá người dùng",
+    "lockConfirm": "Khoá {{count}} tài khoản đã chọn? Người dùng sẽ không đăng nhập được, có thể mở lại bằng công tắc Trạng thái.",
+    "lockSuccess": "Đã khoá {{count}} tài khoản",
+    "lockSelfSkipped": "Không thể tự khoá tài khoản của chính mình, đã bỏ qua"
+  },
+  "enterprises": {
+    "title": "Danh sách doanh nghiệp",
+    "importFile": "Thêm từ file",
+    "industry": "Ngành nghề kinh doanh",
+    "ward": "Phường/ xã",
+    "updateSection": "Cập nhật doanh nghiệp",
+    "detailTitle": "Thông tin doanh nghiệp",
+    "loadFailed": "Không tải được danh sách doanh nghiệp",
+    "createSuccess": "Khai báo thành công",
+    "updateSuccess": "Cập nhật doanh nghiệp thành công",
+    "accountNotFound": "Không tìm thấy tài khoản của doanh nghiệp này",
+    "deleteConfirmTitle": "Xoá doanh nghiệp",
+    "deleteConfirm": "Xoá {{count}} doanh nghiệp đã chọn?",
+    "deleteSuccess": "Đã xoá {{count}} doanh nghiệp",
+    "deleteNotSupported": "Hệ thống chưa hỗ trợ xoá doanh nghiệp (backend chưa có API xoá)"
   }
 }

@@ -11,7 +11,7 @@ import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import useLocales from '@/Hooks/useLocales';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
-import { BUSINESS_TYPES, INDUSTRIES, PROVINCES, wardsOf, type Option } from './options';
+import { DEFAULT_CATALOG, PROVINCES, wardsOf, type CatalogOptions, type Option } from './options';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^0\d{9}$/;
@@ -22,6 +22,7 @@ type FieldDef = {
   name: keyof BusinessInfo;
   label: string;
   required?: boolean;
+  disabled?: boolean;
   rules?: RegisterOptions<BusinessInfo, keyof BusinessInfo>;
   options?: Option[];
   type?: 'date';
@@ -32,9 +33,11 @@ type Props = {
   form: UseFormReturn<BusinessInfo>;
   files: BusinessFiles;
   onFilesChange: (files: BusinessFiles) => void;
+  catalog?: CatalogOptions;
+  isEdit?: boolean;     // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
 };
 
-export default function BusinessInfoStep({ form, files, onFilesChange }: Props) {
+export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, isEdit = false }: Props) {
   const { translate } = useLocales();
   const { control, watch, setValue } = form;
   const t = (key: string) => translate(`businessRegister.${key}`);
@@ -45,64 +48,66 @@ export default function BusinessInfoStep({ form, files, onFilesChange }: Props) 
 
   const companyFields: FieldDef[] = [
     { name: 'companyName', label: t('companyName'), required: true },
-    { name: 'taxCode', label: t('taxCode'), required: true, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
-    { name: 'businessType', label: t('businessType'), required: true, options: BUSINESS_TYPES },
-    { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: INDUSTRIES },
+    { name: 'taxCode', label: t('taxCode'), required: true, disabled: isEdit, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
+    { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
+    { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
     { name: 'province', label: t('province'), required: true, options: PROVINCES },
     { name: 'ward', label: t('ward'), required: true, options: wardsOf(province) },
     { name: 'address', label: t('address'), required: true, span: 2 },
   ];
 
-  const contactFields: FieldDef[] = [
+  // Bố cục theo thiết kế: tên NN / email / SĐT – tỉnh / xã hoạt động – địa điểm / người đứng đầu / SĐT
+  const contactFields: (FieldDef | null)[] = [
     { name: 'foreignName', label: t('foreignName') },
     { name: 'email', label: t('email'), required: true, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
-    { name: 'officePhone', label: t('officePhone') },
-    { name: 'leaderName', label: t('leaderName') },
-    { name: 'leaderPhone', label: t('leaderPhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
+    { name: 'officePhone', label: t('officePhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
     { name: 'operatingProvince', label: t('operatingProvince'), options: PROVINCES },
     { name: 'operatingWard', label: t('operatingWard'), options: wardsOf(operatingProvince) },
-    { name: 'businessLocation', label: t('businessLocation'), span: 2 },
+    null,
+    { name: 'businessLocation', label: t('businessLocation') },
+    { name: 'leaderName', label: t('leaderName') },
+    { name: 'leaderPhone', label: t('leaderPhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
   ];
 
-  const renderField = ({ name, label, required, rules, options, type, span = 1 }: FieldDef) => (
-    <Box key={name} sx={{ gridColumn: { xs: 'span 1', md: `span ${span}` } }}>
+  const renderField = (def: FieldDef | null, index: number) => def ? (
+    <Box key={def.name} sx={{ gridColumn: { xs: 'span 1', md: `span ${def.span ?? 1}` } }}>
       <Controller
-        name={name}
+        name={def.name}
         control={control}
-        rules={{ ...rules, required: required ? translate('common.required') : false }}
+        rules={{ ...def.rules, required: def.required ? translate('common.required') : false }}
         render={({ field, fieldState }) => (
           <TextField
             {...field}
             fullWidth
             size="small"
-            label={label}
-            required={required}
-            type={type}
-            select={!!options}
-            disabled={!!options && options.length === 0}
+            label={def.label}
+            required={def.required}
+            type={def.type}
+            select={!!def.options}
+            disabled={def.disabled || (!!def.options && def.options.length === 0)}
             error={!!fieldState.error}
             helperText={fieldState.error?.message}
             onChange={(e) => {
               field.onChange(e);
               // Đổi tỉnh → xoá phường/xã đã chọn
-              if (name === 'province') setValue('ward', '');
-              if (name === 'operatingProvince') setValue('operatingWard', '');
+              if (def.name === 'province') setValue('ward', '');
+              if (def.name === 'operatingProvince') setValue('operatingWard', '');
             }}
-            slotProps={type === 'date' ? { inputLabel: { shrink: true } } : undefined}
+            slotProps={def.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
           >
-            {options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            {def.options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
         )}
       />
     </Box>
-  );
+  ) : <Box key={`empty-${index}`} sx={{ display: { xs: 'none', md: 'block' } }} />;
 
   const grid = { display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(3, minmax(0, 1fr))' } };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Section title={t('companySection')}>
+      <Section title={translate(isEdit ? 'enterprises.updateSection' : 'businessRegister.companySection')}>
         <Box sx={grid}>{companyFields.map(renderField)}</Box>
       </Section>
 
