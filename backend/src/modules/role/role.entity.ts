@@ -11,4 +11,7 @@ export class RoleEntity {
 
   @Column({ name: 'role_name', type: 'varchar', length: 100 })
   roleName: string;
+
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 }
