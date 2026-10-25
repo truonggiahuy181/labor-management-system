@@ -12,12 +12,15 @@ dist/
 # Test coverage
 coverage/
 
-<<<<<<< HEAD
 # Postman
 *.postman_collection.json
 postman/
 
-=======
+
+# Postman
+*.postman_collection.json
+postman/
+
+
 # File người dùng tải lên
 uploads/
->>>>>>> 73a1fac0c1931cf5827480abb82a1ed9cb1ff25b

@@ -28,6 +28,8 @@ const OTP_RESEND_SECONDS = 60;
 const OTP_MAX_ATTEMPTS = 5;
 // Thời gian sống của verifyToken (từ lúc xác thực email đến lúc bấm "Xác nhận đăng ký")
 const VERIFY_TOKEN_TTL_SECONDS = 30 * 60;
+const ENTERPRISE_INITIAL_PASSWORD = '1-8';
+const LEVEL_FOUR_INDUSTRY_CODE_RE = /^\d{4}$/;
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
@@ -144,6 +146,8 @@ export class BusinessRegistrationService {
       });
     }
 
+    this.assertLevelFourIndustry(dto.mainIndustry);
+
     const license = files.businessLicense?.[0];
     if (!license) {
       throw new BadRequestException({
@@ -163,7 +167,7 @@ export class BusinessRegistrationService {
     const absoluteDir = path.resolve(uploadRoot, relativeDir);
     await fs.mkdir(absoluteDir, { recursive: true });
 
-    const tempPassword = this.generateTempPassword();
+    const tempPassword = ENTERPRISE_INITIAL_PASSWORD;
     const roleId = Number(this.configService.get('ENTERPRISE_ROLE_ID', 2));
 
     try {
@@ -283,6 +287,15 @@ export class BusinessRegistrationService {
     }
   }
 
+  private assertLevelFourIndustry(mainIndustry: string): void {
+    if (!LEVEL_FOUR_INDUSTRY_CODE_RE.test(mainIndustry)) {
+      throw new BadRequestException({
+        code: ErrorCode.INVALID_MAIN_INDUSTRY,
+        message: 'Chỉ được chọn ngành nghề kinh doanh cấp 4.',
+      });
+    }
+  }
+
   private async writeFile(
     absoluteDir: string,
     relativeDir: string,
@@ -297,23 +310,6 @@ export class BusinessRegistrationService {
   private generateOtp(): string {
     const num = Number(crypto.randomBytes(3).readUIntBE(0, 3)) % 1_000_000;
     return num.toString().padStart(6, '0');
-  }
-
-  // Mật khẩu tạm 12 ký tự, luôn có chữ hoa, chữ thường và chữ số
-  private generateTempPassword(): string {
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lower = 'abcdefghijkmnopqrstuvwxyz';
-    const digits = '23456789';
-    const all = upper + lower + digits;
-    const pick = (set: string) => set[crypto.randomInt(set.length)];
-
-    const chars = [pick(upper), pick(lower), pick(digits)];
-    while (chars.length < 12) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = crypto.randomInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join('');
   }
 
   private escapeHtml(value: string): string {

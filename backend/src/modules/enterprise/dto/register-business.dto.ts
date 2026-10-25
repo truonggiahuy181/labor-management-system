@@ -13,6 +13,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 // Khớp TAX_CODE_RE / PHONE_RE ở frontend (BusinessInfoStep.tsx)
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
 const PHONE_RE = /^0\d{9}$/;
+const LEVEL_FOUR_INDUSTRY_CODE_RE = /^\d{4}$/;
 
 // ─── BƯỚC 1: Gửi OTP tới email doanh nghiệp ─────────────────────────────────
 export class SendBusinessOtpDto {
@@ -55,8 +56,9 @@ export class RegisterBusinessDto {
   businessType: string;
 
   @ApiProperty({ example: '6201' })
-  @IsString()
-  @IsNotEmpty()
+  @Matches(LEVEL_FOUR_INDUSTRY_CODE_RE, {
+    message: 'Ngành nghề kinh doanh phải là mã ngành cấp 4 gồm 4 chữ số',
+  })
   mainIndustry: string;
 
   @ApiProperty({ example: '2020-01-15' })

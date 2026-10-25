@@ -55,9 +55,12 @@ export class EnterpriseEntity extends BaseEntity {
   businessLocation: string | null;
 
   // ─── File đính kèm (đường dẫn tương đối trong UPLOAD_DIR) ────────
-  @Column({ name: 'business_license_path' })
-  businessLicensePath: string;
+  @Column({ name: 'business_license_path', type: 'varchar', nullable: true })
+  businessLicensePath: string | null;
 
   @Column({ name: 'other_document_path', type: 'varchar', nullable: true })
   otherDocumentPath: string | null;
+
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
 }

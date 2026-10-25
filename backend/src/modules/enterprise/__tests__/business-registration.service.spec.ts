@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
-import { BusinessRegistrationService } from './business-registration.service.js';
-import type { RegisterBusinessDto } from './dto/register-business.dto.js';
+import { BusinessRegistrationService } from '../business-registration.service.js';
+import type { RegisterBusinessDto } from '../dto/register-business.dto.js';
 
 const PDF_BUFFER = Buffer.from('%PDF-1.7 test');
 
@@ -117,6 +117,13 @@ describe('BusinessRegistrationService', () => {
   });
 
   describe('register', () => {
+    it('rejects a main industry that is not level 4', async () => {
+      redis.getTemp.mockResolvedValue('contact@abc.vn');
+      await expect(
+        service.register(baseDto({ mainIndustry: '62' }), {}),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_MAIN_INDUSTRY' } });
+    });
+
     it('rejects a verifyToken issued for a different email', async () => {
       redis.getTemp.mockResolvedValue('other@abc.vn');
       await expect(service.register(baseDto(), {})).rejects.toMatchObject({
