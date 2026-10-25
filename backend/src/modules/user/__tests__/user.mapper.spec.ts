@@ -96,7 +96,9 @@ describe('UserMapper', () => {
       expect((response as any).resetPasswordToken).toBeUndefined();
       expect((response as any).emailChangeOtp).toBeUndefined();
 
-      const listResponse = UserMapper.toResponseList([mockEntity as UserEntity]);
+      const listResponse = UserMapper.toResponseList([
+        mockEntity as UserEntity,
+      ]);
       expect(listResponse).toHaveLength(1);
       expect(listResponse[0].id).toBe(1);
     });
