@@ -9,4 +9,7 @@ export class BusinessTypeResponseDto {
 
   @ApiProperty({ example: 'Công ty TNHH một thành viên' })
   typeName: string;
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
 }
