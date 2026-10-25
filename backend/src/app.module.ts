@@ -11,6 +11,7 @@ import { CsrfGuard } from './commons/guards/csrf.guard.js';
 import { ResponseInterceptor } from './commons/interceptors/response.interceptor.js';
 import { GlobalExceptionFilter } from './commons/filters/global-exception.filter.js';
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
+import { SeedModule } from './database/seeds/seed.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
     AuthModule,
     UserModule,
     EnterpriseModule,
+    SeedModule,
   ],
   controllers: [AppController],
   providers: [
