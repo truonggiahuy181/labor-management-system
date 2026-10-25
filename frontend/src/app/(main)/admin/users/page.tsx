@@ -1,6 +1,7 @@
 // src/app/(main)/admin/users/page.tsx
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem,
   Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
@@ -14,13 +15,12 @@ import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import KeyIcon from '@mui/icons-material/Key';
 import { useSnackbar } from 'notistack';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
-import UserFormDialog from '@/Components/UserManagement/UserFormDialog';
+import { USERS_PATH } from '@/Components/UserManagement/UserDetailForm';
 import { ROLE_OPTIONS, roleLabel } from '@/Components/UserManagement/roleOptions';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
 import { ROLE } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, type Profile, type UserFilters } from '@/services/user';
-import BusinessRegisterDialog from '@/Components/BusinessRegister/BusinessRegisterDialog';
 
 // Ô lọc giữ chuỗi; '' = không lọc
 type Filters = Record<'fullName' | 'username' | 'email' | 'title' | 'roleId' | 'isActive', string>;
@@ -54,6 +54,7 @@ export default function UsersPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
+  const router = useRouter();
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const debouncedFilters = useDebounced(filters, DEBOUNCE_MS);
@@ -64,11 +65,8 @@ export default function UsersPage() {
   const [reloadCount, setReloadCount] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
   const [selected, setSelected] = useState<number[]>([]);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Profile | null>(null);
   const [resetting, setResetting] = useState<Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const isAdmin = user?.roleId === ROLE.ADMIN;
 
   const query = useMemo(
@@ -138,15 +136,13 @@ export default function UsersPage() {
       translate(r.isActive ? 'users.active' : 'users.inactive'),
     ]);
     const csv = [header, ...lines].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = 'users.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const openForm = (u: Profile | null) => { setEditing(u); setFormOpen(true); };
 
   if (user && !isAdmin) {
     return <Typography color="text.secondary">{translate('users.adminOnly')}</Typography>;
@@ -161,7 +157,7 @@ export default function UsersPage() {
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('users.title')}</Typography>
         {/* Import: chưa có API / thiết kế file mẫu */}
         <Button variant="outlined" startIcon={<FileUploadOutlinedIcon />} disabled>{translate('users.import')}</Button>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>{translate('users.add')}</Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => router.push(`${USERS_PATH}/create`)}>{translate('users.add')}</Button>
       </Card>
 
       <Card square sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -216,7 +212,7 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title={translate('users.edit')}>
-                      <IconButton size="small" onClick={() => openForm(r)}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" onClick={() => router.push(`${USERS_PATH}/${r.id}`)}><EditIcon fontSize="small" /></IconButton>
                     </Tooltip>
                     <Tooltip title={translate('users.resetPassword')}>
                       <IconButton size="small" onClick={() => setResetting(r)}><KeyIcon fontSize="small" /></IconButton>
@@ -271,10 +267,7 @@ export default function UsersPage() {
         </Stack>
       </Card>
 
-      <UserFormDialog open={formOpen} user={editing} onClose={() => setFormOpen(false)}
-        onSaved={() => { setFormOpen(false); load(); }} />
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
-      <BusinessRegisterDialog mode="admin" open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('users.deleteConfirmTitle')}</DialogTitle>
         <DialogContent>{translate('users.deleteConfirm', { count: selected.length })}</DialogContent>
