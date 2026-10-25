@@ -12,6 +12,7 @@ import { ResponseInterceptor } from './commons/interceptors/response.interceptor
 import { GlobalExceptionFilter } from './commons/filters/global-exception.filter.js';
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
 import { SeedModule } from './database/seeds/seed.module.js';
+import { createDatabaseOptions } from './database/database-options.js';
 
 @Module({
   imports: [
@@ -25,17 +26,10 @@ import { SeedModule } from './database/seeds/seed.module.js';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: Number(configService.get('DB_PORT', 5432)),
-        username: configService.get<string>('DB_USERNAME', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_NAME', 'quan_ly_lao_dong'),
-        autoLoadEntities: true,
-        synchronize: configService.get<string>('DB_SYNC') === 'true',
-        logging: configService.get<string>('NODE_ENV') === 'development',
-      }),
+      useFactory: (configService: ConfigService) =>
+        createDatabaseOptions(
+          (key, defaultValue) => configService.get<string>(key) ?? defaultValue,
+        ),
     }),
 
     AuthModule,

@@ -25,6 +25,9 @@ export class IndustryEntity {
   @Column({ name: 'parent_id', type: 'int', nullable: true })
   parentId: number | null;
 
+  @Column({ name: 'is_active', type: 'boolean', default: true })
+  isActive: boolean;
+
   @ManyToOne(() => IndustryEntity, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({
     name: 'parent_id',

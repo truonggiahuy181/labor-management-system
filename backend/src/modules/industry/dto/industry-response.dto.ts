@@ -15,4 +15,7 @@ export class IndustryResponseDto {
 
   @ApiPropertyOptional({ example: null, nullable: true })
   parentId: number | null;
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
 }
