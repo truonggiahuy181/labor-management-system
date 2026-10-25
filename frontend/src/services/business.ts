@@ -47,11 +47,11 @@ const toFormData = (body: object) => {
 const realBusinessApi = {
   // Bước 1 → 2: gửi mã OTP tới email doanh nghiệp (kiểm tra trùng MST/email trước khi gửi)
   sendOtp: (body: { email: string; taxCode: string }) =>
-    api.post<ApiResponse<null>>('/auth/register-business/send-otp', body).then((r) => r.data),
+    api.post<ApiResponse<null>>('/auth/request-email-change', body).then((r) => r.data),
 
   // Bước 2: kiểm tra OTP, server trả token ngắn hạn chứng minh email đã xác thực
   verifyOtp: (body: { email: string; otp: string }) =>
-    api.post<ApiResponse<{ verifyToken: string }>>('/auth/register-business/verify-otp', body).then((r) => r.data),
+    api.post<ApiResponse<{ verifyToken: string }>>('/auth/verify-email-otp', body).then((r) => r.data),
 
   // Bước 3: gửi toàn bộ hồ sơ + file đính kèm (multipart/form-data)
   register: (body: RegisterBusinessBody) =>
