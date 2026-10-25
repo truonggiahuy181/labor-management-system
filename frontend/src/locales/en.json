@@ -64,7 +64,8 @@
     "PASSWORD_MISMATCH": "Passwords do not match",
     "SAME_PASSWORD": "The new password must differ from the current one",
     "VALIDATION_ERROR": "Invalid information, please check again",
-    "UNAUTHORIZED": "Please log in to continue"
+    "UNAUTHORIZED": "Please log in to continue",
+    "FORBIDDEN": "You do not have permission to do this"
   },
   "forgotPassword": {
     "title": "Forgot password",
@@ -91,7 +92,9 @@
     "groupAccidents": "Occupational accidents",
     "accidentCategories": "Categories",
     "accidentLaborContracts": "Accidents under labor contracts",
-    "account": "Account information"
+    "account": "Account information",
+    "groupSystem": "System",
+    "companyInfo": "Company information"
   },
   "account": {
     "detail": "User details",
@@ -186,6 +189,46 @@
     "copy": "Copy",
     "copied": "Copied",
     "close": "Close",
-    "loginNow": "Log in now"
+    "loginNow": "Log in now",
+    "account": "Username",
+    "password": "Password",
+    "adminSuccess": "Business added"
+  },
+  "users": {
+    "title": "User list",
+    "import": "Import",
+    "add": "Add new",
+    "exportData": "Export data",
+    "fullName": "Full name",
+    "username": "Username",
+    "email": "Email",
+    "role": "Role",
+    "jobTitle": "Job title",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "all": "All",
+    "noData": "No data",
+    "edit": "Edit",
+    "resetPassword": "Reset password",
+    "selected": "selected",
+    "delete": "Delete",
+    "clearSelection": "Clear selection",
+    "deleteConfirmTitle": "Delete users",
+    "deleteConfirm": "Delete {{count}} selected users?",
+    "deleteSuccess": "Deleted {{count}} users",
+    "confirmTitle": "Confirm",
+    "resetFor": "Set a new password for <b>{{username}}</b>",
+    "newPasswordPlaceholder": "Enter the new password",
+    "resetSuccess": "Password reset successfully",
+    "createTitle": "Add user",
+    "editTitle": "Edit user",
+    "password": "Password",
+    "phone": "Phone number",
+    "invalidUsername": "Letters, digits, underscores and hyphens only",
+    "invalidPhone": "Phone number must be 10–11 digits",
+    "of": "{{from}} - {{to}} of {{count}}",
+    "loadFailed": "Could not load users",
+    "adminOnly": "Only administrators can view this page"
   }
 }

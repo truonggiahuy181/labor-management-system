@@ -29,7 +29,7 @@ export default function LoginPage() {
   const onSubmit = async ({ remember, ...body }: LoginForm) => {
     setAlert('');
     try {
-      const res = await authApi.login(body);
+      const res = await authApi.login({ ...body, rememberMe: remember });
       if (!res.success) return setAlert(translateError(res.code));
       login(res.data.user);
       router.replace('/account');

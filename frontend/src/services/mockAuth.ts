@@ -2,7 +2,7 @@
 // API giả để làm giao diện khi backend chưa xong. Bật bằng NEXT_PUBLIC_MOCK_API=true.
 // Có API thật rồi thì xoá file này và dòng import nó trong auth.ts.
 import type { ApiResponse, AuthApi, RegisterBody, User } from './auth';
-
+import { ROLE } from '@/constants/roles';
 const DB_KEY = 'mockUsers';      // danh sách tài khoản giả trong localStorage
 const OTP_KEY = 'mockOtp';       // OTP vừa "gửi" + email nhận
 const SESSION_KEY = 'mockSession'; // id user đang đăng nhập – đóng vai cookie của server thật
@@ -21,10 +21,21 @@ const SEED_USERS: MockUser[] = [
     id: '1',
     username: 'demo',
     email: 'demo@vna.vn',
+    roleId: ROLE.ENTERPRISE,
     password: '12345678',
     companyName: 'Công ty Demo',
     taxCode: '0101234567',
     phone: '0912345678',
+  },
+  {
+    id: '2',
+    username: 'admin',
+    email: 'admin@vna.vn',
+    roleId: ROLE.ADMIN,
+    password: '12345678',
+    companyName: 'Công ty Admin',
+    taxCode: '0101234568',
+    phone: '0912345679',
   },
 ];
 
@@ -37,7 +48,7 @@ const loadUsers = (): MockUser[] => {
 const saveUsers = (users: MockUser[]) => localStorage.setItem(DB_KEY, JSON.stringify(users));
 
 // Không bao giờ trả password ra ngoài, giống server thật
-const toUser = ({ id, username, email }: MockUser): User => ({ id, username, email });
+const toUser = ({ id, username, email, roleId }: MockUser): User => ({ id, username, email, roleId });
 
 // Server thật đọc cookie; mock đọc id đã lưu lúc login
 const currentUser = () => {
@@ -73,7 +84,7 @@ export const mockAuthApi: AuthApi = {
     if (users.some((u) => u.email === body.email)) return fail('EMAIL_EXISTS');
     if (users.some((u) => u.taxCode === body.taxCode)) return fail('TAX_CODE_EXISTS');
 
-    saveUsers([...users, { ...body, id: String(Date.now()) }]);
+    saveUsers([...users, { ...body, id: String(Date.now()), roleId: ROLE.ENTERPRISE }]);
     return ok(null);
   },
 

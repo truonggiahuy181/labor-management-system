@@ -20,6 +20,7 @@ import BusinessInfoStep from './BusinessInfoStep';
 import ConfirmStep from './ConfirmStep';
 import EmailOtpDialog from './EmailOtpDialog';
 import AccountInfoDialog from './AccountInfoDialog';
+import CreatedAccountDialog from './CreatedAccountDialog';
 
 const EMPTY_INFO: BusinessInfo = {
   companyName: '', taxCode: '', businessType: '', mainIndustry: '', licenseDate: '', province: '', ward: '', address: '',
@@ -31,10 +32,12 @@ const EMPTY_FILES: BusinessFiles = { businessLicense: null, otherDocument: null 
 type Props = {
   open: boolean;
   onClose: () => void;
+  mode?: 'register' | 'admin';
   onRegistered?: (username: string) => void;   // ví dụ: điền sẵn tên đăng nhập ở trang login
+  onCreated?: () => void;   // admin thêm doanh nghiệp thành công (mở popup CreatedAccountDialog)
 };
 
-export default function BusinessRegisterDialog({ open, onClose, onRegistered }: Props) {
+export default function BusinessRegisterDialog({ open, onClose, onRegistered, mode = 'register', onCreated }: Props) {
   const { translate, translateError } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
@@ -47,6 +50,7 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered }: 
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState<RegisteredAccount | null>(null);
+  const isAdmin = mode === 'admin';
 
   const reset = () => {
     form.reset(EMPTY_INFO);
@@ -66,6 +70,7 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered }: 
     async ({ email, taxCode }) => {
       if (!files.businessLicense) return setError(t('licenseRequired'));
       setError('');
+      if (isAdmin) return setStep(1);
       setBusy(true);
       try {
         const res = await businessApi.sendOtp({ email, taxCode });
@@ -148,14 +153,14 @@ export default function BusinessRegisterDialog({ open, onClose, onRegistered }: 
         onClose={() => setOtpOpen(false)}
         onVerified={onVerified}
       />}
-      <AccountInfoDialog
+      {isAdmin ? <CreatedAccountDialog account={account} onClose={() => setAccount(null)} /> : <AccountInfoDialog
         account={account}
         onClose={() => setAccount(null)}
         onLogin={(username) => {
         setAccount(null);
         onRegistered?.(username);
       }}
-      />
+      />}
     </>
   );
 }

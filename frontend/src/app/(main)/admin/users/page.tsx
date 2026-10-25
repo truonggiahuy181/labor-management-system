@@ -1,0 +1,288 @@
+// src/app/(main)/admin/users/page.tsx
+'use client';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem,
+  Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import EditIcon from '@mui/icons-material/Edit';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import KeyIcon from '@mui/icons-material/Key';
+import { useSnackbar } from 'notistack';
+import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
+import UserFormDialog from '@/Components/UserManagement/UserFormDialog';
+import { ROLE_OPTIONS, roleLabel } from '@/Components/UserManagement/roleOptions';
+import useAuth from '@/Hooks/useAuth';
+import useLocales from '@/Hooks/useLocales';
+import { ROLE } from '@/constants/roles';
+import { adminUserApi, getErrorMessage, type Profile, type UserFilters } from '@/services/user';
+import BusinessRegisterDialog from '@/Components/BusinessRegister/BusinessRegisterDialog';
+
+// Ô lọc giữ chuỗi; '' = không lọc
+type Filters = Record<'fullName' | 'username' | 'email' | 'title' | 'roleId' | 'isActive', string>;
+const EMPTY_FILTERS: Filters = { fullName: '', username: '', email: '', title: '', roleId: '', isActive: '' };
+const TEXT_COLUMNS = [
+  { key: 'fullName', label: 'users.fullName' },
+  { key: 'username', label: 'users.username' },
+  { key: 'email', label: 'users.email' },
+] as const;
+const DEBOUNCE_MS = 400;
+
+const toParams = (f: Filters): UserFilters => ({
+  ...(f.fullName && { fullName: f.fullName }),
+  ...(f.username && { username: f.username }),
+  ...(f.email && { email: f.email }),
+  ...(f.title && { title: f.title }),
+  ...(f.roleId && { roleId: Number(f.roleId) }),
+  ...(f.isActive && { isActive: f.isActive === 'true' }),
+});
+
+function useDebounced<T>(value: T, ms: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
+export default function UsersPage() {
+  const { user } = useAuth();
+  const { translate } = useLocales();
+  const { enqueueSnackbar } = useSnackbar();
+
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const debouncedFilters = useDebounced(filters, DEBOUNCE_MS);
+  const [page, setPage] = useState(0);              // TablePagination đếm từ 0, backend từ 1
+  const [pageSize, setPageSize] = useState(10);
+  const [rows, setRows] = useState<Profile[]>([]);
+  const [total, setTotal] = useState(0);
+  const [reloadCount, setReloadCount] = useState(0);
+  const [loadedKey, setLoadedKey] = useState('');
+  const [selected, setSelected] = useState<number[]>([]);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Profile | null>(null);
+  const [resetting, setResetting] = useState<Profile | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const isAdmin = user?.roleId === ROLE.ADMIN;
+
+  const query = useMemo(
+    () => ({ ...toParams(debouncedFilters), pageNumber: page + 1, pageSize }),
+    [debouncedFilters, page, pageSize],
+  );
+  // Mỗi lần query đổi hoặc bấm tải lại là một request mới; loading đến khi request đó xong
+  const requestKey = `${JSON.stringify(query)}#${reloadCount}`;
+  const loading = isAdmin && loadedKey !== requestKey;
+  const load = () => setReloadCount((n) => n + 1);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;     // bỏ kết quả của request cũ khi người dùng gõ lọc / chuyển trang nhanh
+    adminUserApi.list(query)
+      .then((res) => {
+        if (cancelled) return;
+        setRows(res.data);
+        setTotal(res.total);
+      })
+      .catch((err) => {
+        if (!cancelled) enqueueSnackbar(getErrorMessage(err, translate('users.loadFailed')), { variant: 'error' });
+      })
+      .finally(() => { if (!cancelled) setLoadedKey(requestKey); });
+    return () => { cancelled = true; };
+  }, [isAdmin, query, requestKey, enqueueSnackbar, translate]);
+
+  const setFilter = (key: keyof Filters, value: string) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(0);
+  };
+
+  // Chọn theo trang đang xem
+  const pageIds = rows.map((r) => r.id);
+  const allChecked = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const someChecked = pageIds.some((id) => selected.includes(id)) && !allChecked;
+  const toggleAll = () => setSelected((s) => (allChecked ? s.filter((id) => !pageIds.includes(id)) : [...new Set([...s, ...pageIds])]));
+  const toggleOne = (id: number) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+
+  const toggleActive = async (row: Profile, isActive: boolean) => {
+    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive } : r)));
+    try {
+      await adminUserApi.update(row.id, { isActive });
+    } catch (err) {
+      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive: !isActive } : r)));
+      enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    }
+  };
+
+  const deleteSelected = async () => {
+    try {
+      const { deleted } = await adminUserApi.remove(selected);
+      enqueueSnackbar(translate('users.deleteSuccess', { count: deleted }), { variant: 'success' });
+      setSelected([]);
+      setConfirmDelete(false);
+      load();
+    } catch (err) {
+      enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    }
+  };
+
+  // Xuất các dòng đang hiển thị ra CSV (BOM để Excel đọc đúng tiếng Việt)
+  const exportCsv = () => {
+    const header = ['users.fullName', 'users.username', 'users.email', 'users.role', 'users.jobTitle', 'users.status'].map((k) => translate(k));
+    const lines = rows.map((r) => [
+      r.fullName, r.username, r.email ?? '', translate(roleLabel(r.roleId) ?? ''), r.title ?? '',
+      translate(r.isActive ? 'users.active' : 'users.inactive'),
+    ]);
+    const csv = [header, ...lines].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'users.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openForm = (u: Profile | null) => { setEditing(u); setFormOpen(true); };
+
+  if (user && !isAdmin) {
+    return <Typography color="text.secondary">{translate('users.adminOnly')}</Typography>;
+  }
+
+  const filterCell = { py: 1, px: 1, borderBottom: 1, borderColor: 'divider' };
+
+  return (
+    // Bảng cao vừa màn hình: trừ AppBar 64px và padding trên + dưới của <main> (2 × 24px)
+    <Stack spacing={2} sx={{ height: 'calc(100vh - 64px - 48px)' }}>
+      <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('users.title')}</Typography>
+        {/* Import: chưa có API / thiết kế file mẫu */}
+        <Button variant="outlined" startIcon={<FileUploadOutlinedIcon />} disabled>{translate('users.import')}</Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>{translate('users.add')}</Button>
+      </Card>
+
+      <Card square sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 }} />}
+        <TableContainer sx={{ flex: 1 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell padding="checkbox" rowSpan={2}>
+                  <Checkbox size="small" checked={allChecked} indeterminate={someChecked} onChange={toggleAll} />
+                </TableCell>
+                <TableCell rowSpan={2} sx={{ width: 72 }} />
+                {TEXT_COLUMNS.map((c) => <TableCell key={c.key} sx={{ fontWeight: 600 }}>{translate(c.label)}</TableCell>)}
+                <TableCell sx={{ fontWeight: 600, width: 150 }}>{translate('users.role')}</TableCell>
+                <TableCell sx={{ fontWeight: 600, width: 150 }}>{translate('users.jobTitle')}</TableCell>
+                <TableCell sx={{ fontWeight: 600, width: 160 }}>{translate('users.status')}</TableCell>
+              </TableRow>
+              {/* Hàng ô lọc ngay dưới tiêu đề cột */}
+              <TableRow>
+                {TEXT_COLUMNS.map((c) => (
+                  <TableCell key={c.key} sx={{ ...filterCell, top: 37 }}>
+                    <TextField fullWidth size="small" value={filters[c.key]} onChange={(e) => setFilter(c.key, e.target.value)}
+                      slotProps={{ htmlInput: { 'aria-label': translate(c.label) } }} />
+                  </TableCell>
+                ))}
+                <TableCell sx={{ ...filterCell, top: 37 }}>
+                  <TextField select fullWidth size="small" value={filters.roleId} onChange={(e) => setFilter('roleId', e.target.value)}
+                    slotProps={{ htmlInput: { 'aria-label': translate('users.role') } }}>
+                    <MenuItem value="">{translate('users.all')}</MenuItem>
+                    {ROLE_OPTIONS.map((o) => <MenuItem key={o.value} value={String(o.value)}>{translate(o.label)}</MenuItem>)}
+                  </TextField>
+                </TableCell>
+                <TableCell sx={{ ...filterCell, top: 37 }}>
+                  <TextField fullWidth size="small" value={filters.title} onChange={(e) => setFilter('title', e.target.value)}
+                    slotProps={{ htmlInput: { 'aria-label': translate('users.jobTitle') } }} />
+                </TableCell>
+                <TableCell sx={{ ...filterCell, top: 37 }}>
+                  <TextField select fullWidth size="small" value={filters.isActive} onChange={(e) => setFilter('isActive', e.target.value)}
+                    slotProps={{ htmlInput: { 'aria-label': translate('users.status') } }}>
+                    <MenuItem value="">{translate('users.all')}</MenuItem>
+                    <MenuItem value="true">{translate('users.active')}</MenuItem>
+                    <MenuItem value="false">{translate('users.inactive')}</MenuItem>
+                  </TextField>
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.id} hover selected={selected.includes(r.id)}>
+                  <TableCell padding="checkbox">
+                    <Checkbox size="small" checked={selected.includes(r.id)} onChange={() => toggleOne(r.id)} />
+                  </TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title={translate('users.edit')}>
+                      <IconButton size="small" onClick={() => openForm(r)}><EditIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title={translate('users.resetPassword')}>
+                      <IconButton size="small" onClick={() => setResetting(r)}><KeyIcon fontSize="small" /></IconButton>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>{r.fullName}</TableCell>
+                  <TableCell>{r.username}</TableCell>
+                  <TableCell>{r.email}</TableCell>
+                  <TableCell>{roleLabel(r.roleId) ? translate(roleLabel(r.roleId)!) : translate('account.roleUnknown', { id: r.roleId })}</TableCell>
+                  <TableCell>{r.title}</TableCell>
+                  <TableCell>
+                    <Switch size="small" checked={r.isActive} disabled={r.id === Number(user?.id)}
+                      onChange={(e) => toggleActive(r, e.target.checked)}
+                      slotProps={{ input: { 'aria-label': translate('users.status') } }} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!loading && rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 6, color: 'text.secondary' }}>{translate('users.noData')}</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Thanh thao tác khi có dòng được chọn */}
+        {selected.length > 0 && (
+          <Paper elevation={4} sx={{ position: 'absolute', bottom: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 3,
+            display: 'flex', alignItems: 'center', gap: 1.5, pl: 0, pr: 1, py: 0.5, overflow: 'hidden' }}>
+            <Box sx={{ bgcolor: 'primary.main', color: 'common.white', px: 1.5, py: 0.75, fontWeight: 700, fontSize: 13 }}>
+              {selected.length}
+            </Box>
+            <Typography variant="body2">{translate('users.selected')}</Typography>
+            <Button size="small" variant="contained" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setConfirmDelete(true)}>
+              {translate('users.delete')}
+            </Button>
+            <IconButton size="small" onClick={() => setSelected([])} aria-label={translate('users.clearSelection')}><CloseIcon fontSize="small" /></IconButton>
+          </Paper>
+        )}
+
+        <Stack direction="row" sx={{ alignItems: 'center', borderTop: 1, borderColor: 'divider', px: 1 }}>
+          <Button size="small" color="inherit" startIcon={<FileDownloadOutlinedIcon />} onClick={exportCsv} disabled={!rows.length}
+            sx={{ color: 'text.secondary' }}>
+            {translate('users.exportData')}
+          </Button>
+          <TablePagination component="div" sx={{ ml: 'auto' }} count={total} page={page} rowsPerPage={pageSize}
+            rowsPerPageOptions={[10, 20, 50]} labelRowsPerPage=""
+            labelDisplayedRows={({ from, to, count }) => translate('users.of', { from, to, count })}
+            onPageChange={(_, p) => setPage(p)}
+            onRowsPerPageChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }} />
+        </Stack>
+      </Card>
+
+      <UserFormDialog open={formOpen} user={editing} onClose={() => setFormOpen(false)}
+        onSaved={() => { setFormOpen(false); load(); }} />
+      <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
+      <BusinessRegisterDialog mode="admin" open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
+      <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>{translate('users.deleteConfirmTitle')}</DialogTitle>
+        <DialogContent>{translate('users.deleteConfirm', { count: selected.length })}</DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmDelete(false)}>{translate('common.cancel')}</Button>
+          <Button variant="contained" color="error" onClick={deleteSelected}>{translate('users.delete')}</Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
+  );
+}

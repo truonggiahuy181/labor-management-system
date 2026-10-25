@@ -2,7 +2,7 @@
 import api from './api';
 import { mockAuthApi } from './mockAuth';
 
-export interface User { id: string; username: string; email: string; }
+export interface User { id: string; username: string; email: string; roleId: number; }
 
 export interface RegisterBody {
   companyName: string;
@@ -21,8 +21,8 @@ export interface ApiResponse<T> {
 }
 
 const realAuthApi = {
-  login: (body: { username: string; password: string }) =>
-    api.post<ApiResponse<{ accessToken: string; user: User }>>('/auth/login', body).then((r) => r.data),
+  login: (body: { username: string; password: string; rememberMe?: boolean }) =>
+    api.post<ApiResponse<{ user: User }>>('/auth/login', body).then((r) => r.data),
 
   register: (body: RegisterBody) =>
     api.post<ApiResponse<null>>('/auth/register', body).then((r) => r.data),
