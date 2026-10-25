@@ -1,15 +1,22 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EnterpriseEntity } from './enterprise.entity.js';
-import { BusinessRegistrationService } from './business-registration.service.js';
-import { BusinessRegistrationController } from './business-registration.controller.js';
+import { EnterpriseController } from './enterprise.controller.js';
+import { EnterpriseService } from './enterprise.service.js';
 import { UserModule } from '../user/user.module.js';
-import { RedisModule } from '../../commons/redis/redis.module.js';
-import { MailModule } from '../../commons/mail/mail.module.js';
+import { BusinessTypeModule } from '../business-type/business-type.module.js';
+import { IndustryModule } from '../industry/industry.module.js';
+import { RoleModule } from '../role/role.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EnterpriseEntity]), UserModule, RedisModule, MailModule],
-  controllers: [BusinessRegistrationController],
-  providers: [BusinessRegistrationService],
+  imports: [
+    TypeOrmModule.forFeature([EnterpriseEntity]),
+    UserModule,
+    BusinessTypeModule,
+    IndustryModule,
+    RoleModule,
+  ],
+  controllers: [EnterpriseController],
+  providers: [EnterpriseService],
 })
 export class EnterpriseModule {}

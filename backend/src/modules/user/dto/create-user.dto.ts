@@ -16,12 +16,17 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreateUserDto {
-  @ApiProperty({ description: 'Tên đăng nhập', example: 'admin-vna', maxLength: 50 })
+  @ApiProperty({
+    description: 'Tên đăng nhập',
+    example: 'admin-vna',
+    maxLength: 50,
+  })
   @IsString({ message: 'Tên đăng nhập phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Tên đăng nhập không được để trống' })
   @MaxLength(50, { message: 'Tên đăng nhập không được vượt quá 50 ký tự' })
   @Matches(/^[a-zA-Z0-9_-]+$/, {
-    message: 'Tên đăng nhập chỉ được chứa chữ cái, chữ số, gạch dưới (_) và gạch ngang (-)',
+    message:
+      'Tên đăng nhập chỉ được chứa chữ cái, chữ số, gạch dưới (_) và gạch ngang (-)',
   })
   username: string;
 
@@ -35,7 +40,11 @@ export class CreateUserDto {
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   password: string;
 
-  @ApiProperty({ description: 'Họ và tên', example: 'Nguyễn Văn A', maxLength: 100 })
+  @ApiProperty({
+    description: 'Họ và tên',
+    example: 'Nguyễn Văn A',
+    maxLength: 100,
+  })
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Họ và tên không được để trống' })
   @MaxLength(100, { message: 'Họ và tên không được vượt quá 100 ký tự' })
@@ -57,16 +66,25 @@ export class CreateUserDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Giới tính phải là số nguyên' })
-  @IsIn([0, 1, 2], { message: 'Giới tính không hợp lệ (0: Nữ, 1: Nam, 2: Khác)' })
+  @IsIn([0, 1, 2], {
+    message: 'Giới tính không hợp lệ (0: Nữ, 1: Nam, 2: Khác)',
+  })
   gender?: number;
 
-  @ApiProperty({ description: 'Email liên hệ', example: 'phanthanhthung093@gmail.com', maxLength: 100 })
+  @ApiProperty({
+    description: 'Email liên hệ',
+    example: 'phanthanhthung093@gmail.com',
+    maxLength: 100,
+  })
   @IsEmail({}, { message: 'Email không đúng định dạng' })
   @IsNotEmpty({ message: 'Email không được để trống' })
   @MaxLength(100, { message: 'Email không được vượt quá 100 ký tự' })
   email: string;
 
-  @ApiPropertyOptional({ description: 'Số điện thoại (10-11 số)', example: '0901234567' })
+  @ApiPropertyOptional({
+    description: 'Số điện thoại (10-11 số)',
+    example: '0901234567',
+  })
   @IsOptional()
   @IsString({ message: 'Số điện thoại phải là chuỗi ký tự' })
   @Matches(/^[0-9]{10,11}$/, {
@@ -74,7 +92,11 @@ export class CreateUserDto {
   })
   phoneNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Chức danh', example: 'Chuyên viên', maxLength: 100 })
+  @ApiPropertyOptional({
+    description: 'Chức danh',
+    example: 'Chuyên viên',
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString({ message: 'Chức danh phải là chuỗi ký tự' })
   @MaxLength(100, { message: 'Chức danh không được vượt quá 100 ký tự' })
@@ -87,12 +109,16 @@ export class CreateUserDto {
   })
   @IsOptional()
   @IsString({ message: 'URL ảnh đại diện phải là chuỗi ký tự' })
-  @IsUrl({}, { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' })
+  @IsUrl(
+    {},
+    { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' },
+  )
   @MaxLength(255, { message: 'URL ảnh đại diện không được vượt quá 255 ký tự' })
   avatarUrl?: string;
 
   @ApiProperty({
-    description: 'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên,...)',
+    description:
+      'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên,...)',
     example: 1,
   })
   @Type(() => Number)
@@ -107,7 +133,7 @@ export class CreateUserDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'ID doanh nghiệp phải là số nguyên' })
-  enterpriseId?: number;
+  enterpriseId?: number | null;
 
   @ApiPropertyOptional({
     description: 'Trạng thái kích hoạt tài khoản',
@@ -118,19 +144,31 @@ export class CreateUserDto {
   @IsBoolean({ message: 'Trạng thái kích hoạt phải là boolean' })
   isActive?: boolean;
 
-  @ApiPropertyOptional({ description: 'Mã tỉnh/thành phố', example: '79', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã tỉnh/thành phố',
+    example: '79',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã tỉnh/thành phố phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã tỉnh/thành phố không được vượt quá 20 ký tự' })
   provinceId?: string;
 
-  @ApiPropertyOptional({ description: 'Mã quận/huyện', example: '764', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã quận/huyện',
+    example: '764',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã quận/huyện phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã quận/huyện không được vượt quá 20 ký tự' })
   districtId?: string;
 
-  @ApiPropertyOptional({ description: 'Mã phường/xã', example: '26740', maxLength: 20 })
+  @ApiPropertyOptional({
+    description: 'Mã phường/xã',
+    example: '26740',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString({ message: 'Mã phường/xã phải là chuỗi ký tự' })
   @MaxLength(20, { message: 'Mã phường/xã không được vượt quá 20 ký tự' })
