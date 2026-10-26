@@ -35,8 +35,8 @@ export interface BusinessType { id: number; typeCode: string; typeName: string; 
 export interface Industry { id: number; industryCode: string; industryName: string; level: number; parentId: number | null }
 
 // Backend tạo tài khoản doanh nghiệp với username = MST và mật khẩu cố định
-// (backend/src/modules/enterprise/enterprise.service.ts: argon2.hash('1-8')), API không trả mật khẩu về
-export const ENTERPRISE_DEFAULT_PASSWORD = '1-8';
+// (backend/src/modules/enterprise/enterprise.service.ts: argon2.hash('12345678')), API không trả mật khẩu về
+export const ENTERPRISE_DEFAULT_PASSWORD = '12345678';
 
 export const enterpriseApi = {
   list: () => api.get<BackendResponse<Enterprise[]>>('/enterprises').then((r) => r.data.data ?? []),
