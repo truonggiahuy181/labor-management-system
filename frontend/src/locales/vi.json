@@ -64,7 +64,8 @@
     "PASSWORD_MISMATCH": "Mật khẩu xác nhận không khớp",
     "SAME_PASSWORD": "Mật khẩu mới không được trùng mật khẩu hiện tại",
     "VALIDATION_ERROR": "Thông tin không hợp lệ, vui lòng kiểm tra lại",
-    "UNAUTHORIZED": "Bạn cần đăng nhập để thực hiện thao tác này"
+    "UNAUTHORIZED": "Bạn cần đăng nhập để thực hiện thao tác này",
+    "FORBIDDEN": "Bạn không có quyền thực hiện thao tác này"
   },
   "forgotPassword": {
     "title": "Quên mật khẩu",
@@ -78,7 +79,8 @@
     "notReceived": "Không nhận được mã xác thực?",
     "resend": "Gửi lại",
     "resendOtp": "Gửi lại mã xác thực",
-    "submit": "Xác nhận"
+    "submit": "Xác nhận",
+    "recentlySent": "Mã xác thực đã được gửi gần đây, vui lòng đợi {{seconds}} giây trước khi gửi lại"
   },
   "menu": {
     "toggle": "Thu gọn / mở menu",
@@ -89,7 +91,9 @@
     "groupAccidents": "Tai nạn lao động",
     "accidentCategories": "Danh mục chung",
     "accidentLaborContracts": "TNLĐ theo HĐLĐ",
-    "account": "Thông tin tài khoản"
+    "account": "Thông tin tài khoản",
+    "groupSystem": "Hệ thống",
+    "companyInfo": "Thông tin doanh nghiệp"
   },
   "account": {
     "detail": "Chi tiết người dùng",
@@ -186,6 +190,67 @@
     "copy": "Sao chép",
     "copied": "Đã sao chép",
     "close": "Đóng",
-    "loginNow": "Đăng nhập ngay"
+    "loginNow": "Đăng nhập ngay",
+    "account": "Tài khoản",
+    "password": "Mật khẩu",
+    "adminSuccess": "Đã thêm doanh nghiệp"
+  },
+  "users": {
+    "title": "Danh sách người dùng",
+    "import": "Import",
+    "add": "Thêm mới",
+    "exportData": "Export Data",
+    "fullName": "Họ và tên",
+    "username": "Tài khoản",
+    "email": "Email",
+    "role": "Vai trò",
+    "jobTitle": "Chức danh",
+    "status": "Trạng thái",
+    "active": "Hoạt động",
+    "inactive": "Ngừng hoạt động",
+    "all": "Tất cả",
+    "noData": "Không có dữ liệu",
+    "edit": "Sửa",
+    "resetPassword": "Đặt lại mật khẩu",
+    "selected": "dữ liệu được chọn",
+    "delete": "Xoá",
+    "clearSelection": "Bỏ chọn",
+    "deleteConfirmTitle": "Xoá người dùng",
+    "deleteConfirm": "Xoá {{count}} người dùng đã chọn?",
+    "deleteSuccess": "Đã xoá {{count}} người dùng",
+    "confirmTitle": "Xác nhận",
+    "resetFor": "Khởi tạo mật khẩu cho tài khoản <b>{{username}}</b>",
+    "newPasswordPlaceholder": "Nhập mật khẩu mới mong muốn",
+    "resetSuccess": "Đặt lại mật khẩu thành công",
+    "createTitle": "Thêm mới người dùng",
+    "editTitle": "Sửa người dùng",
+    "password": "Mật khẩu",
+    "phone": "Số điện thoại",
+    "invalidUsername": "Chỉ gồm chữ, số, gạch dưới và gạch ngang",
+    "invalidPhone": "Số điện thoại gồm 10–11 chữ số",
+    "of": "{{from}} - {{to}} của {{count}}",
+    "loadFailed": "Không tải được danh sách người dùng",
+    "adminOnly": "Chỉ Quản trị viên được xem trang này",
+    "lock": "Khoá",
+    "lockConfirmTitle": "Khoá người dùng",
+    "lockConfirm": "Khoá {{count}} tài khoản đã chọn? Người dùng sẽ không đăng nhập được, có thể mở lại bằng công tắc Trạng thái.",
+    "lockSuccess": "Đã khoá {{count}} tài khoản",
+    "lockSelfSkipped": "Không thể tự khoá tài khoản của chính mình, đã bỏ qua"
+  },
+  "enterprises": {
+    "title": "Danh sách doanh nghiệp",
+    "importFile": "Thêm từ file",
+    "industry": "Ngành nghề kinh doanh",
+    "ward": "Phường/ xã",
+    "updateSection": "Cập nhật doanh nghiệp",
+    "detailTitle": "Thông tin doanh nghiệp",
+    "loadFailed": "Không tải được danh sách doanh nghiệp",
+    "createSuccess": "Khai báo thành công",
+    "updateSuccess": "Cập nhật doanh nghiệp thành công",
+    "accountNotFound": "Không tìm thấy tài khoản của doanh nghiệp này",
+    "deleteConfirmTitle": "Xoá doanh nghiệp",
+    "deleteConfirm": "Xoá {{count}} doanh nghiệp đã chọn?",
+    "deleteSuccess": "Đã xoá {{count}} doanh nghiệp",
+    "deleteNotSupported": "Hệ thống chưa hỗ trợ xoá doanh nghiệp (backend chưa có API xoá)"
   }
 }

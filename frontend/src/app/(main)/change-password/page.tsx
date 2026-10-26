@@ -22,7 +22,11 @@ export default function ChangePasswordPage() {
 
   const onSubmit = async (values: ChangePasswordForm) => {
     try {
-      const res = await authApi.changePassword({ oldPassword: values.oldPassword, newPassword: values.newPassword });
+      const res = await authApi.changePassword({
+        currentPassword: values.oldPassword,
+        newPassword: values.newPassword,
+        confirmNewPassword: values.confirmPassword,
+      });
       if (!res.success) return showError(res.code);
       enqueueSnackbar(translate('changePassword.success'), { variant: 'success' });
       reset();                                    // xoá trắng form sau khi đổi xong

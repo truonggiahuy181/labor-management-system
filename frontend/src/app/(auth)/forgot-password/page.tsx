@@ -41,17 +41,31 @@ export default function ForgotPasswordPage() {
   const onInvalid = (errors: FieldErrors) =>
     showError(String(Object.values(errors)[0]?.message || translate('common.missingInfo')));
 
-  // Bước 1 (và nút "Gửi lại"): server gửi OTP về email
+  const goToOtpStep = (target: string, notice: Notice) => {
+    setEmail(target);
+    setCountdown(RESEND_SECONDS);
+    setNotice(notice);
+  };
+
+  // 2. MỚI: xử lý lỗi khi gửi mã
+  // Server từ chối gửi lại (OTP_RESEND_TOO_SOON) nghĩa là mã vừa được gửi trong 60 giây qua,
+  // ví dụ người dùng tải lại trang sau khi gửi → vẫn cho sang bước nhập mã thay vì kẹt ở bước 1
+  const handleSendError = (target: string, code?: string) => {
+    if (code === 'OTP_RESEND_TOO_SOON' && !email) {
+      return goToOtpStep(target, { severity: 'info', text: translate('forgotPassword.recentlySent') });
+    }
+    showError(translateError(code));
+  };
+
+  // 3. SỬA: sendOtp dùng 2 hàm trên
   const sendOtp = async (target: string) => {
     setNotice(null);
     try {
       const res = await authApi.forgotPassword({ email: target });
-      if (!res.success) return showError(translateError(res.code));
-      setEmail(target);
-      setCountdown(RESEND_SECONDS);
-      setNotice({ severity: 'success', text: translate('forgotPassword.sendSuccess') });
+      if (!res.success) return handleSendError(target, res.code);                                   // trước: showError(...)
+      goToOtpStep(target, { severity: 'success', text: translate('forgotPassword.sendSuccess') });  // trước: 3 dòng setEmail / setCountdown / setNotice
     } catch (err) {
-      showError(translateError(getErrorCode(err)));
+      handleSendError(target, getErrorCode(err));                                                    // trước: showError(...)
     }
   };
 

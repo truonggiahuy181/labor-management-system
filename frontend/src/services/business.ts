@@ -33,27 +33,33 @@ export interface BusinessFiles {
 export interface RegisteredAccount { username: string; tempPassword: string; companyName: string; email: string }
 
 export type RegisterBusinessBody = BusinessInfo & BusinessFiles & { verifyToken: string };
+export type AdminCreateBusinessBody = BusinessInfo & BusinessFiles;
+
+const toFormData = (body: object) => {
+  const form = new FormData();
+  Object.entries(body).forEach(([key, value]) => {
+    if (value instanceof File) form.append(key, value);
+    else if (value !== null && value !== '') form.append(key, String(value));
+  });
+  return form;
+};
 
 const realBusinessApi = {
   // Bước 1 → 2: gửi mã OTP tới email doanh nghiệp (kiểm tra trùng MST/email trước khi gửi)
   sendOtp: (body: { email: string; taxCode: string }) =>
-    api.post<ApiResponse<null>>('/auth/register-business/send-otp', body).then((r) => r.data),
+    api.post<ApiResponse<null>>('/auth/request-email-change', body).then((r) => r.data),
 
   // Bước 2: kiểm tra OTP, server trả token ngắn hạn chứng minh email đã xác thực
   verifyOtp: (body: { email: string; otp: string }) =>
-    api.post<ApiResponse<{ verifyToken: string }>>('/auth/register-business/verify-otp', body).then((r) => r.data),
+    api.post<ApiResponse<{ verifyToken: string }>>('/auth/verify-email-otp', body).then((r) => r.data),
 
   // Bước 3: gửi toàn bộ hồ sơ + file đính kèm (multipart/form-data)
-  register: (body: RegisterBusinessBody) => {
-    const form = new FormData();
-    Object.entries(body).forEach(([key, value]) => {
-      if (value instanceof File) form.append(key, value);
-      else if (value !== null && value !== '') form.append(key, String(value));
-    });
-    return api
-      .post<ApiResponse<RegisteredAccount>>('/auth/register-business', form)
-      .then((r) => r.data);
-  },
+  register: (body: RegisterBusinessBody) =>
+    api.post<ApiResponse<RegisteredAccount>>('/auth/register-business', toFormData(body)).then((r) => r.data),
+
+  // Quản trị viên thêm doanh nghiệp (chỉ Admin): cùng hồ sơ, không cần verifyToken
+  adminCreate: (body: AdminCreateBusinessBody) =>
+    api.post<ApiResponse<RegisteredAccount>>('/enterprises', toFormData(body)).then((r) => r.data),
 };
 
 export type BusinessApi = typeof realBusinessApi;
@@ -72,6 +78,8 @@ const mockBusinessApi: BusinessApi = {
   verifyOtp: ({ otp }) =>
     otp === MOCK_OTP ? delay({ success: true, data: { verifyToken: 'mock-token' } }) : fail('OTP_INVALID'),
   register: ({ taxCode, companyName, email }) =>
+    delay({ success: true, data: { username: taxCode, tempPassword: 'Mock1234Aa1', companyName, email } }),
+  adminCreate: ({ taxCode, companyName, email }) =>
     delay({ success: true, data: { username: taxCode, tempPassword: 'Mock1234Aa1', companyName, email } }),
 };
 

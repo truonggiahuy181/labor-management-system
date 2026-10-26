@@ -37,6 +37,11 @@ export const PROVINCES: (Option & { wards: Option[] })[] = [
   },
 ];
 
+// Danh mục loại hình / ngành nghề truyền vào form: luồng đăng ký dùng mặc định,
+// Quản trị viên truyền danh mục thật từ API (Hooks/useCatalogs)
+export type CatalogOptions = { businessTypes: Option[]; industries: Option[] };
+export const DEFAULT_CATALOG: CatalogOptions = { businessTypes: BUSINESS_TYPES, industries: INDUSTRIES };
+
 export const wardsOf = (province: string) => PROVINCES.find((p) => p.value === province)?.wards ?? [];
 
 export const labelOf = (options: Option[], value: string) =>
