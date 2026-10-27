@@ -9,7 +9,7 @@ describe('BusinessTypeService', () => {
     create: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    softDelete: ReturnType<typeof vi.fn>;
   };
   let enterpriseRepository: { exists: ReturnType<typeof vi.fn> };
   let service: BusinessTypeService;
@@ -21,7 +21,7 @@ describe('BusinessTypeService', () => {
       create: vi.fn((values) => values),
       save: vi.fn(async (entity) => ({ id: 2, ...entity })),
       update: vi.fn(),
-      delete: vi.fn(),
+      softDelete: vi.fn(),
     };
     enterpriseRepository = { exists: vi.fn() };
     service = new BusinessTypeService(
@@ -183,7 +183,7 @@ describe('BusinessTypeService', () => {
     repository.findOne.mockResolvedValue({ id: 1, isActive: true });
 
     await expect(service.remove(1)).rejects.toThrow(BadRequestException);
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
   it('rejects deleting a business type used by an enterprise', async () => {
@@ -191,14 +191,14 @@ describe('BusinessTypeService', () => {
     enterpriseRepository.exists.mockResolvedValue(true);
 
     await expect(service.remove(1)).rejects.toThrow(ConflictException);
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
-  it('deletes an inactive, unused business type', async () => {
+  it('soft-deletes an inactive, unused business type', async () => {
     repository.findOne.mockResolvedValue({ id: 1, isActive: false });
     enterpriseRepository.exists.mockResolvedValue(false);
 
     await expect(service.remove(1)).resolves.toBeUndefined();
-    expect(repository.delete).toHaveBeenCalledWith(1);
+    expect(repository.softDelete).toHaveBeenCalledWith(1);
   });
 });

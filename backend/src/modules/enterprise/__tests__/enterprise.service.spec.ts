@@ -63,7 +63,7 @@ describe('EnterpriseService', () => {
       find: vi.fn(),
       findOne: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
-      delete: vi.fn(),
+      softDelete: vi.fn(),
     };
     userRepository = { exists: vi.fn() };
     userService = {
@@ -343,7 +343,7 @@ describe('EnterpriseService', () => {
     repository.findOne.mockResolvedValue(enterpriseEntity());
 
     await expect(service.remove(10)).rejects.toThrow(BadRequestException);
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an enterprise with assigned users', async () => {
@@ -351,14 +351,14 @@ describe('EnterpriseService', () => {
     userRepository.exists.mockResolvedValue(true);
 
     await expect(service.remove(10)).rejects.toThrow(ConflictException);
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
-  it('deletes an inactive enterprise without assigned users', async () => {
+  it('soft-deletes an inactive enterprise without assigned users', async () => {
     repository.findOne.mockResolvedValue(enterpriseEntity({ isActive: false }));
     userRepository.exists.mockResolvedValue(false);
 
     await expect(service.remove(10)).resolves.toBeUndefined();
-    expect(repository.delete).toHaveBeenCalledWith(10);
+    expect(repository.softDelete).toHaveBeenCalledWith(10);
   });
 });

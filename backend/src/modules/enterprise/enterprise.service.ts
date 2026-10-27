@@ -204,7 +204,7 @@ export class EnterpriseService {
       });
     }
 
-    await this.enterpriseRepository.delete(id);
+    await this.enterpriseRepository.softDelete(id);
   }
 
   private async findEntityOrFail(id: number): Promise<EnterpriseEntity> {
@@ -222,7 +222,10 @@ export class EnterpriseService {
 
   private async assertTaxCodeAvailable(taxCode: string): Promise<void> {
     const [enterprise, user] = await Promise.all([
-      this.enterpriseRepository.findOne({ where: { taxCode } }),
+      this.enterpriseRepository.findOne({
+        where: { taxCode },
+        withDeleted: true,
+      }),
       this.userService.findByUsername(taxCode),
     ]);
     if (enterprise || user) {

@@ -76,7 +76,8 @@ export class RoleController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Xóa vai trò đã ngừng sử dụng và chưa được gán cho người dùng',
+    summary:
+      'Xóa mềm vai trò đã ngừng sử dụng và chưa được gán cho người dùng chưa bị xóa',
   })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.roleService.remove(id);

@@ -171,9 +171,9 @@ export function ApiUpdateUserStatusDocs() {
 export function ApiDeleteUserDocs() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Xóa người dùng đã bị khóa (Quản trị viên)',
+      summary: 'Xóa mềm người dùng đã bị khóa (Quản trị viên)',
       description:
-        'Chỉ được xóa tài khoản inactive và không được tự xóa tài khoản đang đăng nhập.',
+        'Đặt deleted_at cho tài khoản inactive; không xóa vật lý và không được tự xóa tài khoản đang đăng nhập.',
     }),
     ApiParam({ name: 'id', description: 'ID người dùng', example: 2 }),
     ApiResponse({ status: 204, description: 'Xóa người dùng thành công.' }),

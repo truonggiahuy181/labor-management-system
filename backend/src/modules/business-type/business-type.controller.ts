@@ -85,7 +85,7 @@ export class BusinessTypeController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Xóa loại hình kinh doanh đã ngừng sử dụng và chưa được doanh nghiệp sử dụng',
+      'Xóa mềm loại hình đã ngừng sử dụng và chưa được doanh nghiệp chưa bị xóa sử dụng',
   })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.businessTypeService.remove(id);

@@ -28,7 +28,7 @@ describe('UserService', () => {
       create: vi.fn().mockImplementation((dto) => ({ id: 10, ...dto })),
       save: vi.fn().mockImplementation(async (entity) => entity),
       update: vi.fn().mockResolvedValue({ affected: 1 } as any),
-      delete: vi.fn().mockResolvedValue({ affected: 1 } as any),
+      softDelete: vi.fn().mockResolvedValue({ affected: 1 } as any),
     };
 
     roleService = {
@@ -164,6 +164,7 @@ describe('UserService', () => {
 
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { username: 'admin-vna' },
+        withDeleted: true,
       });
       expect(repository.findOne).toHaveBeenCalledWith({
         where: { email: 'phanthanhthung093@gmail.com' },
@@ -517,7 +518,7 @@ describe('UserService', () => {
   describe('remove', () => {
     it('không cho phép người dùng tự xóa tài khoản đang đăng nhập', async () => {
       await expect(service.remove(1, 1)).rejects.toThrow(BadRequestException);
-      expect(repository.delete).not.toHaveBeenCalled();
+      expect(repository.softDelete).not.toHaveBeenCalled();
     });
 
     it('không cho phép xóa tài khoản còn active', async () => {
@@ -527,17 +528,17 @@ describe('UserService', () => {
       });
 
       await expect(service.remove(2, 1)).rejects.toThrow(BadRequestException);
-      expect(repository.delete).not.toHaveBeenCalled();
+      expect(repository.softDelete).not.toHaveBeenCalled();
     });
 
-    it('xóa tài khoản inactive', async () => {
+    it('xóa mềm tài khoản inactive', async () => {
       (repository.findOne as any).mockResolvedValue({
         id: 2,
         isActive: false,
       });
 
       await expect(service.remove(2, 1)).resolves.toBeUndefined();
-      expect(repository.delete).toHaveBeenCalledWith(2);
+      expect(repository.softDelete).toHaveBeenCalledWith(2);
     });
   });
 });

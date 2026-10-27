@@ -28,7 +28,10 @@ export class UserService extends BaseService<UserEntity> {
   }
 
   async findByUsername(username: string): Promise<UserEntity | null> {
-    return this.userRepository.findOne({ where: { username } });
+    return this.userRepository.findOne({
+      where: { username },
+      withDeleted: true,
+    });
   }
 
   async findForAuthenticationByUsername(
@@ -280,6 +283,6 @@ export class UserService extends BaseService<UserEntity> {
       });
     }
 
-    await this.userRepository.delete(id);
+    await this.userRepository.softDelete(id);
   }
 }

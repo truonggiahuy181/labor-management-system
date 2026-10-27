@@ -165,7 +165,7 @@ export class IndustryService {
       });
     }
 
-    await this.industryRepository.delete(id);
+    await this.industryRepository.softDelete(id);
   }
 
   async getLevelFourByIdOrFail(id: number): Promise<IndustryEntity> {
@@ -200,6 +200,7 @@ export class IndustryService {
   ): Promise<void> {
     const industry = await this.industryRepository.findOne({
       where: { industryCode },
+      withDeleted: true,
     });
     if (industry) {
       throw new ConflictException({

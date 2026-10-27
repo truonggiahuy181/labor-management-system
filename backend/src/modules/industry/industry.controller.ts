@@ -88,7 +88,7 @@ export class IndustryController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Xóa ngành nghề đã ngừng sử dụng, chưa được dùng và không có ngành con',
+      'Xóa mềm ngành nghề đã ngừng sử dụng, chưa được dùng và không có ngành con chưa bị xóa',
   })
   @ApiNoContentResponse()
   remove(@Param('id', ParseIntPipe) id: number) {

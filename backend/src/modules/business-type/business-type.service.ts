@@ -117,7 +117,7 @@ export class BusinessTypeService {
       });
     }
 
-    await this.businessTypeRepository.delete(id);
+    await this.businessTypeRepository.softDelete(id);
   }
 
   async getActiveByIdOrFail(id: number): Promise<BusinessTypeEntity> {
@@ -151,6 +151,7 @@ export class BusinessTypeService {
   private async assertTypeCodeAvailable(typeCode: string): Promise<void> {
     const existingBusinessType = await this.businessTypeRepository.findOne({
       where: { typeCode },
+      withDeleted: true,
     });
     if (existingBusinessType) {
       throw new ConflictException({

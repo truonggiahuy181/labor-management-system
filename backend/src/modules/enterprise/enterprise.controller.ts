@@ -121,7 +121,8 @@ export class EnterpriseController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Xóa doanh nghiệp đã ngừng hoạt động và không còn người dùng',
+    summary:
+      'Xóa mềm doanh nghiệp đã ngừng hoạt động và không còn người dùng chưa bị xóa',
   })
   @ApiResponse({ status: 204, description: 'Xóa doanh nghiệp thành công.' })
   @ApiResponse({

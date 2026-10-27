@@ -96,7 +96,7 @@ export class RoleService {
       });
     }
 
-    await this.roleRepository.delete(id);
+    await this.roleRepository.softDelete(id);
   }
 
   async getByIdOrFail(id: number): Promise<RoleEntity> {
@@ -140,6 +140,7 @@ export class RoleService {
   private async assertRoleCodeAvailable(roleCode: string): Promise<void> {
     const existingRole = await this.roleRepository.findOne({
       where: { roleCode },
+      withDeleted: true,
     });
     if (existingRole) {
       throw new ConflictException({

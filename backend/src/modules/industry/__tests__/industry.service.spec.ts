@@ -14,7 +14,7 @@ describe('IndustryService', () => {
     save: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     exists: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    softDelete: ReturnType<typeof vi.fn>;
   };
   let enterpriseRepository: { exists: ReturnType<typeof vi.fn> };
   let service: IndustryService;
@@ -27,7 +27,7 @@ describe('IndustryService', () => {
       save: vi.fn((value) => value),
       update: vi.fn(),
       exists: vi.fn(),
-      delete: vi.fn(),
+      softDelete: vi.fn(),
     };
     enterpriseRepository = { exists: vi.fn() };
     service = new IndustryService(
@@ -232,13 +232,13 @@ describe('IndustryService', () => {
     await expect(service.remove(1)).rejects.toThrow(ConflictException);
   });
 
-  it('deletes an inactive, unused leaf industry', async () => {
+  it('soft-deletes an inactive, unused leaf industry', async () => {
     repository.findOne.mockResolvedValue({ ...industry, isActive: false });
     enterpriseRepository.exists.mockResolvedValue(false);
     repository.exists.mockResolvedValue(false);
 
     await expect(service.remove(1)).resolves.toBeUndefined();
-    expect(repository.delete).toHaveBeenCalledWith(1);
+    expect(repository.softDelete).toHaveBeenCalledWith(1);
   });
 
   it('returns an active level-four industry for enterprise validation', async () => {
