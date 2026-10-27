@@ -15,18 +15,20 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import ChangePasswordDialog from '@/Components/ChangePasswordDialog';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
+import { ROLE, RoleId } from '@/constants/roles';
 
 export const SIDEBAR_WIDTH = 280;
 const BG = '#1a3291';
 const DIVIDER = '1px dashed rgba(255, 255, 255, 0.3)';
-
-type MenuGroup = { title: string; items: { label: string; href: string }[] };
+type MenuItem = { label: string; href: string; roles?: RoleId[] };
+type MenuGroup = { title: string; roles: RoleId[]; items: MenuItem[] };
 
 // title / label là key dịch (locales/*.json → menu.*), khi render mới gọi translate
 // Đường dẫn tạm thời – đổi theo route thật khi có trang
 const MENU: MenuGroup[] = [
   {
     title: 'menu.groupAdmin',
+    roles: [ROLE.ADMIN],
     items: [
       { label: 'menu.users', href: '/admin/users' },
       { label: 'menu.companies', href: '/admin/companies' },
@@ -34,9 +36,17 @@ const MENU: MenuGroup[] = [
     ],
   },
   {
-    title: 'menu.groupAccidents',
+    title: 'menu.groupSystem',
+    roles: [ROLE.ENTERPRISE],
     items: [
-      { label: 'menu.accidentCategories', href: '/accidents/categories' },
+      { label: 'menu.companyInfo', href: '/account' },
+    ],
+  },
+  {
+    title: 'menu.groupAccidents',
+    roles: [ROLE.ADMIN, ROLE.ENTERPRISE],
+    items: [
+      { label: 'menu.accidentCategories', href: '/accidents/categories',roles: [ROLE.ADMIN]  },
       { label: 'menu.accidentLaborContracts', href: '/accidents/labor-contracts' },
     ],
   },
@@ -49,7 +59,11 @@ export default function Sidebar({ onToggle }: { onToggle?: () => void }) {
   const router = useRouter();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-
+  const canSee = (roles: RoleId[] | undefined, roleId: number) => !roles || (roles as number[]).includes(roleId);
+  const menu = user
+  ? MENU.filter((g) => canSee(g.roles, user.roleId))
+    .map((g) => ({ ...g, items: g.items.filter((i) => canSee(i.roles, user.roleId)) }))
+  : [];
   const goLogin = async () => {
     await logout();
     router.replace('/login');
@@ -82,7 +96,7 @@ export default function Sidebar({ onToggle }: { onToggle?: () => void }) {
 
       {/* Menu: nhóm có icon bánh răng, mục con có dấu chấm */}
       <List sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
-        {MENU.map((group) => (
+        {menu.map((group) => (
           <Box key={group.title}>
             <ListItemButton onClick={() => toggleGroup(group.title)}>
               <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}><SettingsOutlinedIcon /></ListItemIcon>

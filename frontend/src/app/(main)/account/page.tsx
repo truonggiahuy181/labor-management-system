@@ -9,7 +9,7 @@ import { useSnackbar } from 'notistack';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import useLocales from '@/Hooks/useLocales';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
-
+import { ROLE } from '@/constants/roles'
 type Form = Required<{ [K in keyof ProfileUpdate]: string }>;
 type Option = { value: string; label: string };
 
@@ -23,8 +23,7 @@ const GENDERS: Option[] = [
 // (tên tỉnh/phường lấy từ API nên không cần dịch, đặt translateLabels = false)
 const PROVINCES: Option[] = [];
 const WARDS: Option[] = [];
-const ROLE_KEYS: Record<number, string> = { 1: 'account.roleAdmin', 2: 'account.roleEnterprise' };
-
+const ROLE_KEYS: Record<number, string> = { [ROLE.ADMIN]: 'account.roleAdmin', [ROLE.ENTERPRISE]: 'account.roleEnterprise' };
 const EMPTY: Form = { fullName: '', dob: '', gender: '', phoneNumber: '', title: '', avatarUrl: '', provinceId: '', wardId: '', address: '' };
 
 const toForm = (p: Profile): Form => ({

@@ -5,14 +5,16 @@ import { Box, Paper, Typography } from '@mui/material';
 import useLocales from '@/Hooks/useLocales';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
 import { FilesTable } from './BusinessInfoStep';
-import { BUSINESS_TYPES, INDUSTRIES, PROVINCES, labelOf, wardsOf } from './options';
+import { DEFAULT_CATALOG, PROVINCES, labelOf, wardsOf, type CatalogOptions } from './options';
 
 const formatDate = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
 
 // "162 đường số 2, Phường X, Thành phố Y" – bỏ phần trống
 const joinAddress = (...parts: string[]) => parts.filter(Boolean).join(', ');
 
-export default function ConfirmStep({ info, files }: { info: BusinessInfo; files: BusinessFiles }) {
+type Props = { info: BusinessInfo; files?: BusinessFiles; catalog?: CatalogOptions };   // files bỏ trống = không hiện bảng file
+
+export default function ConfirmStep({ info, files, catalog = DEFAULT_CATALOG }: Props) {
   const { translate } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
 
@@ -23,8 +25,8 @@ export default function ConfirmStep({ info, files }: { info: BusinessInfo; files
     [t('foreignName'), info.foreignName],
     [t('email'), info.email],
     [t('licenseDate'), formatDate(info.licenseDate)],
-    [t('businessType'), labelOf(BUSINESS_TYPES, info.businessType)],
-    [t('mainIndustry'), labelOf(INDUSTRIES, info.mainIndustry)],
+    [t('businessType'), labelOf(catalog.businessTypes, info.businessType)],
+    [t('mainIndustry'), labelOf(catalog.industries, info.mainIndustry)],
     [t('registeredAddress'), joinAddress(info.address, labelOf(wardsOf(info.province), info.ward), labelOf(PROVINCES, info.province))],
     [t('businessLocation'), joinAddress(
       info.businessLocation,
@@ -49,7 +51,7 @@ export default function ConfirmStep({ info, files }: { info: BusinessInfo; files
         </Box>
       </Paper>
 
-      <FilesTable files={files} />
+      {files && <FilesTable files={files} />}
     </Box>
   );
 }
