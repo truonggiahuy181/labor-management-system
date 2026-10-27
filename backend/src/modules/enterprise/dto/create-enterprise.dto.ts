@@ -1,17 +1,16 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
-  IsBoolean,
   IsDateString,
   IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
-  Matches,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
 const PHONE_RE = /^0\d{9}$/;
@@ -109,12 +108,4 @@ export class CreateEnterpriseDto {
   @IsString()
   @MaxLength(255)
   operatingAddress?: string;
-}
-
-export class UpdateEnterpriseDto extends PartialType(CreateEnterpriseDto) {}
-
-export class UpdateEnterpriseStatusDto {
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  isActive: boolean;
 }

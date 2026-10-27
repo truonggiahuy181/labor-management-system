@@ -15,7 +15,7 @@ const USER_EXAMPLE = {
   districtId: '764',
   wardId: '26740',
   address: 'Phường Gò Vấp, TP Hồ Chí Minh',
-  roleId: 2,
+  roleId: 1,
   enterpriseId: null,
   isActive: true,
   createdAt: '2026-10-22T08:00:00.000Z',
@@ -34,7 +34,7 @@ export function ApiCreateUserDocs() {
     ApiOperation({
       summary: 'Tạo mới người dùng (Quản trị viên)',
       description:
-        'Tạo tài khoản người dùng mới với thông tin cá nhân, phân quyền và liên hệ. Mật khẩu được băm tự động bằng Argon2.',
+        'Tạo tài khoản nội bộ. Tài khoản ENTERPRISE_USER chỉ được tạo tự động cùng doanh nghiệp qua POST /enterprises. Mật khẩu được băm bằng Argon2.',
     }),
     ApiResponse({
       status: 201,
@@ -56,9 +56,10 @@ export function ApiCreateUserDocs() {
 export function ApiGetAllUsersDocs() {
   return applyDecorators(
     ApiOperation({
-      summary: 'Lấy danh sách tất cả người dùng (Quản trị viên)',
+      summary:
+        'Lấy danh sách người dùng khác tài khoản hiện tại (Quản trị viên)',
       description:
-        'Danh sách được sắp xếp theo ID giảm dần và không chứa mật khẩu, OTP hoặc token.',
+        'Danh sách không bao gồm tài khoản đang đăng nhập, được sắp xếp theo ID giảm dần và không chứa mật khẩu, OTP hoặc token.',
     }),
     ApiResponse({
       status: 200,
@@ -125,7 +126,7 @@ export function ApiUpdateUserDocs() {
     ApiOperation({
       summary: 'Cập nhật người dùng theo ID (Quản trị viên)',
       description:
-        'Cập nhật hồ sơ, vai trò, doanh nghiệp, trạng thái, email hoặc đặt lại mật khẩu.',
+        'Cập nhật hồ sơ, trạng thái, email hoặc đặt lại mật khẩu. Vai trò và liên kết doanh nghiệp không được thay đổi sau khi tạo.',
     }),
     ApiParam({ name: 'id', description: 'ID người dùng', example: 2 }),
     ApiResponse({
@@ -163,6 +164,23 @@ export function ApiUpdateUserStatusDocs() {
       description: 'Dữ liệu không hợp lệ hoặc tự khóa tài khoản.',
     }),
     ApiResponse({ status: 401, description: 'Chưa đăng nhập.' }),
+    ApiResponse({ status: 404, description: 'Không tìm thấy người dùng.' }),
+  );
+}
+
+export function ApiDeleteUserDocs() {
+  return applyDecorators(
+    ApiOperation({
+      summary: 'Xóa mềm người dùng đã bị khóa (Quản trị viên)',
+      description:
+        'Đặt deleted_at cho tài khoản inactive; không xóa vật lý và không được tự xóa tài khoản đang đăng nhập.',
+    }),
+    ApiParam({ name: 'id', description: 'ID người dùng', example: 2 }),
+    ApiResponse({ status: 204, description: 'Xóa người dùng thành công.' }),
+    ApiResponse({
+      status: 400,
+      description: 'Tài khoản còn active hoặc quản trị viên tự xóa chính mình.',
+    }),
     ApiResponse({ status: 404, description: 'Không tìm thấy người dùng.' }),
   );
 }

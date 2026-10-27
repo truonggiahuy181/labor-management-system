@@ -7,10 +7,11 @@ import { UserModule } from '../user/user.module.js';
 import { BusinessTypeModule } from '../business-type/business-type.module.js';
 import { IndustryModule } from '../industry/industry.module.js';
 import { RoleModule } from '../role/role.module.js';
+import { UserEntity } from '../user/user.entity.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([EnterpriseEntity]),
+    TypeOrmModule.forFeature([EnterpriseEntity, UserEntity]),
     UserModule,
     BusinessTypeModule,
     IndustryModule,

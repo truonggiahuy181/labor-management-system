@@ -118,22 +118,13 @@ export class CreateUserDto {
 
   @ApiProperty({
     description:
-      'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên,...)',
+      'ID vai trò nội bộ. Không nhận vai trò ENTERPRISE_USER; tài khoản doanh nghiệp được tạo qua POST /enterprises.',
     example: 1,
   })
   @Type(() => Number)
   @IsInt({ message: 'ID vai trò phải là số nguyên' })
   @IsNotEmpty({ message: 'Vai trò không được để trống' })
   roleId: number;
-
-  @ApiPropertyOptional({
-    description: 'ID Doanh nghiệp (nếu là tài khoản thuộc doanh nghiệp)',
-    example: null,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'ID doanh nghiệp phải là số nguyên' })
-  enterpriseId?: number | null;
 
   @ApiPropertyOptional({
     description: 'Trạng thái kích hoạt tài khoản',

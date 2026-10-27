@@ -1,4 +1,4 @@
-BEGIN;
+BEGIN;kk
 
 CREATE TABLE business_types (
   id SERIAL PRIMARY KEY,

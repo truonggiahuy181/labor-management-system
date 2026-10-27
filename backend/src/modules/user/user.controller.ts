@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -8,13 +9,17 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
+import { Roles } from '../../commons/decorators/roles.decorator.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UserQueryDto } from './dto/user-query.dto.js';
 import {
   ApiCreateUserDocs,
   ApiGetAllUsersDocs,
@@ -23,6 +28,7 @@ import {
   ApiUpdateMyProfileDocs,
   ApiUpdateUserDocs,
   ApiUpdateUserStatusDocs,
+  ApiDeleteUserDocs,
 } from './docs/user.swagger.js';
 import { UserService } from './user.service.js';
 
@@ -33,6 +39,7 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiCreateUserDocs()
   createUser(@CurrentUser() user: { id: number }, @Body() dto: CreateUserDto) {
@@ -40,9 +47,13 @@ export class UserController {
   }
 
   @Get()
+  @Roles(RoleCode.ADMIN)
   @ApiGetAllUsersDocs()
-  getAllUsers() {
-    return this.userService.getAllUsers();
+  getAllUsers(
+    @CurrentUser() user: { id: number },
+    @Query() query: UserQueryDto = {},
+  ) {
+    return this.userService.getAllUsers(user.id, query);
   }
 
   @Get('me')
@@ -52,6 +63,7 @@ export class UserController {
   }
 
   @Get(':id')
+  @Roles(RoleCode.ADMIN)
   @ApiGetUserByIdDocs()
   getUserById(@Param('id', ParseIntPipe) id: number) {
     return this.userService.getUserById(id);
@@ -68,6 +80,7 @@ export class UserController {
   }
 
   @Patch(':id')
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiUpdateUserDocs()
   updateUser(
@@ -79,6 +92,7 @@ export class UserController {
   }
 
   @Patch(':id/status')
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiUpdateUserStatusDocs()
   updateUserStatus(
@@ -87,5 +101,16 @@ export class UserController {
     @Body() dto: UpdateUserStatusDto,
   ) {
     return this.userService.updateStatus(id, dto.isActive, user?.id);
+  }
+
+  @Delete(':id')
+  @Roles(RoleCode.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiDeleteUserDocs()
+  removeUser(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.userService.remove(id, user.id);
   }
 }

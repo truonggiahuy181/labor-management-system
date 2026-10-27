@@ -19,15 +19,13 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service.js';
 import { AuthCookieService } from './auth-cookie.service.js';
-import {
-  LoginDto,
-  ChangePasswordDto,
-  ForgotPasswordDto,
-  ResetPasswordDto,
-  VerifyEmailOtpDto,
-  ConfirmEmailChangeDto,
-  RefreshTokenDto,
-} from './dto/auth.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto.js';
 import { Public } from '../../commons/decorators/public.decorator.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../../commons/guards/jwt-auth.guard.js';
@@ -122,7 +120,7 @@ export class AuthController {
       user: result.user,
     };
   }
-  
+
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({
@@ -181,7 +179,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Đăng xuất thành công. Xóa cookie và thu hồi token trong Redis.',
+    description:
+      'Đăng xuất thành công. Xóa cookie và thu hồi token trong Redis.',
     schema: {
       example: {
         message: 'Đăng xuất thành công.',
@@ -194,10 +193,7 @@ export class AuthController {
       },
     },
   })
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const rawAccessToken = this.authCookieService.extractAccessToken(req);
     const rawRefreshToken = this.authCookieService.extractRefreshToken(req);
 
@@ -296,7 +292,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Đổi mật khẩu thành công. action=FORCE_LOGOUT báo client đăng xuất.',
+    description:
+      'Đổi mật khẩu thành công. action=FORCE_LOGOUT báo client đăng xuất.',
     schema: {
       example: {
         message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.',
@@ -311,7 +308,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Mật khẩu cũ sai / Mật khẩu mới không khớp / Trùng mật khẩu cũ',
+    description:
+      'Mật khẩu cũ sai / Mật khẩu mới không khớp / Trùng mật khẩu cũ',
     schema: {
       example: {
         message: 'Mật khẩu hiện tại không đúng',
@@ -354,7 +352,8 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: '[Forgot Password – Step 1] Gửi mã OTP khôi phục mật khẩu qua email',
+    summary:
+      '[Forgot Password – Step 1] Gửi mã OTP khôi phục mật khẩu qua email',
     description: 'Kiểm tra email trong hệ thống và gửi mã OTP 6 số qua email.',
   })
   @ApiResponse({
@@ -374,10 +373,12 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Lỗi xác thực dữ liệu đầu vào (Validation Error: Email không đúng định dạng hoặc để trống).',
+    description:
+      'Lỗi xác thực dữ liệu đầu vào (Validation Error: Email không đúng định dạng hoặc để trống).',
     schema: {
       example: {
-        message: 'Vui lòng nhập đúng định dạng email (ví dụ: username@domain.com).',
+        message:
+          'Vui lòng nhập đúng định dạng email (ví dụ: username@domain.com).',
         success: false,
         data: null,
         code: 400,
@@ -388,7 +389,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Không tìm thấy tài khoản (Email chưa được đăng ký trong hệ thống).',
+    description:
+      'Không tìm thấy tài khoản (Email chưa được đăng ký trong hệ thống).',
     schema: {
       example: {
         message: 'Email chưa được đăng ký. Xin vui lòng thử lại.',
@@ -416,13 +418,16 @@ export class AuthController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Khôi phục thành công. Báo client chuyển về màn hình đăng nhập.',
+    description:
+      'Khôi phục thành công. Báo client chuyển về màn hình đăng nhập.',
     schema: {
       example: {
-        message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
+        message:
+          'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
         success: true,
         data: {
-          message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
+          message:
+            'Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.',
           action: 'REDIRECT_TO_LOGIN',
         },
         code: 200,
@@ -431,7 +436,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Mã OTP không đúng, đã hết hạn hoặc mật khẩu xác nhận không khớp.',
+    description:
+      'Mã OTP không đúng, đã hết hạn hoặc mật khẩu xác nhận không khớp.',
     schema: {
       example: {
         message: 'Mã OTP không chính xác hoặc đã hết hạn',
@@ -454,7 +460,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: '[Email Change – Step 1] Gửi OTP về email hiện tại để xác thực',
-    description: 'Gửi mã OTP 6 số về email hiện tại của tài khoản đang đăng nhập.',
+    description:
+      'Gửi mã OTP 6 số về email hiện tại của tài khoản đang đăng nhập.',
   })
   @ApiResponse({
     status: 200,
@@ -464,7 +471,8 @@ export class AuthController {
         message: 'Thành công',
         success: true,
         data: {
-          message: 'Mã OTP đã được gửi đến email hiện tại của bạn. Vui lòng kiểm tra hộp thư.',
+          message:
+            'Mã OTP đã được gửi đến email hiện tại của bạn. Vui lòng kiểm tra hộp thư.',
           expiresInMinutes: 5,
         },
         code: 200,
@@ -520,7 +528,8 @@ export class AuthController {
         message: 'Thành công',
         success: true,
         data: {
-          message: 'Xác thực mã OTP thành công. Bạn có thể tiến hành đổi email.',
+          message:
+            'Xác thực mã OTP thành công. Bạn có thể tiến hành đổi email.',
           verified: true,
         },
         code: 200,
@@ -602,7 +611,8 @@ export class AuthController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Xung đột dữ liệu – Email mới đã được sử dụng bởi tài khoản khác.',
+    description:
+      'Xung đột dữ liệu – Email mới đã được sử dụng bởi tài khoản khác.',
     schema: {
       example: {
         message: 'Email này đã được sử dụng bởi tài khoản khác.',

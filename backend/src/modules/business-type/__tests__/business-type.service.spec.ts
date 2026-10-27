@@ -9,7 +9,9 @@ describe('BusinessTypeService', () => {
     create: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    softDelete: ReturnType<typeof vi.fn>;
   };
+  let enterpriseRepository: { exists: ReturnType<typeof vi.fn> };
   let service: BusinessTypeService;
 
   beforeEach(() => {
@@ -19,8 +21,13 @@ describe('BusinessTypeService', () => {
       create: vi.fn((values) => values),
       save: vi.fn(async (entity) => ({ id: 2, ...entity })),
       update: vi.fn(),
+      softDelete: vi.fn(),
     };
-    service = new BusinessTypeService(repository as any);
+    enterpriseRepository = { exists: vi.fn() };
+    service = new BusinessTypeService(
+      repository as any,
+      enterpriseRepository as any,
+    );
   });
 
   it('returns active business types ordered by name', async () => {
@@ -76,9 +83,37 @@ describe('BusinessTypeService', () => {
       },
     ]);
 
-    await expect(service.getAll(true)).resolves.toHaveLength(1);
+    await expect(
+      service.getAll({ includeInactive: true }),
+    ).resolves.toHaveLength(1);
     expect(repository.find).toHaveBeenCalledWith({
       where: {},
+      order: { typeName: 'ASC' },
+    });
+  });
+
+  it('filters business types by search and status', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.getAll({ search: 'tnhh', isActive: false });
+
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        {
+          isActive: false,
+          typeCode: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%tnhh%',
+          }),
+        },
+        {
+          isActive: false,
+          typeName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%tnhh%',
+          }),
+        },
+      ],
       order: { typeName: 'ASC' },
     });
   });
@@ -142,5 +177,28 @@ describe('BusinessTypeService', () => {
 
     expect(repository.update).toHaveBeenCalledWith(1, { isActive: false });
     expect(result.isActive).toBe(false);
+  });
+
+  it('rejects deleting an active business type', async () => {
+    repository.findOne.mockResolvedValue({ id: 1, isActive: true });
+
+    await expect(service.remove(1)).rejects.toThrow(BadRequestException);
+    expect(repository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects deleting a business type used by an enterprise', async () => {
+    repository.findOne.mockResolvedValue({ id: 1, isActive: false });
+    enterpriseRepository.exists.mockResolvedValue(true);
+
+    await expect(service.remove(1)).rejects.toThrow(ConflictException);
+    expect(repository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes an inactive, unused business type', async () => {
+    repository.findOne.mockResolvedValue({ id: 1, isActive: false });
+    enterpriseRepository.exists.mockResolvedValue(false);
+
+    await expect(service.remove(1)).resolves.toBeUndefined();
+    expect(repository.softDelete).toHaveBeenCalledWith(1);
   });
 });

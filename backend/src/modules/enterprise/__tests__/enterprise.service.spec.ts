@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { describe, beforeEach, expect, it, vi } from 'vitest';
 import { EnterpriseService } from '../enterprise.service.js';
-import type { CreateEnterpriseDto } from '../dto/enterprise.dto.js';
+import type { CreateEnterpriseDto } from '../dto/create-enterprise.dto.js';
 
 vi.mock('argon2', () => ({
   hash: vi.fn().mockResolvedValue('hashed-initial-password'),
@@ -50,6 +50,7 @@ const enterpriseEntity = (overrides: Record<string, unknown> = {}) => ({
 describe('EnterpriseService', () => {
   let service: EnterpriseService;
   let repository: Record<string, any>;
+  let userRepository: { exists: ReturnType<typeof vi.fn> };
   let userService: Record<string, any>;
   let transactionManager: Record<string, any>;
   let dataSource: Record<string, any>;
@@ -62,7 +63,9 @@ describe('EnterpriseService', () => {
       find: vi.fn(),
       findOne: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
+      softDelete: vi.fn(),
     };
+    userRepository = { exists: vi.fn() };
     userService = {
       findByUsername: vi.fn().mockResolvedValue(null),
       findByEmail: vi.fn().mockResolvedValue(null),
@@ -95,6 +98,7 @@ describe('EnterpriseService', () => {
     };
     service = new EnterpriseService(
       repository as any,
+      userRepository as any,
       businessTypeService as any,
       industryService as any,
       roleService as any,
@@ -121,7 +125,16 @@ describe('EnterpriseService', () => {
         roleId: 2,
       }),
     );
-    expect(result).toMatchObject({ id: 10, taxCode: '0101234567' });
+    expect(result).toEqual({
+      enterprise: expect.objectContaining({
+        id: 10,
+        taxCode: '0101234567',
+      }),
+      initialAccess: {
+        username: '0101234567',
+        temporaryPassword: '12345678',
+      },
+    });
   });
 
   it('rejects an invalid enterprise role before opening a transaction', async () => {
@@ -159,8 +172,63 @@ describe('EnterpriseService', () => {
 
     const result = await service.getAll();
 
-    expect(repository.find).toHaveBeenCalledWith({ order: { id: 'DESC' } });
+    expect(repository.find).toHaveBeenCalledWith({
+      where: {},
+      order: { id: 'DESC' },
+    });
     expect(result.map((enterprise) => enterprise.id)).toEqual([11, 10]);
+  });
+
+  it('filters enterprises by search, catalogue, province and status', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.getAll({
+      search: 'abc',
+      businessTypeId: 2,
+      industryId: 3,
+      provinceId: '79',
+      isActive: false,
+    });
+
+    const commonFilter = {
+      businessTypeId: 2,
+      industryId: 3,
+      provinceId: '79',
+      isActive: false,
+    };
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        {
+          ...commonFilter,
+          enterpriseName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%abc%',
+          }),
+        },
+        {
+          ...commonFilter,
+          taxCode: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%abc%',
+          }),
+        },
+        {
+          ...commonFilter,
+          email: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%abc%',
+          }),
+        },
+        {
+          ...commonFilter,
+          representativeName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%abc%',
+          }),
+        },
+      ],
+      order: { id: 'DESC' },
+    });
   });
 
   it('returns an enterprise by ID', async () => {
@@ -204,36 +272,53 @@ describe('EnterpriseService', () => {
         enterpriseName: 'Công ty ABC cập nhật',
         businessTypeId: 2,
         industryId: 2,
-        email: 'NEW@ABC.VN',
       },
       7,
     );
 
     expect(businessTypeService.getActiveByIdOrFail).toHaveBeenCalledWith(2);
     expect(industryService.getLevelFourByIdOrFail).toHaveBeenCalledWith(2);
-    expect(userService.findByEmail).toHaveBeenCalledWith('new@abc.vn');
     expect(repository.update).toHaveBeenCalledWith(
       10,
       expect.objectContaining({
         enterpriseName: 'Công ty ABC cập nhật',
-        email: 'new@abc.vn',
         updatedBy: 7,
       }),
     );
     expect(result).toMatchObject({
       enterpriseName: 'Công ty ABC cập nhật',
-      email: 'new@abc.vn',
+      email: 'contact@abc.vn',
     });
   });
 
-  it('rejects an email already used by another account when updating', async () => {
-    repository.findOne.mockResolvedValue(enterpriseEntity());
-    userService.findByEmail.mockResolvedValue({ id: 99 });
+  it('never updates email even when the service is called directly', async () => {
+    const existing = enterpriseEntity();
+    repository.findOne.mockResolvedValue(existing);
 
-    await expect(
-      service.update(10, { email: 'taken@example.com' }, 7),
-    ).rejects.toThrow(ConflictException);
-    expect(repository.update).not.toHaveBeenCalled();
+    await service.update(10, { email: 'new@abc.vn' } as any, 7);
+
+    expect(repository.update).toHaveBeenCalledWith(
+      10,
+      expect.not.objectContaining({ email: expect.anything() }),
+    );
+    expect(userService.findByEmail).not.toHaveBeenCalled();
+  });
+
+  it('never updates tax code even when the service is called directly', async () => {
+    const existing = enterpriseEntity();
+    repository.findOne.mockResolvedValue(existing);
+
+    await service.update(
+      10,
+      { enterpriseName: 'Công ty ABC cập nhật', taxCode: '0109999999' } as any,
+      7,
+    );
+
+    expect(repository.update).toHaveBeenCalledWith(
+      10,
+      expect.not.objectContaining({ taxCode: expect.anything() }),
+    );
+    expect(userService.findByUsername).not.toHaveBeenCalled();
   });
 
   it('updates enterprise status', async () => {
@@ -252,5 +337,28 @@ describe('EnterpriseService', () => {
       updatedBy: 7,
     });
     expect(result.isActive).toBe(false);
+  });
+
+  it('rejects deleting an active enterprise', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+
+    await expect(service.remove(10)).rejects.toThrow(BadRequestException);
+    expect(repository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects deleting an enterprise with assigned users', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity({ isActive: false }));
+    userRepository.exists.mockResolvedValue(true);
+
+    await expect(service.remove(10)).rejects.toThrow(ConflictException);
+    expect(repository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes an inactive enterprise without assigned users', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity({ isActive: false }));
+    userRepository.exists.mockResolvedValue(false);
+
+    await expect(service.remove(10)).resolves.toBeUndefined();
+    expect(repository.softDelete).toHaveBeenCalledWith(10);
   });
 });

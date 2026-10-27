@@ -1,7 +1,8 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
-import { CreateEnterpriseDto } from '../dto/enterprise.dto.js';
+import { CreateEnterpriseDto } from '../dto/create-enterprise.dto.js';
+import { UpdateEnterpriseDto } from '../dto/update-enterprise.dto.js';
 
 const createDto = (
   overrides: Partial<CreateEnterpriseDto> = {},
@@ -69,5 +70,37 @@ describe('CreateEnterpriseDto', () => {
     expect(
       errors.find((error) => error.property === 'phoneNumber')?.constraints,
     ).toHaveProperty('matches');
+  });
+});
+
+describe('UpdateEnterpriseDto', () => {
+  it('rejects taxCode and email because they are immutable', async () => {
+    const dto = plainToInstance(UpdateEnterpriseDto, {
+      enterpriseName: 'Công ty ABC cập nhật',
+      taxCode: '0109999999',
+      email: 'new@abc.vn',
+    });
+
+    const errors = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'taxCode',
+          constraints: expect.objectContaining({
+            whitelistValidation: expect.any(String),
+          }),
+        }),
+        expect.objectContaining({
+          property: 'email',
+          constraints: expect.objectContaining({
+            whitelistValidation: expect.any(String),
+          }),
+        }),
+      ]),
+    );
   });
 });

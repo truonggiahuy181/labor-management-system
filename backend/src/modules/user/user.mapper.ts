@@ -46,7 +46,7 @@ export class UserMapper {
       wardId: dto.wardId ?? null,
       address: dto.address ?? null,
       roleId: dto.roleId,
-      enterpriseId: dto.enterpriseId ?? null,
+      enterpriseId: null,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
       createdBy: creatorId ?? null,
       updatedBy: creatorId ?? null,

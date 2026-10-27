@@ -5,14 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { UserEntity } from '../user/user.entity.js';
-import {
-  CreateRoleDto,
-  RoleResponseDto,
-  UpdateRoleDto,
-} from './dto/role.dto.js';
+import { CreateRoleDto } from './dto/create-role.dto.js';
+import { RoleQueryDto } from './dto/role-query.dto.js';
+import { RoleResponseDto } from './dto/role-response.dto.js';
+import { UpdateRoleDto } from './dto/update-role.dto.js';
 import { RoleEntity } from './role.entity.js';
 
 @Injectable()
@@ -24,8 +23,25 @@ export class RoleService {
     private readonly userRepository: Repository<UserEntity>,
   ) {}
 
-  async getAll(): Promise<RoleResponseDto[]> {
-    return this.roleRepository.find({ order: { roleCode: 'ASC' } });
+  async getAll(query: RoleQueryDto = {}): Promise<RoleResponseDto[]> {
+    const baseWhere: FindOptionsWhere<RoleEntity> = {};
+    if (query.isActive !== undefined) {
+      baseWhere.isActive = query.isActive;
+    }
+
+    const search = query.search?.trim();
+    const where: FindOptionsWhere<RoleEntity> | FindOptionsWhere<RoleEntity>[] =
+      search
+        ? [
+            { ...baseWhere, roleCode: ILike(`%${search}%`) },
+            { ...baseWhere, roleName: ILike(`%${search}%`) },
+          ]
+        : baseWhere;
+
+    return this.roleRepository.find({
+      where,
+      order: { roleCode: 'ASC' },
+    });
   }
 
   async getById(id: number): Promise<RoleResponseDto> {
@@ -80,7 +96,7 @@ export class RoleService {
       });
     }
 
-    await this.roleRepository.delete(id);
+    await this.roleRepository.softDelete(id);
   }
 
   async getByIdOrFail(id: number): Promise<RoleEntity> {
@@ -124,6 +140,7 @@ export class RoleService {
   private async assertRoleCodeAvailable(roleCode: string): Promise<void> {
     const existingRole = await this.roleRepository.findOne({
       where: { roleCode },
+      withDeleted: true,
     });
     if (existingRole) {
       throw new ConflictException({

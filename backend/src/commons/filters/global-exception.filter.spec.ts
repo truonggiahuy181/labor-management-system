@@ -3,7 +3,6 @@ import {
   ArgumentsHost,
   BadRequestException,
   UnauthorizedException,
-  InternalServerErrorException,
   HttpStatus,
 } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter.js';
@@ -35,7 +34,9 @@ describe('GlobalExceptionFilter', () => {
   });
 
   it('should format HttpException with message, success: false, data: null, code, statusCode, timestamp, path', () => {
-    const exception = new UnauthorizedException('Tài khoản hoặc mật khẩu không đúng.');
+    const exception = new UnauthorizedException(
+      'Tài khoản hoặc mật khẩu không đúng.',
+    );
 
     filter.catch(exception, mockHost);
 
@@ -102,7 +103,9 @@ describe('GlobalExceptionFilter', () => {
 
     filter.catch(unknownError, mockHost);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Lỗi máy chủ nội bộ',

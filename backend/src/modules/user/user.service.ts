@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Not, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from './user.entity.js';
 import { BaseService } from '../../commons/bases/base.service.js';
@@ -12,24 +12,42 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UserMapper, UserResponse } from './user.mapper.js';
-import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
 import { RoleService } from '../role/role.service.js';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
+import { UserQueryDto } from './dto/user-query.dto.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-    @InjectRepository(EnterpriseEntity)
-    private readonly enterpriseRepository: Repository<EnterpriseEntity>,
     private readonly roleService: RoleService,
   ) {
     super(userRepository);
   }
 
   async findByUsername(username: string): Promise<UserEntity | null> {
-    return this.userRepository.findOne({ where: { username } });
+    return this.userRepository.findOne({
+      where: { username },
+      withDeleted: true,
+    });
+  }
+
+  async findForAuthenticationByUsername(
+    username: string,
+  ): Promise<UserEntity | null> {
+    return this.userRepository.findOne({
+      where: { username },
+      relations: { role: true, enterprise: true },
+    });
+  }
+
+  async findForAuthenticationById(id: number): Promise<UserEntity | null> {
+    return this.userRepository.findOne({
+      where: { id },
+      relations: { role: true, enterprise: true },
+    });
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
@@ -43,10 +61,40 @@ export class UserService extends BaseService<UserEntity> {
   }
 
   /**
-   * Lấy danh sách tất cả người dùng, sắp xếp theo tài khoản tạo mới nhất.
+   * Lấy danh sách người dùng khác tài khoản đang đăng nhập, sắp xếp theo ID giảm dần.
    */
-  async getAllUsers(): Promise<UserResponse[]> {
-    const users = await this.findAll({ order: { id: 'DESC' } });
+  async getAllUsers(
+    currentUserId: number,
+    query: UserQueryDto = {},
+  ): Promise<UserResponse[]> {
+    const baseWhere: FindOptionsWhere<UserEntity> = {
+      id: Not(currentUserId),
+    };
+    if (query.roleId !== undefined) {
+      baseWhere.roleId = query.roleId;
+    }
+    if (query.enterpriseId !== undefined) {
+      baseWhere.enterpriseId = query.enterpriseId;
+    }
+    if (query.isActive !== undefined) {
+      baseWhere.isActive = query.isActive;
+    }
+
+    const search = query.search?.trim();
+    const where: FindOptionsWhere<UserEntity> | FindOptionsWhere<UserEntity>[] =
+      search
+        ? [
+            { ...baseWhere, username: ILike(`%${search}%`) },
+            { ...baseWhere, fullName: ILike(`%${search}%`) },
+            { ...baseWhere, email: ILike(`%${search}%`) },
+            { ...baseWhere, phoneNumber: ILike(`%${search}%`) },
+          ]
+        : baseWhere;
+
+    const users = await this.findAll({
+      where,
+      order: { id: 'DESC' },
+    });
     return UserMapper.toResponseList(users);
   }
 
@@ -81,7 +129,13 @@ export class UserService extends BaseService<UserEntity> {
       }
     }
 
-    await this.assertReferences(dto.roleId, dto.enterpriseId);
+    const role = await this.roleService.getByIdOrFail(dto.roleId);
+    if (role.roleCode === RoleCode.ENTERPRISE_USER) {
+      throw new BadRequestException({
+        code: ErrorCode.ENTERPRISE_USER_MUST_BE_CREATED_WITH_ENTERPRISE,
+        message: 'Tài khoản doanh nghiệp chỉ được tạo cùng doanh nghiệp.',
+      });
+    }
 
     // 3. Băm mật khẩu bằng Argon2
     const passwordHash = await argon2.hash(dto.password);
@@ -146,7 +200,12 @@ export class UserService extends BaseService<UserEntity> {
         throw new ConflictException('Email đã tồn tại trong hệ thống.');
       }
     }
-    await this.assertReferences(dto.roleId, dto.enterpriseId);
+    if ('roleId' in dto || 'enterpriseId' in dto) {
+      throw new BadRequestException({
+        code: ErrorCode.USER_ROLE_AND_ENTERPRISE_IMMUTABLE,
+        message: 'Không được thay đổi vai trò hoặc doanh nghiệp của tài khoản.',
+      });
+    }
 
     // 2. Chuẩn bị dữ liệu cập nhật
     const updateData: Partial<UserEntity> = {
@@ -160,8 +219,6 @@ export class UserService extends BaseService<UserEntity> {
       districtId: dto.districtId,
       wardId: dto.wardId,
       address: dto.address,
-      roleId: dto.roleId,
-      enterpriseId: dto.enterpriseId,
       isActive: dto.isActive,
       email: dto.email,
       updatedBy: adminId ?? null,
@@ -210,24 +267,22 @@ export class UserService extends BaseService<UserEntity> {
     return UserMapper.toResponse(updatedUser);
   }
 
-  private async assertReferences(
-    roleId?: number,
-    enterpriseId?: number | null,
-  ): Promise<void> {
-    if (roleId !== undefined) {
-      await this.roleService.getByIdOrFail(roleId);
+  async remove(id: number, currentUserId: number): Promise<void> {
+    if (id === currentUserId) {
+      throw new BadRequestException({
+        code: ErrorCode.USER_CANNOT_DELETE_SELF,
+        message: 'Bạn không thể tự xóa tài khoản đang đăng nhập.',
+      });
     }
 
-    if (enterpriseId !== undefined && enterpriseId !== null) {
-      const enterpriseExists = await this.enterpriseRepository.exists({
-        where: { id: enterpriseId },
+    const user = await this.findOneOrFail({ where: { id } });
+    if (user.isActive) {
+      throw new BadRequestException({
+        code: ErrorCode.USER_MUST_BE_INACTIVE,
+        message: 'Phải khóa tài khoản người dùng trước khi xóa.',
       });
-      if (!enterpriseExists) {
-        throw new BadRequestException({
-          code: ErrorCode.ENTERPRISE_NOT_FOUND,
-          message: 'Doanh nghiệp không tồn tại.',
-        });
-      }
     }
+
+    await this.userRepository.softDelete(id);
   }
 }

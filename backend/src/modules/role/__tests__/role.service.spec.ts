@@ -9,7 +9,7 @@ describe('RoleService', () => {
     create: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    softDelete: ReturnType<typeof vi.fn>;
   };
   let userRepository: { exists: ReturnType<typeof vi.fn> };
   let service: RoleService;
@@ -21,7 +21,7 @@ describe('RoleService', () => {
       create: vi.fn((values) => values),
       save: vi.fn(async (entity) => ({ id: 3, ...entity })),
       update: vi.fn(),
-      delete: vi.fn(),
+      softDelete: vi.fn(),
     };
     userRepository = { exists: vi.fn().mockResolvedValue(false) };
     service = new RoleService(repository as any, userRepository as any);
@@ -74,6 +74,33 @@ describe('RoleService', () => {
 
     await expect(service.getAll()).resolves.toHaveLength(2);
     expect(repository.find).toHaveBeenCalledWith({
+      where: {},
+      order: { roleCode: 'ASC' },
+    });
+  });
+
+  it('filters roles by search and status', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.getAll({ search: 'admin', isActive: false });
+
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        {
+          isActive: false,
+          roleCode: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%admin%',
+          }),
+        },
+        {
+          isActive: false,
+          roleName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%admin%',
+          }),
+        },
+      ],
       order: { roleCode: 'ASC' },
     });
   });
@@ -144,7 +171,7 @@ describe('RoleService', () => {
 
     await expect(service.remove(3)).rejects.toThrow(BadRequestException);
     expect(userRepository.exists).not.toHaveBeenCalled();
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an inactive role that is still in use', async () => {
@@ -155,16 +182,16 @@ describe('RoleService', () => {
     expect(userRepository.exists).toHaveBeenCalledWith({
       where: { roleId: 3 },
     });
-    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.softDelete).not.toHaveBeenCalled();
   });
 
-  it('deletes an inactive role that is not in use', async () => {
+  it('soft-deletes an inactive role that is not in use', async () => {
     repository.findOne.mockResolvedValue({ id: 3, isActive: false });
 
     await expect(service.remove(3)).resolves.toBeUndefined();
     expect(userRepository.exists).toHaveBeenCalledWith({
       where: { roleId: 3 },
     });
-    expect(repository.delete).toHaveBeenCalledWith(3);
+    expect(repository.softDelete).toHaveBeenCalledWith(3);
   });
 });

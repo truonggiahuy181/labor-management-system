@@ -1,13 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,15 +20,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
-import {
-  CreateEnterpriseDto,
-  UpdateEnterpriseDto,
-  UpdateEnterpriseStatusDto,
-} from './dto/enterprise.dto.js';
+import { Roles } from '../../commons/decorators/roles.decorator.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
+import { CreateEnterpriseDto } from './dto/create-enterprise.dto.js';
+import { EnterpriseQueryDto } from './dto/enterprise-query.dto.js';
+import { UpdateEnterpriseDto } from './dto/update-enterprise.dto.js';
+import { UpdateEnterpriseStatusDto } from './dto/update-enterprise-status.dto.js';
 import { EnterpriseService } from './enterprise.service.js';
 
 @ApiTags('Enterprises – Quản lý doanh nghiệp')
 @ApiBearerAuth()
+@Roles(RoleCode.ADMIN)
 @Controller('enterprises')
 export class EnterpriseController {
   constructor(private readonly enterpriseService: EnterpriseService) {}
@@ -36,8 +41,8 @@ export class EnterpriseController {
     status: 200,
     description: 'Lấy danh sách doanh nghiệp thành công.',
   })
-  getAll() {
-    return this.enterpriseService.getAll();
+  getAll(@Query() query: EnterpriseQueryDto = {}) {
+    return this.enterpriseService.getAll(query);
   }
 
   @Get(':id')
@@ -51,12 +56,17 @@ export class EnterpriseController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Tạo doanh nghiệp',
     description:
       'businessTypeId phải tham chiếu loại hình đang hoạt động; industryId phải tham chiếu ngành nghề cấp 4.',
   })
-  @ApiResponse({ status: 201, description: 'Tạo doanh nghiệp thành công.' })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Tạo doanh nghiệp và tài khoản đăng nhập đầu tiên thành công. Response trả username và mật khẩu tạm thời để hiển thị một lần.',
+  })
   @ApiResponse({
     status: 400,
     description: 'Dữ liệu hoặc danh mục không hợp lệ.',
@@ -106,5 +116,24 @@ export class EnterpriseController {
     @CurrentUser() user: { id: number },
   ) {
     return this.enterpriseService.updateStatus(id, dto.isActive, user?.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Xóa mềm doanh nghiệp đã ngừng hoạt động và không còn người dùng chưa bị xóa',
+  })
+  @ApiResponse({ status: 204, description: 'Xóa doanh nghiệp thành công.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Doanh nghiệp vẫn đang hoạt động.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Doanh nghiệp vẫn còn người dùng trực thuộc.',
+  })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.enterpriseService.remove(id);
   }
 }

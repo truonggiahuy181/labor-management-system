@@ -1,6 +1,5 @@
 import {
   IsOptional,
-  IsInt,
   IsBoolean,
   IsEmail,
   IsString,
@@ -8,7 +7,6 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import { UpdateProfileDto } from './update-profile.dto.js';
 
 export class UpdateUserDto extends UpdateProfileDto {
@@ -32,25 +30,6 @@ export class UpdateUserDto extends UpdateProfileDto {
   @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   password?: string;
-
-  @ApiPropertyOptional({
-    description:
-      'ID Vai trò trong hệ thống (1: Quản trị viên, 2: Chuyên viên/Doanh nghiệp,...)',
-    example: 2,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'ID vai trò phải là số nguyên' })
-  roleId?: number;
-
-  @ApiPropertyOptional({
-    description: 'ID Doanh nghiệp (nếu là tài khoản thuộc doanh nghiệp)',
-    example: 1,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'ID doanh nghiệp phải là số nguyên' })
-  enterpriseId?: number | null;
 
   @ApiPropertyOptional({
     description: 'Trạng thái kích hoạt tài khoản',

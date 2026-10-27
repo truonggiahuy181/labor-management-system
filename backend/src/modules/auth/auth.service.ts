@@ -11,17 +11,16 @@ import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { UserService } from '../user/user.service.js';
-import {
-  LoginDto,
-  ChangePasswordDto,
-  ForgotPasswordDto,
-  ResetPasswordDto,
-  VerifyEmailOtpDto,
-  ConfirmEmailChangeDto,
-} from './dto/auth.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto.js';
 import type { JwtPayload } from './strategies/jwt.strategy.js';
 import { RedisService } from '../../commons/redis/redis.service.js';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
+import { canAuthenticate } from './auth-access.util.js';
 
 const OTP_EXPIRY_MINUTES = 5;
 // Phải chờ bao lâu mới được gửi lại OTP (khớp RESEND_SECONDS ở frontend)
@@ -39,20 +38,25 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   // ─── 1. ĐĂNG NHẬP ───────────────────────────────────────────────────────────
   async login(dto: LoginDto) {
-    const user = await this.userService.findByUsername(dto.username);
+    const user = await this.userService.findForAuthenticationByUsername(
+      dto.username,
+    );
 
-    if (!user || !user.isActive) {
+    if (!canAuthenticate(user)) {
       throw new UnauthorizedException({
         code: ErrorCode.WRONG_PASSWORD,
         message: 'Tài khoản hoặc mật khẩu không đúng. Xin vui lòng thử lại.',
       });
     }
 
-    const isPasswordValid = await argon2.verify(user.passwordHash, dto.password);
+    const isPasswordValid = await argon2.verify(
+      user.passwordHash,
+      dto.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException({
         code: ErrorCode.WRONG_PASSWORD,
@@ -70,8 +74,13 @@ export class AuthService {
 
     // Access Token luôn giữ thời hạn ngắn cấu hình trong JWT_EXPIRES_IN (không kéo dài 30 ngày)
     // Chỉ có refresh token mới kéo dài theo rememberMe để tăng tính an toàn
-    const accessExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '8h');
-    const accessToken = this.jwtService.sign(payload, { expiresIn: accessExpiresIn } as any);
+    const accessExpiresIn = this.configService.get<string>(
+      'JWT_EXPIRES_IN',
+      '8h',
+    );
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: accessExpiresIn,
+    } as any);
 
     // Tạo refresh token ngẫu nhiên và lưu hash vào Redis
     const refreshToken = crypto.randomBytes(40).toString('hex');
@@ -79,8 +88,14 @@ export class AuthService {
       .createHash('sha256')
       .update(refreshToken)
       .digest('hex');
-    const refreshTtl = dto.rememberMe ? REFRESH_TOKEN_EXPIRY_SECONDS : 24 * 60 * 60; // 30d hoặc 1d
-    await this.redisService.saveRefreshToken(user.id, refreshTokenHash, refreshTtl);
+    const refreshTtl = dto.rememberMe
+      ? REFRESH_TOKEN_EXPIRY_SECONDS
+      : 24 * 60 * 60; // 30d hoặc 1d
+    await this.redisService.saveRefreshToken(
+      user.id,
+      refreshTokenHash,
+      refreshTtl,
+    );
 
     return {
       accessToken,
@@ -102,7 +117,9 @@ export class AuthService {
 
   // ─── 1a. THÔNG TIN NGƯỜI DÙNG ĐANG ĐĂNG NHẬP ─────────────────────────────────
   async getMe(userId: number) {
-    const user = await this.userService.findOneOrFail({ where: { id: userId } });
+    const user = await this.userService.findOneOrFail({
+      where: { id: userId },
+    });
     return {
       id: user.id,
       username: user.username,
@@ -123,7 +140,8 @@ export class AuthService {
       .digest('hex');
 
     // 1. Kiểm tra cache grace period (15s): nếu token này vừa được xoay vòng bởi request trước đó:
-    const cachedRotation = await this.redisService.getRotatedTokenResult(incomingHash);
+    const cachedRotation =
+      await this.redisService.getRotatedTokenResult(incomingHash);
     if (cachedRotation) {
       try {
         const parsed = JSON.parse(cachedRotation);
@@ -141,7 +159,8 @@ export class AuthService {
     }
 
     // 2. Kiểm tra token có hợp lệ và còn hoạt động không
-    const userId = await this.redisService.getUserIdByRefreshToken(incomingHash);
+    const userId =
+      await this.redisService.getUserIdByRefreshToken(incomingHash);
     if (!userId) {
       throw new UnauthorizedException(
         'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.',
@@ -150,11 +169,16 @@ export class AuthService {
 
     // 3. Khóa nguyên tử ngắn hạn (5s) có gắn Owner ID ngẫu nhiên để chống race condition
     const lockOwner = crypto.randomUUID();
-    const lockAcquired = await this.redisService.acquireRotationLock(incomingHash, lockOwner, 5);
+    const lockAcquired = await this.redisService.acquireRotationLock(
+      incomingHash,
+      lockOwner,
+      5,
+    );
     if (!lockAcquired) {
       // Một request khác đang xoay vòng token này -> chờ ngắn và đọc kết quả xoay vòng đã cache
       await new Promise((resolve) => setTimeout(resolve, 200));
-      const retryCached = await this.redisService.getRotatedTokenResult(incomingHash);
+      const retryCached =
+        await this.redisService.getRotatedTokenResult(incomingHash);
       if (retryCached) {
         const parsed = JSON.parse(retryCached);
         return {
@@ -168,10 +192,12 @@ export class AuthService {
     }
 
     try {
-      const user = await this.userService.findOne({ where: { id: userId } });
-      if (!user || !user.isActive) {
+      const user = await this.userService.findForAuthenticationById(userId);
+      if (!canAuthenticate(user)) {
         await this.redisService.deleteRefreshToken(userId);
-        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.');
+        throw new UnauthorizedException(
+          'Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.',
+        );
       }
 
       // Bảo tồn thời gian sống còn lại của phiên làm việc (nếu người dùng đăng nhập bằng rememberMe)
@@ -188,7 +214,9 @@ export class AuthService {
       };
 
       const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '8h');
-      const newAccessToken = this.jwtService.sign(payload, { expiresIn } as any);
+      const newAccessToken = this.jwtService.sign(payload, {
+        expiresIn,
+      } as any);
 
       const newRefreshToken = crypto.randomBytes(40).toString('hex');
       const newRefreshTokenHash = crypto
@@ -254,7 +282,10 @@ export class AuthService {
         if (verifiedPayload.jti && verifiedPayload.exp) {
           const ttl = verifiedPayload.exp - Math.floor(Date.now() / 1000);
           if (ttl > 0) {
-            await this.redisService.blacklistAccessToken(verifiedPayload.jti, ttl);
+            await this.redisService.blacklistAccessToken(
+              verifiedPayload.jti,
+              ttl,
+            );
           }
         }
       }
@@ -266,7 +297,8 @@ export class AuthService {
         .createHash('sha256')
         .update(refreshToken)
         .digest('hex');
-      userId = await this.redisService.getUserIdByRefreshToken(refreshTokenHash);
+      userId =
+        await this.redisService.getUserIdByRefreshToken(refreshTokenHash);
     }
 
     // 3. Xóa refresh token khỏi Redis nếu xác định được userId hợp lệ
@@ -294,7 +326,9 @@ export class AuthService {
       });
     }
 
-    const user = await this.userService.findOneOrFail({ where: { id: userId } });
+    const user = await this.userService.findOneOrFail({
+      where: { id: userId },
+    });
 
     const isCurrentPasswordValid = await argon2.verify(
       user.passwordHash,
@@ -307,7 +341,10 @@ export class AuthService {
       });
     }
 
-    const isSamePassword = await argon2.verify(user.passwordHash, dto.newPassword);
+    const isSamePassword = await argon2.verify(
+      user.passwordHash,
+      dto.newPassword,
+    );
     if (isSamePassword) {
       throw new BadRequestException({
         code: ErrorCode.SAME_PASSWORD,
@@ -428,7 +465,9 @@ export class AuthService {
 
   // ─── 5. THAY ĐỔI EMAIL – BƯỚC 1: Gửi OTP ───────────────────────────────────
   async requestEmailChangeOtp(userId: number) {
-    const user = await this.userService.findOneOrFail({ where: { id: userId } });
+    const user = await this.userService.findOneOrFail({
+      where: { id: userId },
+    });
 
     if (!user.email) {
       throw new BadRequestException(
@@ -457,9 +496,16 @@ export class AuthService {
 
   // ─── 6. THAY ĐỔI EMAIL – BƯỚC 2: Xác minh OTP ───────────────────────────────
   async verifyEmailOtp(userId: number, dto: VerifyEmailOtpDto) {
-    const user = await this.userService.findOneOrFail({ where: { id: userId } });
+    const user = await this.userService.findOneOrFail({
+      where: { id: userId },
+    });
 
-    await this.assertEmailChangeOtp(userId, user.emailChangeOtp, user.emailChangeOtpExpires, dto.otp);
+    await this.assertEmailChangeOtp(
+      userId,
+      user.emailChangeOtp,
+      user.emailChangeOtpExpires,
+      dto.otp,
+    );
 
     return {
       message: 'Xác minh OTP thành công. Vui lòng nhập email mới.',
@@ -469,9 +515,16 @@ export class AuthService {
 
   // ─── 7. THAY ĐỔI EMAIL – BƯỚC 3: Xác nhận email mới ────────────────────────
   async confirmEmailChange(userId: number, dto: ConfirmEmailChangeDto) {
-    const user = await this.userService.findOneOrFail({ where: { id: userId } });
+    const user = await this.userService.findOneOrFail({
+      where: { id: userId },
+    });
 
-    await this.assertEmailChangeOtp(userId, user.emailChangeOtp, user.emailChangeOtpExpires, dto.otp);
+    await this.assertEmailChangeOtp(
+      userId,
+      user.emailChangeOtp,
+      user.emailChangeOtpExpires,
+      dto.otp,
+    );
 
     if (user.email === dto.newEmail) {
       throw new BadRequestException(
@@ -502,7 +555,10 @@ export class AuthService {
 
   // Chặn gửi lại OTP trong vòng OTP_RESEND_SECONDS giây
   private async assertOtpCooldown(scope: string): Promise<void> {
-    const allowed = await this.redisService.acquireOtpCooldown(scope, OTP_RESEND_SECONDS);
+    const allowed = await this.redisService.acquireOtpCooldown(
+      scope,
+      OTP_RESEND_SECONDS,
+    );
     if (!allowed) {
       throw new BadRequestException({
         code: ErrorCode.OTP_RESEND_TOO_SOON,
@@ -609,7 +665,10 @@ export class AuthService {
     otp: string,
   ): Promise<void> {
     const transporter = this.getMailTransporter();
-    const appName = this.configService.get<string>('APP_NAME', 'Hệ thống Quản lý Lao động');
+    const appName = this.configService.get<string>(
+      'APP_NAME',
+      'Hệ thống Quản lý Lao động',
+    );
     const logoUrl = this.configService.get<string>(
       'MAIL_LOGO_URL',
       'https://i.imgur.com/placeholder-logo.png',
@@ -759,7 +818,10 @@ export class AuthService {
     otp: string,
   ): Promise<void> {
     const transporter = this.getMailTransporter();
-    const appName = this.configService.get<string>('APP_NAME', 'Hệ thống Quản lý Lao động');
+    const appName = this.configService.get<string>(
+      'APP_NAME',
+      'Hệ thống Quản lý Lao động',
+    );
     const logoUrl = this.configService.get<string>(
       'MAIL_LOGO_URL',
       'https://i.imgur.com/placeholder-logo.png',

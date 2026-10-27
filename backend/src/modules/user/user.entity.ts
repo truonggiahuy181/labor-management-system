@@ -1,4 +1,11 @@
-import { Entity, Column, Index, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToOne,
+} from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../commons/bases/base.entity.js';
 import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
@@ -57,7 +64,7 @@ export class UserEntity extends BaseEntity {
   @Column({ name: 'enterprise_id', type: 'int', nullable: true })
   enterpriseId: number | null;
 
-  @ManyToOne(() => EnterpriseEntity, { nullable: true, onDelete: 'SET NULL' })
+  @OneToOne(() => EnterpriseEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({
     name: 'enterprise_id',
     foreignKeyConstraintName: 'fk_users_enterprise',
