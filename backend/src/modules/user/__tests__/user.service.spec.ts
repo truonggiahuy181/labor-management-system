@@ -19,7 +19,6 @@ vi.mock('argon2', () => ({
 describe('UserService', () => {
   let service: UserService;
   let repository: Partial<Repository<UserEntity>>;
-  let enterpriseRepository: { exists: ReturnType<typeof vi.fn> };
   let roleService: { getByIdOrFail: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
@@ -29,20 +28,44 @@ describe('UserService', () => {
       create: vi.fn().mockImplementation((dto) => ({ id: 10, ...dto })),
       save: vi.fn().mockImplementation(async (entity) => entity),
       update: vi.fn().mockResolvedValue({ affected: 1 } as any),
+      delete: vi.fn().mockResolvedValue({ affected: 1 } as any),
     };
 
-    enterpriseRepository = {
-      exists: vi.fn().mockResolvedValue(true),
-    };
     roleService = {
-      getByIdOrFail: vi.fn().mockResolvedValue({ id: 1 }),
+      getByIdOrFail: vi.fn().mockResolvedValue({
+        id: 1,
+        roleCode: 'ADMIN',
+      }),
     };
 
     service = new UserService(
       repository as Repository<UserEntity>,
-      enterpriseRepository as any,
       roleService as any,
     );
+  });
+
+  describe('authentication lookups', () => {
+    it('loads role and enterprise when finding a user by username', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 1 });
+
+      await service.findForAuthenticationByUsername('admin');
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { username: 'admin' },
+        relations: { role: true, enterprise: true },
+      });
+    });
+
+    it('loads role and enterprise when finding a user by id', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 1 });
+
+      await service.findForAuthenticationById(1);
+
+      expect(repository.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        relations: { role: true, enterprise: true },
+      });
+    });
   });
 
   describe('getAllUsers', () => {
@@ -53,12 +76,71 @@ describe('UserService', () => {
       ];
       (repository.find as any).mockResolvedValue(mockUsers);
 
-      const result = await service.getAllUsers();
+      const result = await service.getAllUsers(1);
 
-      expect(repository.find).toHaveBeenCalledWith({ order: { id: 'DESC' } });
+      expect(repository.find).toHaveBeenCalledWith({
+        where: {
+          id: expect.objectContaining({
+            _type: 'not',
+            _value: 1,
+          }),
+        },
+        order: { id: 'DESC' },
+      });
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({ id: 2, username: 'new-user' });
       expect((result[0] as any).passwordHash).toBeUndefined();
+    });
+
+    it('lọc người dùng theo từ khóa, vai trò, doanh nghiệp và trạng thái', async () => {
+      (repository.find as any).mockResolvedValue([]);
+
+      await service.getAllUsers(1, {
+        search: 'nguyen',
+        roleId: 2,
+        enterpriseId: 10,
+        isActive: false,
+      });
+
+      const call = (repository.find as any).mock.calls[0][0];
+      expect(call.order).toEqual({ id: 'DESC' });
+      expect(call.where).toHaveLength(4);
+      expect(call.where).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            roleId: 2,
+            enterpriseId: 10,
+            isActive: false,
+            username: expect.objectContaining({
+              _type: 'ilike',
+              _value: '%nguyen%',
+            }),
+          }),
+          expect.objectContaining({
+            fullName: expect.objectContaining({
+              _type: 'ilike',
+              _value: '%nguyen%',
+            }),
+          }),
+          expect.objectContaining({
+            email: expect.objectContaining({
+              _type: 'ilike',
+              _value: '%nguyen%',
+            }),
+          }),
+          expect.objectContaining({
+            phoneNumber: expect.objectContaining({
+              _type: 'ilike',
+              _value: '%nguyen%',
+            }),
+          }),
+        ]),
+      );
+      for (const where of call.where) {
+        expect(where.id).toEqual(
+          expect.objectContaining({ _type: 'not', _value: 1 }),
+        );
+      }
     });
   });
 
@@ -71,7 +153,7 @@ describe('UserService', () => {
         password: 'PlainPassword123',
         fullName: 'Nguyễn Văn A',
         email: 'phanthanhthung093@gmail.com',
-        roleId: 2,
+        roleId: 1,
         dob: '1995-06-01',
         gender: 1,
         title: 'Chuyên viên',
@@ -92,7 +174,7 @@ describe('UserService', () => {
           passwordHash: 'hashed_argon2_password',
           fullName: 'Nguyễn Văn A',
           email: 'phanthanhthung093@gmail.com',
-          roleId: 2,
+          roleId: 1,
           createdBy: 1,
           updatedBy: 1,
           isActive: true,
@@ -175,9 +257,12 @@ describe('UserService', () => {
       expect(repository.save).not.toHaveBeenCalled();
     });
 
-    it('nên từ chối enterpriseId không tồn tại', async () => {
+    it('không cho tạo ENTERPRISE_USER qua API user', async () => {
       (repository.findOne as any).mockResolvedValue(null);
-      enterpriseRepository.exists.mockResolvedValue(false);
+      roleService.getByIdOrFail.mockResolvedValue({
+        id: 2,
+        roleCode: 'ENTERPRISE_USER',
+      });
 
       await expect(
         service.createUser(
@@ -187,7 +272,6 @@ describe('UserService', () => {
             fullName: 'Người dùng doanh nghiệp',
             email: 'enterprise-user@example.com',
             roleId: 2,
-            enterpriseId: 999,
           },
           1,
         ),
@@ -286,7 +370,7 @@ describe('UserService', () => {
   });
 
   describe('updateUser', () => {
-    it('nên cập nhật vai trò, trạng thái, doanh nghiệp và mật khẩu mới', async () => {
+    it('nên cập nhật hồ sơ, trạng thái và mật khẩu mới', async () => {
       const mockUser: any = {
         id: 2,
         username: 'employee1',
@@ -304,9 +388,7 @@ describe('UserService', () => {
       const dto: UpdateUserDto = {
         fullName: 'Nhân viên 1 (Cập nhật)',
         email: 'new@example.com',
-        roleId: 1,
         isActive: false,
-        enterpriseId: 5,
         password: 'NewStrongPassword123',
       };
 
@@ -317,9 +399,7 @@ describe('UserService', () => {
         expect.objectContaining({
           fullName: 'Nhân viên 1 (Cập nhật)',
           email: 'new@example.com',
-          roleId: 1,
           isActive: false,
-          enterpriseId: 5,
           passwordHash: 'hashed_argon2_password',
           updatedBy: 1,
         }),
@@ -358,30 +438,26 @@ describe('UserService', () => {
       );
     });
 
-    it('nên từ chối roleId không tồn tại trước khi cập nhật', async () => {
+    it('không cho thay đổi roleId khi gọi service trực tiếp', async () => {
       (repository.findOne as any).mockResolvedValue({
         id: 2,
         email: 'user@example.com',
       });
-      roleService.getByIdOrFail.mockRejectedValue(
-        new BadRequestException('Vai trò không tồn tại.'),
-      );
 
-      await expect(service.updateUser(2, { roleId: 999 }, 1)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.updateUser(2, { roleId: 1 } as any, 1),
+      ).rejects.toThrow(BadRequestException);
       expect(repository.update).not.toHaveBeenCalled();
     });
 
-    it('nên từ chối enterpriseId không tồn tại trước khi cập nhật', async () => {
+    it('không cho thay đổi enterpriseId khi gọi service trực tiếp', async () => {
       (repository.findOne as any).mockResolvedValue({
         id: 2,
         email: 'user@example.com',
       });
-      enterpriseRepository.exists.mockResolvedValue(false);
 
       await expect(
-        service.updateUser(2, { enterpriseId: 999 }, 1),
+        service.updateUser(2, { enterpriseId: 10 } as any, 1),
       ).rejects.toThrow(BadRequestException);
       expect(repository.update).not.toHaveBeenCalled();
     });
@@ -435,6 +511,33 @@ describe('UserService', () => {
       await expect(service.updateStatus(999, false, 1)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('remove', () => {
+    it('không cho phép người dùng tự xóa tài khoản đang đăng nhập', async () => {
+      await expect(service.remove(1, 1)).rejects.toThrow(BadRequestException);
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+
+    it('không cho phép xóa tài khoản còn active', async () => {
+      (repository.findOne as any).mockResolvedValue({
+        id: 2,
+        isActive: true,
+      });
+
+      await expect(service.remove(2, 1)).rejects.toThrow(BadRequestException);
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+
+    it('xóa tài khoản inactive', async () => {
+      (repository.findOne as any).mockResolvedValue({
+        id: 2,
+        isActive: false,
+      });
+
+      await expect(service.remove(2, 1)).resolves.toBeUndefined();
+      expect(repository.delete).toHaveBeenCalledWith(2);
     });
   });
 });

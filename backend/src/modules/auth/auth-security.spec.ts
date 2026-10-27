@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, ForbiddenException, ExecutionContext } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  ForbiddenException,
+  ExecutionContext,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
@@ -16,7 +20,6 @@ describe('Auth & Cookie Security Review Test Suite', () => {
   let userService: Partial<UserService>;
   let redisService: Partial<RedisService>;
   let authService: AuthService;
-  let authCookieService: AuthCookieService;
   let csrfGuard: CsrfGuard;
 
   const JWT_SECRET = 'super-secret-key-that-is-at-least-32-chars-long-123456';
@@ -41,8 +44,8 @@ describe('Auth & Cookie Security Review Test Suite', () => {
     });
 
     userService = {
-      findByUsername: vi.fn(),
-      findOne: vi.fn(),
+      findForAuthenticationByUsername: vi.fn(),
+      findForAuthenticationById: vi.fn(),
       update: vi.fn(),
     };
 
@@ -66,7 +69,6 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       redisService as RedisService,
     );
 
-    authCookieService = new AuthCookieService(configService);
     csrfGuard = new CsrfGuard(configService);
   });
 
@@ -74,13 +76,20 @@ describe('Auth & Cookie Security Review Test Suite', () => {
   describe('1. Access Token Lifetime Isolation', () => {
     it('access token MUST remain short-lived (8h) and NOT extended to 30d even when rememberMe=true', async () => {
       const signSpy = vi.spyOn(jwtService, 'sign');
-      vi.mocked(userService.findByUsername!).mockResolvedValue({
-        id: 1,
-        username: 'testuser',
-        passwordHash: await import('argon2').then((a) => a.hash('password123')),
-        isActive: true,
-        roleId: 1,
-      } as any);
+      vi.mocked(userService.findForAuthenticationByUsername!).mockResolvedValue(
+        {
+          id: 1,
+          username: 'testuser',
+          passwordHash: await import('argon2').then((a) =>
+            a.hash('password123'),
+          ),
+          isActive: true,
+          roleId: 1,
+          enterpriseId: null,
+          role: { roleCode: 'ADMIN', isActive: true },
+          enterprise: null,
+        } as any,
+      );
 
       const result = await authService.login({
         username: 'testuser',
@@ -105,14 +114,43 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         30 * 24 * 60 * 60,
       );
     });
+
+    it('rejects login when the linked enterprise is inactive', async () => {
+      vi.mocked(userService.findForAuthenticationByUsername!).mockResolvedValue(
+        {
+          id: 2,
+          username: 'enterprise-user',
+          passwordHash: 'unused-because-access-is-denied-first',
+          isActive: true,
+          roleId: 2,
+          enterpriseId: 10,
+          role: { roleCode: 'ENTERPRISE_USER', isActive: true },
+          enterprise: { id: 10, isActive: false },
+        } as any,
+      );
+
+      await expect(
+        authService.login({
+          username: 'enterprise-user',
+          password: 'password123',
+          rememberMe: false,
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(redisService.saveRefreshToken).not.toHaveBeenCalled();
+    });
   });
 
   // ─── 2. LOGOUT SECURITY & TOKEN VERIFICATION ──────────────────────────────
   describe('2. Logout Security & Untrusted Claims Prevention', () => {
     it('should NOT trust unverified/forged access token to delete victim session (anti-DoS)', async () => {
       // Attacker crafts a token with a DIFFERENT secret claiming to be victim (sub: 999)
-      const fakeJwtService = new JwtService({ secret: 'attacker-evil-secret-key-123456789' });
-      const forgedToken = fakeJwtService.sign({ sub: 999, jti: 'attacker-jti' });
+      const fakeJwtService = new JwtService({
+        secret: 'attacker-evil-secret-key-123456789',
+      });
+      const forgedToken = fakeJwtService.sign({
+        sub: 999,
+        jti: 'attacker-jti',
+      });
 
       await authService.logout(null, forgedToken, null);
 
@@ -126,7 +164,13 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       // Sign a token with legitimate secret, but expired 10 seconds ago
       const pastTime = Math.floor(Date.now() / 1000) - 10;
       const expiredToken = (await import('jsonwebtoken')).default.sign(
-        { sub: 42, username: 'user42', roleId: 1, jti: 'real-jti-123', exp: pastTime },
+        {
+          sub: 42,
+          username: 'user42',
+          roleId: 1,
+          jti: 'real-jti-123',
+          exp: pastTime,
+        },
         JWT_SECRET,
       );
 
@@ -140,7 +184,10 @@ describe('Auth & Cookie Security Review Test Suite', () => {
 
     it('should allow logout and revoke session using valid refresh token when access token is missing', async () => {
       const validRefreshToken = crypto.randomBytes(40).toString('hex');
-      const hash = crypto.createHash('sha256').update(validRefreshToken).digest('hex');
+      const hash = crypto
+        .createHash('sha256')
+        .update(validRefreshToken)
+        .digest('hex');
 
       vi.mocked(redisService.getUserIdByRefreshToken!).mockResolvedValue(100);
 
@@ -227,7 +274,9 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         headers: { origin: 'http://evil-site.com' },
       });
 
-      expect(() => csrfGuard.canActivate(refreshCtx)).toThrow(ForbiddenException);
+      expect(() => csrfGuard.canActivate(refreshCtx)).toThrow(
+        ForbiddenException,
+      );
 
       // Attempting CSRF against /auth/logout with attacker origin
       const logoutCtx = createMockContext({
@@ -237,7 +286,9 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         headers: { origin: 'http://evil-site.com' },
       });
 
-      expect(() => csrfGuard.canActivate(logoutCtx)).toThrow(ForbiddenException);
+      expect(() => csrfGuard.canActivate(logoutCtx)).toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -260,16 +311,24 @@ describe('Auth & Cookie Security Review Test Suite', () => {
 
     it('should parse boolean COOKIE_SECURE flexibly (1, True, true, 0, false)', () => {
       const configTrue1 = new ConfigService({ COOKIE_SECURE: '1' });
-      expect(new AuthCookieService(configTrue1).getCookieOptions().secure).toBe(true);
+      expect(new AuthCookieService(configTrue1).getCookieOptions().secure).toBe(
+        true,
+      );
 
       const configTrue2 = new ConfigService({ COOKIE_SECURE: 'True' });
-      expect(new AuthCookieService(configTrue2).getCookieOptions().secure).toBe(true);
+      expect(new AuthCookieService(configTrue2).getCookieOptions().secure).toBe(
+        true,
+      );
 
       const configFalse1 = new ConfigService({ COOKIE_SECURE: '0' });
-      expect(new AuthCookieService(configFalse1).getCookieOptions().secure).toBe(false);
+      expect(
+        new AuthCookieService(configFalse1).getCookieOptions().secure,
+      ).toBe(false);
 
       const configFalse2 = new ConfigService({ COOKIE_SECURE: 'false' });
-      expect(new AuthCookieService(configFalse2).getCookieOptions().secure).toBe(false);
+      expect(
+        new AuthCookieService(configFalse2).getCookieOptions().secure,
+      ).toBe(false);
     });
   });
 
@@ -282,32 +341,66 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         redisService as RedisService,
       );
 
-      vi.mocked(userService.findOne!).mockResolvedValue({
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
         id: 7,
         username: 'user7',
         roleId: 2,
         isActive: true,
+        enterpriseId: 10,
+        role: { roleCode: 'ENTERPRISE_USER', isActive: true },
+        enterprise: { id: 10, isActive: true },
       } as any);
 
       const payload = { sub: 7, username: 'user7', roleId: 2, jti: 'jti-7' };
       const result = await strategy.validate(payload);
-      expect(result).toEqual({ id: 7, username: 'user7', roleId: 2 });
+      expect(result).toEqual({
+        id: 7,
+        username: 'user7',
+        roleId: 2,
+        roleCode: 'ENTERPRISE_USER',
+      });
     });
   });
 
   // ─── 6. REFRESH-TOKEN ROTATION CONCURRENCY & REPLAY ATTACK MITIGATION ─────
   describe('6. Refresh-Token Rotation, Multi-Tab Concurrency & Replay Protection', () => {
+    it('revokes the refresh session when the linked enterprise is inactive', async () => {
+      const refreshToken = 'inactive-enterprise-refresh-token';
+      vi.mocked(redisService.getUserIdByRefreshToken!).mockResolvedValue(30);
+      vi.mocked(redisService.acquireRotationLock!).mockResolvedValue(true);
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
+        id: 30,
+        username: 'inactive-enterprise-user',
+        roleId: 2,
+        isActive: true,
+        enterpriseId: 10,
+        role: { roleCode: 'ENTERPRISE_USER', isActive: true },
+        enterprise: { id: 10, isActive: false },
+      } as any);
+
+      await expect(authService.refreshTokens(refreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(redisService.deleteRefreshToken).toHaveBeenCalledWith(30);
+    });
+
     it('should allow concurrent tab to proceed with accessToken while NOT re-issuing raw refreshToken in grace period', async () => {
       const oldRefreshToken = 'initial-refresh-token-40-bytes-hex-string';
-      const oldTokenHash = crypto.createHash('sha256').update(oldRefreshToken).digest('hex');
+      const oldTokenHash = crypto
+        .createHash('sha256')
+        .update(oldRefreshToken)
+        .digest('hex');
 
       vi.mocked(redisService.getUserIdByRefreshToken!).mockResolvedValue(10);
       vi.mocked(redisService.acquireRotationLock!).mockResolvedValue(true);
-      vi.mocked(userService.findOne!).mockResolvedValue({
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
         id: 10,
         username: 'user10',
         roleId: 1,
         isActive: true,
+        enterpriseId: null,
+        role: { roleCode: 'ADMIN', isActive: true },
+        enterprise: null,
       } as any);
 
       // Request 1: first tab rotates token
@@ -368,11 +461,14 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       const testToken = 'test-token-to-rotate-12345';
       vi.mocked(redisService.getUserIdByRefreshToken!).mockResolvedValue(20);
       vi.mocked(redisService.acquireRotationLock!).mockResolvedValue(true);
-      vi.mocked(userService.findOne!).mockResolvedValue({
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
         id: 20,
         username: 'user20',
         roleId: 1,
         isActive: true,
+        enterpriseId: null,
+        role: { roleCode: 'ADMIN', isActive: true },
+        enterprise: null,
       } as any);
 
       await authService.refreshTokens(testToken);
@@ -380,12 +476,15 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       // Verify acquireRotationLock was called with ownerId (UUID string)
       expect(redisService.acquireRotationLock).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+        expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ),
         5,
       );
 
       // Get the ownerId passed to acquireRotationLock
-      const acquiredOwnerId = vi.mocked(redisService.acquireRotationLock).mock.calls[0][1];
+      const acquiredOwnerId = vi.mocked(redisService.acquireRotationLock).mock
+        .calls[0][1];
 
       // Verify releaseRotationLock was called with the exact same ownerId
       expect(redisService.releaseRotationLock).toHaveBeenCalledWith(
@@ -401,9 +500,9 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       vi.mocked(redisService.getRotatedTokenResult!).mockResolvedValue(null);
       vi.mocked(redisService.getUserIdByRefreshToken!).mockResolvedValue(null);
 
-      await expect(authService.refreshTokens(expiredRefreshToken)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        authService.refreshTokens(expiredRefreshToken),
+      ).rejects.toThrow(UnauthorizedException);
 
       // Verify no tokens were issued
       expect(redisService.saveRefreshToken).not.toHaveBeenCalled();
@@ -520,7 +619,12 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       // Request 1 finally finishes and calls releaseRotationLock with its expired 'owner-1'.
       // Lua script in Redis checks: redis.call("get", key) is 'owner-2', does NOT match ARGV[1] ('owner-1') -> returns 0.
       mockClient.eval.mockImplementation(
-        async (_script: string, _numKeys: number, _key: string, owner: string) => {
+        async (
+          _script: string,
+          _numKeys: number,
+          _key: string,
+          owner: string,
+        ) => {
           const currentLockInRedis = 'owner-2';
           if (owner === currentLockInRedis) {
             return 1;
@@ -530,7 +634,10 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       );
 
       // Request 1 attempts release with its expired 'owner-1'
-      const released = await testRedisService.releaseRotationLock('tokenHash123', 'owner-1');
+      const released = await testRedisService.releaseRotationLock(
+        'tokenHash123',
+        'owner-1',
+      );
 
       // The release attempt MUST fail (return false)
       expect(released).toBe(false);
@@ -546,7 +653,12 @@ describe('Auth & Cookie Security Review Test Suite', () => {
 
     it('should successfully delete lock when owner matches', async () => {
       mockClient.eval.mockImplementation(
-        async (_script: string, _numKeys: number, _key: string, owner: string) => {
+        async (
+          _script: string,
+          _numKeys: number,
+          _key: string,
+          owner: string,
+        ) => {
           const currentLockInRedis = 'owner-current';
           if (owner === currentLockInRedis) {
             return 1;
@@ -555,9 +667,11 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         },
       );
 
-      const released = await testRedisService.releaseRotationLock('tokenHash123', 'owner-current');
+      const released = await testRedisService.releaseRotationLock(
+        'tokenHash123',
+        'owner-current',
+      );
       expect(released).toBe(true);
     });
   });
 });
-

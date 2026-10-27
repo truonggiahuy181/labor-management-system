@@ -20,13 +20,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { IndustryResponseDto } from './dto/industry-response.dto.js';
-import {
-  CreateIndustryDto,
-  IndustryQueryDto,
-  UpdateIndustryDto,
-  UpdateIndustryStatusDto,
-} from './dto/industry.dto.js';
+import { CreateIndustryDto } from './dto/create-industry.dto.js';
+import { IndustryQueryDto } from './dto/industry-query.dto.js';
+import { UpdateIndustryDto } from './dto/update-industry.dto.js';
+import { UpdateIndustryStatusDto } from './dto/update-industry-status.dto.js';
 import { IndustryService } from './industry.service.js';
+import { Roles } from '../../commons/decorators/roles.decorator.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
 
 @ApiTags('Industries – Ngành nghề kinh doanh')
 @ApiBearerAuth()
@@ -53,6 +53,7 @@ export class IndustryController {
   }
 
   @Post()
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Tạo ngành nghề' })
   @ApiCreatedResponse({ type: IndustryResponseDto })
@@ -61,6 +62,7 @@ export class IndustryController {
   }
 
   @Patch(':id')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Cập nhật ngành nghề' })
   @ApiOkResponse({ type: IndustryResponseDto })
   update(
@@ -71,6 +73,7 @@ export class IndustryController {
   }
 
   @Patch(':id/status')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Cập nhật trạng thái ngành nghề' })
   @ApiOkResponse({ type: IndustryResponseDto })
   updateStatus(
@@ -81,6 +84,7 @@ export class IndustryController {
   }
 
   @Delete(':id')
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:

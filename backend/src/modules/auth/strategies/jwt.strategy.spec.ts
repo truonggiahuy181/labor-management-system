@@ -18,7 +18,7 @@ describe('JwtStrategy', () => {
     });
 
     userService = {
-      findOne: vi.fn(),
+      findForAuthenticationById: vi.fn(),
     };
 
     redisService = {
@@ -46,15 +46,27 @@ describe('JwtStrategy', () => {
       username: 'admin',
       roleId: 1,
       isActive: true,
+      enterpriseId: null,
+      role: { roleCode: 'ADMIN', isActive: true },
+      enterprise: null,
       passwordChangedAt: null,
     };
 
     it('should validate and return user payload when token is active and valid', async () => {
-      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(false);
-      vi.mocked(userService.findOne!).mockResolvedValue(mockUser as any);
+      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(
+        false,
+      );
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue(
+        mockUser as any,
+      );
 
       const result = await strategy.validate(validPayload);
-      expect(result).toEqual({ id: 1, username: 'admin', roleId: 1 });
+      expect(result).toEqual({
+        id: 1,
+        username: 'admin',
+        roleId: 1,
+        roleCode: 'ADMIN',
+      });
     });
 
     it('should throw UnauthorizedException when token jti is blacklisted in Redis', async () => {
@@ -66,23 +78,59 @@ describe('JwtStrategy', () => {
     });
 
     it('should throw UnauthorizedException when user does not exist or is inactive', async () => {
-      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(false);
-      vi.mocked(userService.findOne!).mockResolvedValue(null);
+      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(
+        false,
+      );
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue(null);
 
       await expect(strategy.validate(validPayload)).rejects.toThrow(
         UnauthorizedException,
       );
 
-      vi.mocked(userService.findOne!).mockResolvedValue({ ...mockUser, isActive: false } as any);
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
+        ...mockUser,
+        isActive: false,
+      } as any);
+      await expect(strategy.validate(validPayload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should reject a user whose role is inactive', async () => {
+      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(
+        false,
+      );
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
+        ...mockUser,
+        role: { roleCode: 'ADMIN', isActive: false },
+      } as any);
+
+      await expect(strategy.validate(validPayload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should reject a user whose enterprise is inactive', async () => {
+      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(
+        false,
+      );
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
+        ...mockUser,
+        enterpriseId: 10,
+        enterprise: { id: 10, isActive: false },
+      } as any);
+
       await expect(strategy.validate(validPayload)).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
     it('should throw UnauthorizedException when password was changed after token issuance', async () => {
-      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(false);
+      vi.mocked(redisService.isAccessTokenBlacklisted!).mockResolvedValue(
+        false,
+      );
       const passwordChangedAt = new Date(Date.now() + 100000); // Changed in future relative to iat
-      vi.mocked(userService.findOne!).mockResolvedValue({
+      vi.mocked(userService.findForAuthenticationById!).mockResolvedValue({
         ...mockUser,
         passwordChangedAt,
       } as any);

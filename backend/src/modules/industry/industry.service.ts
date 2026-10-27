@@ -5,15 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
 import { IndustryResponseDto } from './dto/industry-response.dto.js';
-import {
-  CreateIndustryDto,
-  IndustryQueryDto,
-  UpdateIndustryDto,
-} from './dto/industry.dto.js';
+import { CreateIndustryDto } from './dto/create-industry.dto.js';
+import { IndustryQueryDto } from './dto/industry-query.dto.js';
+import { UpdateIndustryDto } from './dto/update-industry.dto.js';
 import { IndustryEntity } from './industry.entity.js';
 
 @Injectable()
@@ -26,14 +24,29 @@ export class IndustryService {
   ) {}
 
   async getAll(query: IndustryQueryDto = {}): Promise<IndustryResponseDto[]> {
-    const where: FindOptionsWhere<IndustryEntity> = {};
+    const baseWhere: FindOptionsWhere<IndustryEntity> = {};
 
-    if (!query.includeInactive) {
-      where.isActive = true;
+    if (query.isActive !== undefined) {
+      baseWhere.isActive = query.isActive;
+    } else if (!query.includeInactive) {
+      baseWhere.isActive = true;
     }
     if (query.level !== undefined) {
-      where.level = query.level;
+      baseWhere.level = query.level;
     }
+    if (query.parentId !== undefined) {
+      baseWhere.parentId = query.parentId;
+    }
+
+    const search = query.search?.trim();
+    const where:
+      FindOptionsWhere<IndustryEntity> | FindOptionsWhere<IndustryEntity>[] =
+      search
+        ? [
+            { ...baseWhere, industryCode: ILike(`%${search}%`) },
+            { ...baseWhere, industryName: ILike(`%${search}%`) },
+          ]
+        : baseWhere;
 
     const industries = await this.industryRepository.find({
       where,

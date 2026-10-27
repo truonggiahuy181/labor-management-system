@@ -74,6 +74,33 @@ describe('RoleService', () => {
 
     await expect(service.getAll()).resolves.toHaveLength(2);
     expect(repository.find).toHaveBeenCalledWith({
+      where: {},
+      order: { roleCode: 'ASC' },
+    });
+  });
+
+  it('filters roles by search and status', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.getAll({ search: 'admin', isActive: false });
+
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        {
+          isActive: false,
+          roleCode: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%admin%',
+          }),
+        },
+        {
+          isActive: false,
+          roleName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%admin%',
+          }),
+        },
+      ],
       order: { roleCode: 'ASC' },
     });
   });

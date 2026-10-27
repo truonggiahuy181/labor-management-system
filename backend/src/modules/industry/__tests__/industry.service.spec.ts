@@ -66,6 +66,41 @@ describe('IndustryService', () => {
     });
   });
 
+  it('filters industries by search, hierarchy and status', async () => {
+    repository.find.mockResolvedValue([]);
+
+    await service.getAll({
+      search: '620',
+      level: 4,
+      parentId: 10,
+      isActive: false,
+    });
+
+    expect(repository.find).toHaveBeenCalledWith({
+      where: [
+        {
+          level: 4,
+          parentId: 10,
+          isActive: false,
+          industryCode: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%620%',
+          }),
+        },
+        {
+          level: 4,
+          parentId: 10,
+          isActive: false,
+          industryName: expect.objectContaining({
+            _type: 'ilike',
+            _value: '%620%',
+          }),
+        },
+      ],
+      order: { level: 'ASC', industryCode: 'ASC' },
+    });
+  });
+
   it('keeps the level-four catalogue helper for enterprise CRUD', async () => {
     repository.find.mockResolvedValue([
       {

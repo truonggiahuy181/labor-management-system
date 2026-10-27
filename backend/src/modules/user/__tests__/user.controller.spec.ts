@@ -50,9 +50,11 @@ describe('UserController', () => {
       ];
       (userService.getAllUsers as any).mockResolvedValue(mockUsers);
 
-      const result = await controller.getAllUsers();
+      const currentUser = { id: 1 };
+      const query = { search: 'admin', roleId: 2, isActive: true };
+      const result = await controller.getAllUsers(currentUser, query);
 
-      expect(userService.getAllUsers).toHaveBeenCalledOnce();
+      expect(userService.getAllUsers).toHaveBeenCalledWith(1, query);
       expect(result).toBe(mockUsers);
     });
   });
@@ -73,7 +75,7 @@ describe('UserController', () => {
         districtId: '764',
         wardId: '26740',
         address: 'Phường Gò Vấp, TP Hồ Chí Minh',
-        roleId: 2,
+        roleId: 1,
         enterpriseId: null,
         isActive: true,
         createdAt: new Date('2026-10-22T08:00:00.000Z'),
@@ -87,7 +89,7 @@ describe('UserController', () => {
         password: 'PlainPassword123',
         fullName: 'Nguyễn Văn A',
         email: 'phanthanhthung093@gmail.com',
-        roleId: 2,
+        roleId: 1,
         dob: '1995-06-01',
         gender: 1,
         title: 'Chuyên viên',
@@ -213,8 +215,6 @@ describe('UserController', () => {
       const dto: UpdateUserDto = {
         fullName: 'Nhân viên 1 (Updated)',
         email: 'employee1.new@example.com',
-        roleId: 2,
-        enterpriseId: 10,
         isActive: false,
       };
 

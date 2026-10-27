@@ -1,29 +1,42 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { UserEntity } from '../user/user.entity.js';
 import { UserService } from '../user/user.service.js';
-import {
-  CreateEnterpriseDto,
-  UpdateEnterpriseDto,
-} from './dto/enterprise.dto.js';
+import { CreateEnterpriseDto } from './dto/create-enterprise.dto.js';
+import { EnterpriseQueryDto } from './dto/enterprise-query.dto.js';
+import { UpdateEnterpriseDto } from './dto/update-enterprise.dto.js';
 import { EnterpriseEntity } from './enterprise.entity.js';
 import { EnterpriseMapper, EnterpriseResponse } from './enterprise.mapper.js';
 import { BusinessTypeService } from '../business-type/business-type.service.js';
 import { IndustryService } from '../industry/industry.service.js';
 import { RoleService } from '../role/role.service.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
+
+const INITIAL_ENTERPRISE_PASSWORD = '12345678';
+
+export interface CreateEnterpriseResult {
+  enterprise: EnterpriseResponse;
+  initialAccess: {
+    username: string;
+    temporaryPassword: string;
+  };
+}
 
 @Injectable()
 export class EnterpriseService {
   constructor(
     @InjectRepository(EnterpriseEntity)
     private readonly enterpriseRepository: Repository<EnterpriseEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     private readonly businessTypeService: BusinessTypeService,
     private readonly industryService: IndustryService,
     private readonly roleService: RoleService,
@@ -31,8 +44,35 @@ export class EnterpriseService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async getAll(): Promise<EnterpriseResponse[]> {
+  async getAll(query: EnterpriseQueryDto = {}): Promise<EnterpriseResponse[]> {
+    const baseWhere: FindOptionsWhere<EnterpriseEntity> = {};
+    if (query.businessTypeId !== undefined) {
+      baseWhere.businessTypeId = query.businessTypeId;
+    }
+    if (query.industryId !== undefined) {
+      baseWhere.industryId = query.industryId;
+    }
+    if (query.provinceId !== undefined) {
+      baseWhere.provinceId = query.provinceId.trim();
+    }
+    if (query.isActive !== undefined) {
+      baseWhere.isActive = query.isActive;
+    }
+
+    const search = query.search?.trim();
+    const where:
+      | FindOptionsWhere<EnterpriseEntity>
+      | FindOptionsWhere<EnterpriseEntity>[] = search
+      ? [
+          { ...baseWhere, enterpriseName: ILike(`%${search}%`) },
+          { ...baseWhere, taxCode: ILike(`%${search}%`) },
+          { ...baseWhere, email: ILike(`%${search}%`) },
+          { ...baseWhere, representativeName: ILike(`%${search}%`) },
+        ]
+      : baseWhere;
+
     const enterprises = await this.enterpriseRepository.find({
+      where,
       order: { id: 'DESC' },
     });
     return EnterpriseMapper.toResponseList(enterprises);
@@ -45,16 +85,17 @@ export class EnterpriseService {
   async create(
     dto: CreateEnterpriseDto,
     creatorId?: number,
-  ): Promise<EnterpriseResponse> {
+  ): Promise<CreateEnterpriseResult> {
     await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
     await this.industryService.getLevelFourByIdOrFail(dto.industryId);
     await this.assertTaxCodeAvailable(dto.taxCode);
     await this.assertEmailAvailable(dto.email);
 
-    const enterpriseRole =
-      await this.roleService.getByCodeOrFail('ENTERPRISE_USER');
+    const enterpriseRole = await this.roleService.getByCodeOrFail(
+      RoleCode.ENTERPRISE_USER,
+    );
 
-    const passwordHash = await argon2.hash('1-8');
+    const passwordHash = await argon2.hash(INITIAL_ENTERPRISE_PASSWORD);
 
     const enterprise = await this.dataSource.transaction(async (manager) => {
       const newEnterprise = await manager.save(
@@ -91,7 +132,13 @@ export class EnterpriseService {
 
       return newEnterprise;
     });
-    return EnterpriseMapper.toResponse(enterprise);
+    return {
+      enterprise: EnterpriseMapper.toResponse(enterprise),
+      initialAccess: {
+        username: dto.taxCode,
+        temporaryPassword: INITIAL_ENTERPRISE_PASSWORD,
+      },
+    };
   }
 
   async update(
@@ -99,27 +146,22 @@ export class EnterpriseService {
     dto: UpdateEnterpriseDto,
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
-    const enterprise = await this.findEntityOrFail(id);
+    await this.findEntityOrFail(id);
     if (dto.businessTypeId !== undefined) {
       await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
     }
     if (dto.industryId !== undefined) {
       await this.industryService.getLevelFourByIdOrFail(dto.industryId);
     }
-    if (dto.taxCode && dto.taxCode !== enterprise.taxCode) {
-      await this.assertTaxCodeAvailable(dto.taxCode);
-    }
 
-    const normalizedEmail = dto.email?.trim().toLowerCase();
-    if (normalizedEmail && normalizedEmail !== enterprise.email) {
-      await this.assertEmailAvailable(normalizedEmail);
-    }
-
-    const updateData: Partial<EnterpriseEntity> = {
+    const updateData = {
       ...dto,
-      email: normalizedEmail,
       updatedBy: updaterId ?? null,
-    };
+    } as Partial<EnterpriseEntity> & { taxCode?: string; email?: string };
+
+    // Bảo vệ thêm ở tầng service nếu được gọi trực tiếp mà không qua ValidationPipe.
+    delete updateData.taxCode;
+    delete updateData.email;
     Object.keys(updateData).forEach((key) => {
       if ((updateData as Record<string, unknown>)[key] === undefined) {
         delete (updateData as Record<string, unknown>)[key];
@@ -141,6 +183,28 @@ export class EnterpriseService {
       updatedBy: updaterId ?? null,
     });
     return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+  }
+
+  async remove(id: number): Promise<void> {
+    const enterprise = await this.findEntityOrFail(id);
+    if (enterprise.isActive) {
+      throw new BadRequestException({
+        code: ErrorCode.ENTERPRISE_MUST_BE_INACTIVE,
+        message: 'Phải ngừng hoạt động doanh nghiệp trước khi xóa.',
+      });
+    }
+
+    const isUsed = await this.userRepository.exists({
+      where: { enterpriseId: id },
+    });
+    if (isUsed) {
+      throw new ConflictException({
+        code: ErrorCode.ENTERPRISE_IN_USE,
+        message: 'Không thể xóa doanh nghiệp đang có người dùng trực thuộc.',
+      });
+    }
+
+    await this.enterpriseRepository.delete(id);
   }
 
   private async findEntityOrFail(id: number): Promise<EnterpriseEntity> {

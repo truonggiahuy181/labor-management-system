@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { UserModule } from './modules/user/user.module.js';
 import { JwtAuthGuard } from './commons/guards/jwt-auth.guard.js';
 import { CsrfGuard } from './commons/guards/csrf.guard.js';
+import { RolesGuard } from './commons/guards/roles.guard.js';
 import { ResponseInterceptor } from './commons/interceptors/response.interceptor.js';
 import { GlobalExceptionFilter } from './commons/filters/global-exception.filter.js';
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
@@ -49,6 +50,11 @@ import { createDatabaseOptions } from './database/database-options.js';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    // Guard phân quyền chạy sau JWT để sử dụng roleCode đã được xác thực từ DB
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
     // Interceptor chuẩn hóa response
     {

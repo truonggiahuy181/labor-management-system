@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../user/user.service.js';
 import { RedisService } from '../../../commons/redis/redis.service.js';
+import { canAuthenticate } from '../auth-access.util.js';
 
 import type { Request } from 'express';
 
@@ -11,8 +12,8 @@ export interface JwtPayload {
   sub: number;
   username: string;
   roleId: number;
-  jti: string;       // JWT ID – dùng để blacklist khi logout
-  iat?: number;      // issued at – được JWT tự gắn
+  jti: string; // JWT ID – dùng để blacklist khi logout
+  iat?: number; // issued at – được JWT tự gắn
 }
 
 @Injectable()
@@ -52,17 +53,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload) {
     // ─── Kiểm tra blacklist (token bị logout) ────────────────────────────────
     if (payload.jti) {
-      const isBlacklisted = await this.redisService.isAccessTokenBlacklisted(payload.jti);
+      const isBlacklisted = await this.redisService.isAccessTokenBlacklisted(
+        payload.jti,
+      );
       if (isBlacklisted) {
-        throw new UnauthorizedException('Token đã bị vô hiệu hóa. Vui lòng đăng nhập lại.');
+        throw new UnauthorizedException(
+          'Token đã bị vô hiệu hóa. Vui lòng đăng nhập lại.',
+        );
       }
     }
 
-    const user = await this.userService.findOne({
-      where: { id: payload.sub },
-    });
+    const user = await this.userService.findForAuthenticationById(payload.sub);
 
-    if (!user || !user.isActive) {
+    if (!canAuthenticate(user)) {
       throw new UnauthorizedException('Phiên đăng nhập không hợp lệ');
     }
 
@@ -85,6 +88,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       }
     }
 
-    return { id: user.id, username: user.username, roleId: user.roleId };
+    return {
+      id: user.id,
+      username: user.username,
+      roleId: user.roleId,
+      roleCode: user.role.roleCode,
+    };
   }
 }

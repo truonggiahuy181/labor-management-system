@@ -1,13 +1,6 @@
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-} from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 const BUSINESS_TYPE_CODE_RE = /^[A-Z0-9][A-Z0-9_-]*$/;
 
@@ -29,22 +22,4 @@ export class CreateBusinessTypeDto {
   @IsNotEmpty()
   @MaxLength(255)
   typeName: string;
-}
-
-export class UpdateBusinessTypeDto {
-  @ApiPropertyOptional({
-    example: 'Công ty trách nhiệm hữu hạn một thành viên',
-    maxLength: 255,
-  })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  typeName?: string;
-}
-
-export class UpdateBusinessTypeStatusDto {
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  isActive: boolean;
 }

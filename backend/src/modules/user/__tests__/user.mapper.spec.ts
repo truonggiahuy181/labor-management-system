@@ -20,8 +20,7 @@ describe('UserMapper', () => {
         districtId: '764',
         wardId: '26740',
         address: 'Phường Gò Vấp, TP Hồ Chí Minh',
-        roleId: 2,
-        enterpriseId: 10,
+        roleId: 1,
         isActive: true,
       };
 
@@ -33,7 +32,8 @@ describe('UserMapper', () => {
       expect(entity.dob).toEqual(new Date('1995-06-01'));
       expect(entity.gender).toBe(1);
       expect(entity.email).toBe('phanthanhthung093@gmail.com');
-      expect(entity.roleId).toBe(2);
+      expect(entity.roleId).toBe(1);
+      expect(entity.enterpriseId).toBeNull();
       expect(entity.createdBy).toBe(99);
       expect(entity.updatedBy).toBe(99);
       expect(entity.isActive).toBe(true);

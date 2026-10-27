@@ -5,25 +5,46 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
+import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
 import { BusinessTypeEntity } from './business-type.entity.js';
 import { BusinessTypeResponseDto } from './dto/business-type-response.dto.js';
-import {
-  CreateBusinessTypeDto,
-  UpdateBusinessTypeDto,
-} from './dto/business-type.dto.js';
+import { BusinessTypeQueryDto } from './dto/business-type-query.dto.js';
+import { CreateBusinessTypeDto } from './dto/create-business-type.dto.js';
+import { UpdateBusinessTypeDto } from './dto/update-business-type.dto.js';
 
 @Injectable()
 export class BusinessTypeService {
   constructor(
     @InjectRepository(BusinessTypeEntity)
     private readonly businessTypeRepository: Repository<BusinessTypeEntity>,
+    @InjectRepository(EnterpriseEntity)
+    private readonly enterpriseRepository: Repository<EnterpriseEntity>,
   ) {}
 
-  async getAll(includeInactive = false): Promise<BusinessTypeResponseDto[]> {
+  async getAll(
+    query: BusinessTypeQueryDto = {},
+  ): Promise<BusinessTypeResponseDto[]> {
+    const baseWhere: FindOptionsWhere<BusinessTypeEntity> = {};
+    if (query.isActive !== undefined) {
+      baseWhere.isActive = query.isActive;
+    } else if (!query.includeInactive) {
+      baseWhere.isActive = true;
+    }
+
+    const search = query.search?.trim();
+    const where:
+      | FindOptionsWhere<BusinessTypeEntity>
+      | FindOptionsWhere<BusinessTypeEntity>[] = search
+      ? [
+          { ...baseWhere, typeCode: ILike(`%${search}%`) },
+          { ...baseWhere, typeName: ILike(`%${search}%`) },
+        ]
+      : baseWhere;
+
     const businessTypes = await this.businessTypeRepository.find({
-      where: includeInactive ? {} : { isActive: true },
+      where,
       order: { typeName: 'ASC' },
     });
 
@@ -36,7 +57,7 @@ export class BusinessTypeService {
   }
 
   async getAllActive(): Promise<BusinessTypeResponseDto[]> {
-    return this.getAll(false);
+    return this.getAll({ isActive: true });
   }
 
   async create(dto: CreateBusinessTypeDto): Promise<BusinessTypeResponseDto> {
@@ -74,6 +95,29 @@ export class BusinessTypeService {
     await this.findEntityOrFail(id);
     await this.businessTypeRepository.update(id, { isActive });
     return this.findEntityOrFail(id);
+  }
+
+  async remove(id: number): Promise<void> {
+    const businessType = await this.findEntityOrFail(id);
+    if (businessType.isActive) {
+      throw new BadRequestException({
+        code: ErrorCode.BUSINESS_TYPE_MUST_BE_INACTIVE,
+        message: 'Phải ngừng sử dụng loại hình kinh doanh trước khi xóa.',
+      });
+    }
+
+    const isUsed = await this.enterpriseRepository.exists({
+      where: { businessTypeId: id },
+    });
+    if (isUsed) {
+      throw new ConflictException({
+        code: ErrorCode.BUSINESS_TYPE_IN_USE,
+        message:
+          'Không thể xóa loại hình kinh doanh đang được doanh nghiệp sử dụng.',
+      });
+    }
+
+    await this.businessTypeRepository.delete(id);
   }
 
   async getActiveByIdOrFail(id: number): Promise<BusinessTypeEntity> {

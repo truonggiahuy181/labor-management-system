@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -46,54 +45,4 @@ export class CreateIndustryDto {
   @IsInt()
   @Min(1)
   parentId?: number | null;
-}
-
-export class UpdateIndustryDto {
-  @ApiPropertyOptional({ example: 'Lập trình máy vi tính', maxLength: 255 })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
-  industryName?: string;
-
-  @ApiPropertyOptional({ example: 4, minimum: 1, maximum: 4 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(4)
-  level?: number;
-
-  @ApiPropertyOptional({ example: 10, nullable: true })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  parentId?: number | null;
-}
-
-export class UpdateIndustryStatusDto {
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  isActive: boolean;
-}
-
-export class IndustryQueryDto {
-  @ApiPropertyOptional({ minimum: 1, maximum: 4 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(4)
-  level?: number;
-
-  @ApiPropertyOptional({ default: false })
-  @IsOptional()
-  @Transform(({ value }) => {
-    if (value === true || value === 'true') return true;
-    if (value === false || value === 'false') return false;
-    return value;
-  })
-  @IsBoolean()
-  includeInactive?: boolean;
 }

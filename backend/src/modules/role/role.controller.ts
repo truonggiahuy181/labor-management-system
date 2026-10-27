@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,16 +18,18 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import {
-  CreateRoleDto,
-  RoleResponseDto,
-  UpdateRoleDto,
-  UpdateRoleStatusDto,
-} from './dto/role.dto.js';
+import { CreateRoleDto } from './dto/create-role.dto.js';
+import { RoleQueryDto } from './dto/role-query.dto.js';
+import { RoleResponseDto } from './dto/role-response.dto.js';
+import { UpdateRoleDto } from './dto/update-role.dto.js';
+import { UpdateRoleStatusDto } from './dto/update-role-status.dto.js';
 import { RoleService } from './role.service.js';
+import { Roles } from '../../commons/decorators/roles.decorator.js';
+import { RoleCode } from '../../commons/constants/role-codes.js';
 
 @ApiTags('Roles – Vai trò')
 @ApiBearerAuth()
+@Roles(RoleCode.ADMIN)
 @Controller('roles')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
@@ -34,8 +37,8 @@ export class RoleController {
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách vai trò' })
   @ApiOkResponse({ type: RoleResponseDto, isArray: true })
-  getAll() {
-    return this.roleService.getAll();
+  getAll(@Query() query: RoleQueryDto = {}) {
+    return this.roleService.getAll(query);
   }
 
   @Get(':id')
