@@ -21,6 +21,7 @@ import type { JwtPayload } from './strategies/jwt.strategy.js';
 import { RedisService } from '../../commons/redis/redis.service.js';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { canAuthenticate } from './auth-access.util.js';
+import { join } from 'node:path';
 
 const OTP_EXPIRY_MINUTES = 5;
 // Phải chờ bao lâu mới được gửi lại OTP (khớp RESEND_SECONDS ở frontend)
@@ -38,7 +39,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
-  ) {}
+  ) { }
 
   // ─── 1. ĐĂNG NHẬP ───────────────────────────────────────────────────────────
   async login(dto: LoginDto) {
@@ -680,7 +681,7 @@ export class AuthService {
     );
     const logoUrl = this.configService.get<string>(
       'MAIL_LOGO_URL',
-      'https://i.imgur.com/placeholder-logo.png',
+      'cid:vna-group-logo',
     );
     // Thời gian hết hạn lấy từ hằng số – LUÔN khớp với logic backend
     const expiryText = `${OTP_EXPIRY_MINUTES} phút`;
@@ -700,120 +701,105 @@ export class AuthService {
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Khôi phục mật khẩu</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9;padding:40px 0;">
+
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#111111;">
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="width:100%;background-color:#ffffff;"
+  >
     <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0"
-               style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <td align="center" style="padding:0;">
 
-          <!-- HEADER / LOGO -->
+        <table
+          role="presentation"
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="width:100%;max-width:700px;background-color:#ffffff;border:1px solid #e5e7eb;"
+        >
+          <!-- LOGO -->
           <tr>
-            <td align="center"
-                style="background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);padding:32px 40px;">
-              <img src="${logoUrl}"
-                   alt="${appName}"
-                   height="60"
-                   style="display:block;max-width:240px;object-fit:contain;"
-                   onerror="this.style.display='none'" />
-              <p style="margin:12px 0 0;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.5px;">
-                ${appName}
+            <td align="center" style="padding:12px 12px 0;">
+              <img
+                src="${logoUrl}"
+                height="48"
+                style="display:block;width:auto;height:48px;max-width:180px;object-fit:contain;border:0;"
+              />
+              <p
+                style="margin:2px 0 0;color:#111111;font-size:13px;line-height:18px;font-weight:700;text-align:center;"
+              >
               </p>
             </td>
           </tr>
 
-          <!-- BODY -->
+          <!-- NỘI DUNG EMAIL -->
           <tr>
-            <td style="padding:40px 48px 32px;">
+            <td style="padding:12px 13px 22px;">
 
-              <!-- Tiêu đề -->
-              <h2 style="margin:0 0 8px;color:#1a1a2e;font-size:22px;font-weight:700;">
-                Khôi phục mật khẩu
-              </h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
-                Yêu cầu đặt lại mật khẩu của bạn đã được nhận
+              <h1
+                style="margin:0 0 28px;color:#111111;font-size:26px;line-height:1.35;font-weight:700;"
+              >
+                Xin chào, ${fullName}
+              </h1>
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Bạn vừa yêu cầu khôi phục mật khẩu cho tài khoản
+                <strong>${username}</strong>. Dưới đây là mã OTP của bạn:
+                <strong style="font-size:17px;">${otp}</strong>
               </p>
 
-              <!-- Lời chào -->
-              <p style="margin:0 0 20px;color:#374151;font-size:16px;line-height:1.6;">
-                Xin chào <strong style="color:#1a73e8;">${fullName}</strong>
-                (<span style="color:#6b7280;font-style:italic;">@${username}</span>),
-              </p>
-              <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.6;">
-                Chúng tôi nhận được yêu cầu khôi phục mật khẩu cho tài khoản của bạn.
-                Vui lòng sử dụng mã xác thực dưới đây để tiếp tục:
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Lưu ý quan trọng: Mã OTP có hiệu lực trong
+                <strong>${expiryText}</strong>
               </p>
 
-              <!-- Khung OTP -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
-                <tr>
-                  <td align="center"
-                      style="background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);
-                             border:2px dashed #93c5fd;border-radius:12px;padding:28px;">
-                    <p style="margin:0 0 8px;color:#1e40af;font-size:13px;
-                               font-weight:600;letter-spacing:2px;text-transform:uppercase;">
-                      MÃ XÁC THỰC OTP
-                    </p>
-                    <p style="margin:0;color:#1a73e8;font-size:48px;font-weight:800;
-                               letter-spacing:12px;font-family:'Courier New',monospace;">
-                      ${otp}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Thông tin thời gian hiệu lực -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
-                <tr>
-                  <td style="background-color:#fef3c7;border-left:4px solid #f59e0b;
-                             border-radius:0 8px 8px 0;padding:14px 16px;">
-                    <p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;">
-                      ⏱️ Mã OTP có hiệu lực trong <strong>${expiryText}</strong>
-                      và sẽ hết hạn lúc <strong>${expiresAtFormatted}</strong>.
-                      Vui lòng không chia sẻ mã này với bất kỳ ai.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Hướng dẫn -->
-              <p style="margin:0 0 8px;color:#374151;font-size:14px;line-height:1.6;">
-                <strong>Các bước thực hiện:</strong>
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Không chia sẻ mã này với bất kỳ ai, kể cả nhân viên hỗ trợ.
               </p>
-              <ol style="margin:0 0 28px;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
-                <li>Quay lại trang khôi phục mật khẩu</li>
-                <li>Nhập mã OTP: <strong>${otp}</strong></li>
-                <li>Nhập mật khẩu mới và xác nhận</li>
-                <li>Bấm <strong>"Khôi phục mật khẩu"</strong></li>
-              </ol>
+
+              <p
+                style="margin:0;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Nếu bạn không yêu cầu khôi phục mật khẩu, vui lòng bỏ qua email này.
+              </p>
 
             </td>
           </tr>
-
-          <!-- FOOTER -->
-          <tr>
-            <td style="background-color:#f9fafb;border-top:1px solid #e5e7eb;
-                       padding:24px 48px;text-align:center;">
-              <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;line-height:1.6;">
-                Nếu bạn <strong>không</strong> thực hiện yêu cầu này, vui lòng bỏ qua email
-                và liên hệ quản trị viên ngay để bảo mật tài khoản.
-              </p>
-              <p style="margin:0;color:#d1d5db;font-size:11px;">
-                © ${new Date().getFullYear()} ${appName}. Email tự động, vui lòng không trả lời.
-              </p>
-            </td>
-          </tr>
-
         </table>
+
       </td>
     </tr>
   </table>
 </body>
 </html>
       `,
+      attachments: [
+        {
+          filename: 'vna-group-logo.png',
+          path: join(
+            process.cwd(),
+            'assets',
+            'vna-group-logo.png',
+          ),
+          cid: 'vna-group-logo',
+          contentType: 'image/png',
+          contentDisposition: 'inline',
+        },
+      ],
     });
   }
 
@@ -833,7 +819,7 @@ export class AuthService {
     );
     const logoUrl = this.configService.get<string>(
       'MAIL_LOGO_URL',
-      'https://i.imgur.com/placeholder-logo.png',
+      'cid:vna-group-logo',
     );
     const expiryText = `${OTP_EXPIRY_MINUTES} phút`;
 
@@ -846,93 +832,110 @@ export class AuthService {
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Xác thực thay đổi Email</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9;padding:40px 0;">
+
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#111111;">
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="width:100%;background-color:#ffffff;"
+  >
     <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0"
-               style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <td align="center" style="padding:0;">
 
-          <!-- HEADER / LOGO -->
+        <table
+          role="presentation"
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="width:100%;max-width:700px;background-color:#ffffff;border:1px solid #e5e7eb;"
+        >
+
+          <!-- LOGO -->
           <tr>
-            <td align="center"
-                style="background:linear-gradient(135deg,#0f766e 0%,#065f46 100%);padding:32px 40px;">
-              <img src="${logoUrl}" alt="${appName}" height="60"
-                   style="display:block;max-width:240px;object-fit:contain;"
-                   onerror="this.style.display='none'" />
-              <p style="margin:12px 0 0;color:#ffffff;font-size:18px;font-weight:700;">
-                ${appName}
+            <td align="center" style="padding:12px 12px 0;">
+              <img
+                src="${logoUrl}"
+                height="48"
+                style="display:block;width:auto;height:48px;max-width:180px;object-fit:contain;border:0;"
+              />
+
+              <p
+                style="margin:2px 0 0;color:#111111;font-size:13px;line-height:18px;font-weight:700;text-align:center;"
+              >
               </p>
             </td>
           </tr>
 
-          <!-- BODY -->
+          <!-- NỘI DUNG EMAIL -->
           <tr>
-            <td style="padding:40px 48px 32px;">
-              <h2 style="margin:0 0 24px;color:#1a1a2e;font-size:22px;">
-                Xác thực thay đổi địa chỉ Email
-              </h2>
-              <p style="margin:0 0 20px;color:#374151;font-size:16px;line-height:1.6;">
-                Xin chào <strong style="color:#0f766e;">${fullName}</strong>
-                (<span style="color:#6b7280;font-style:italic;">@${username}</span>),
-              </p>
-              <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.6;">
-                Bạn vừa yêu cầu thay đổi địa chỉ email trên hệ thống.
-                Vui lòng dùng mã OTP dưới đây để xác nhận:
+            <td style="padding:12px 13px 22px;">
+
+              <h1
+                style="margin:0 0 28px;color:#111111;font-size:26px;line-height:1.35;font-weight:700;"
+              >
+                Xin chào, ${fullName}
+              </h1>
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Bạn vừa yêu cầu thay đổi địa chỉ email cho tài khoản
+                <strong>${username}</strong>.
+                Dưới đây là mã OTP để xác nhận thay đổi email của bạn:
+                <strong style="font-size:17px;">${otp}</strong>
               </p>
 
-              <!-- Khung OTP -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
-                <tr>
-                  <td align="center"
-                      style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);
-                             border:2px dashed #86efac;border-radius:12px;padding:28px;">
-                    <p style="margin:0 0 8px;color:#14532d;font-size:13px;
-                               font-weight:600;letter-spacing:2px;text-transform:uppercase;">
-                      MÃ XÁC THỰC OTP
-                    </p>
-                    <p style="margin:0;color:#15803d;font-size:48px;font-weight:800;
-                               letter-spacing:12px;font-family:'Courier New',monospace;">
-                      ${otp}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background-color:#fef3c7;border-left:4px solid #f59e0b;
-                             border-radius:0 8px 8px 0;padding:14px 16px;">
-                    <p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;">
-                      ⏱️ Mã có hiệu lực trong <strong>${expiryText}</strong>.
-                      Vui lòng không chia sẻ mã này với bất kỳ ai.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- FOOTER -->
-          <tr>
-            <td style="background-color:#f9fafb;border-top:1px solid #e5e7eb;
-                       padding:24px 48px;text-align:center;">
-              <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">
-                Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.
-                Tài khoản của bạn vẫn an toàn.
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Lưu ý quan trọng: Mã OTP có hiệu lực trong
+                <strong>${expiryText}</strong>.
               </p>
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Không chia sẻ mã này với bất kỳ ai, kể cả nhân viên hỗ trợ.
+              </p>
+
+              <p
+                style="margin:0;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Nếu bạn không yêu cầu thay đổi địa chỉ email,
+                vui lòng bỏ qua email này.
+              </p>
+
             </td>
           </tr>
 
         </table>
+
       </td>
     </tr>
   </table>
 </body>
 </html>
       `,
+      attachments: [
+        {
+          filename: 'vna-group-logo.png',
+          path: join(
+            process.cwd(),
+            'assets',
+            'vna-group-logo.png',
+          ),
+          cid: 'vna-group-logo',
+          contentType: 'image/png',
+          contentDisposition: 'inline',
+        },
+      ],
     });
   }
 }
