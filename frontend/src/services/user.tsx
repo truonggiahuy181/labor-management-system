@@ -50,11 +50,9 @@ export const userApi = {
 // ─── Quản trị người dùng (chỉ Quản trị viên) ───
 
 export interface UserFilters {
-  fullName?: string;
-  username?: string;
-  email?: string;
-  title?: string;
+  search?: string;
   roleId?: number;
+  enterpriseId?: number;
   isActive?: boolean;
 }
 
@@ -82,16 +80,10 @@ export interface UserBody {
 
 export type UserUpdate = Partial<Omit<UserBody, 'username' | 'password'>>;
 
-const toPaged = (payload: unknown, pageNumber: number, pageSize: number): Paged<Profile> => {
-  if (Array.isArray(payload)) return { data: payload, total: payload.length, page: pageNumber, pageSize };
-  const p = (payload ?? {}) as Partial<Paged<Profile>> & { items?: Profile[] };
-  const data = Array.isArray(p.data) ? p.data : Array.isArray(p.items) ? p.items : [];
-  return { data, total: typeof p.total === 'number' ? p.total : data.length, page: p.page ?? pageNumber, pageSize: p.pageSize ?? pageSize };
-};
 
 export const adminUserApi = {
-  list: (params: UserFilters & { pageNumber: number; pageSize: number }) =>
-    api.get<BackendResponse<Paged<Profile>>>('/users', { params }).then((r) => toPaged(r.data.data, params.pageNumber, params.pageSize)),
+  list: (params: UserFilters = {}) =>
+    api.get<BackendResponse<Profile[]>>('/users', { params }).then((r) => r.data.data ?? []),
   get: (id: number) => api.get<BackendResponse<Profile>>(`/users/${id}`).then((r) => r.data.data),
   create: (body: UserBody) => api.post<BackendResponse<Profile>>('/users', body).then((r) => r.data.data),
   update: (id: number, body: UserUpdate) =>
@@ -100,6 +92,7 @@ export const adminUserApi = {
     api.patch<BackendResponse<Profile>>(`/users/${id}`, { password: newPassword }).then((r) => r.data.data),
   updateStatus: (id: number, isActive: boolean) =>
     api.patch<BackendResponse<Profile>>(`/users/${id}/status`, { isActive }).then((r) => r.data.data),
+  remove: (id: number) => api.delete(`/users/${id}`).then(() => undefined),
 };
 
 /** Lấy message lỗi backend trả về (GlobalExceptionFilter) */

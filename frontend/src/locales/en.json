@@ -218,6 +218,7 @@
     "deleteConfirmTitle": "Delete users",
     "deleteConfirm": "Delete {{count}} selected users?",
     "deleteSuccess": "Deleted {{count}} users",
+    "deleteSelfSkipped": "You cannot delete your own account, skipped",
     "confirmTitle": "Confirm",
     "resetFor": "Set a new password for <b>{{username}}</b>",
     "newPasswordPlaceholder": "Enter the new password",
@@ -235,7 +236,9 @@
     "lockConfirmTitle": "Lock users",
     "lockConfirm": "Lock {{count}} selected accounts? They will not be able to sign in; re-enable them with the Status switch.",
     "lockSuccess": "Locked {{count}} accounts",
-    "lockSelfSkipped": "You cannot lock your own account, skipped"
+    "lockSelfSkipped": "You cannot lock your own account, skipped",
+    "roleInactive": "This role is no longer active, choose another one",
+    "enterpriseRoleHint": "Business accounts are created together with their business on the Businesses page"
   },
   "enterprises": {
     "title": "Business list",
@@ -251,6 +254,6 @@
     "deleteConfirmTitle": "Delete businesses",
     "deleteConfirm": "Delete {{count}} selected businesses?",
     "deleteSuccess": "Deleted {{count}} businesses",
-    "deleteNotSupported": "Deleting businesses is not supported yet (backend has no delete API)"
+    "deleteHasAccount": "{{names}}: still has a login account, not deleted. Delete the account on the Users page first"
   }
 }

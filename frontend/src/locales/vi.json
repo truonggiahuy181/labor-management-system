@@ -218,6 +218,7 @@
     "deleteConfirmTitle": "Xoá người dùng",
     "deleteConfirm": "Xoá {{count}} người dùng đã chọn?",
     "deleteSuccess": "Đã xoá {{count}} người dùng",
+    "deleteSelfSkipped": "Không thể tự xoá tài khoản của chính mình, đã bỏ qua",
     "confirmTitle": "Xác nhận",
     "resetFor": "Khởi tạo mật khẩu cho tài khoản <b>{{username}}</b>",
     "newPasswordPlaceholder": "Nhập mật khẩu mới mong muốn",
@@ -235,7 +236,9 @@
     "lockConfirmTitle": "Khoá người dùng",
     "lockConfirm": "Khoá {{count}} tài khoản đã chọn? Người dùng sẽ không đăng nhập được, có thể mở lại bằng công tắc Trạng thái.",
     "lockSuccess": "Đã khoá {{count}} tài khoản",
-    "lockSelfSkipped": "Không thể tự khoá tài khoản của chính mình, đã bỏ qua"
+    "lockSelfSkipped": "Không thể tự khoá tài khoản của chính mình, đã bỏ qua",
+    "enterpriseRoleHint": "Tài khoản doanh nghiệp được tạo cùng doanh nghiệp ở trang Quản lý doanh nghiệp",
+    "roleInactive": "Vai trò này không còn hoạt động, hãy chọn vai trò khác"
   },
   "enterprises": {
     "title": "Danh sách doanh nghiệp",
@@ -251,6 +254,6 @@
     "deleteConfirmTitle": "Xoá doanh nghiệp",
     "deleteConfirm": "Xoá {{count}} doanh nghiệp đã chọn?",
     "deleteSuccess": "Đã xoá {{count}} doanh nghiệp",
-    "deleteNotSupported": "Hệ thống chưa hỗ trợ xoá doanh nghiệp (backend chưa có API xoá)"
+    "deleteHasAccount": "{{names}}: vẫn còn tài khoản đăng nhập, chưa xoá. Hãy xoá tài khoản ở trang Quản lý người dùng trước"
   }
 }
