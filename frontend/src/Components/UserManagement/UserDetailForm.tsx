@@ -14,7 +14,7 @@ import FormTextField from '@/Components/UserProfile/FormTextField';
 import ProfileHeader from '@/Components/UserProfile/ProfileHeader';
 import ProfileLayout from '@/Components/UserProfile/ProfileLayout';
 import ProfileSections from '@/Components/UserProfile/ProfileSections';
-import { GENDERS, PROVINCES, WARDS } from '@/Components/UserProfile/options';
+import { GENDERS, PROVINCES, WARDS, wardsOf } from '@/Components/UserProfile/options';
 import useLocales from '@/Hooks/useLocales';
 import { ROLE } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, roleApi, type Profile, type Role, type UserBody } from '@/services/user';
@@ -37,7 +37,9 @@ const ENTERPRISE_ROLE_CODE = 'ENTERPRISE_USER';
 const toForm = (u?: Profile | null): Form => ({
   username: u?.username ?? '', password: '', fullName: u?.fullName ?? '', dob: u?.dob?.slice(0, 10) ?? '',
   gender: u?.gender == null ? '' : String(u.gender), title: u?.title ?? '', roleId: u?.roleId ?? ROLE.ADMIN,
-  email: u?.email ?? '', provinceId: u?.provinceId ?? '', wardId: u?.wardId ?? '', address: u?.address ?? '',
+  email: u?.email ?? '',
+  provinceId: u?.provinceId === '79' ? 'HCM' : u?.provinceId === '01' ? 'HN' : (u?.provinceId ?? ''),
+  wardId: u?.wardId ?? '', address: u?.address ?? '',
   isActive: u?.isActive ?? true,
 });
 
@@ -55,7 +57,10 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const [uploadedAvatar, setUploadedAvatar] = useState<{ userId: number; url: string | null } | null>(null);
   const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
+  const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
+
+  const selectedProvince = watch('provinceId');
+  const currentWards = wardsOf(selectedProvince);
 
   useEffect(() => { reset(toForm(user)); }, [user, reset]);
   useEffect(() => () => {
@@ -124,7 +129,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
         pattern: { value: /^[a-zA-Z0-9_-]+$/, message: translate('users.invalidUsername') },
       }} />
   );
-  
+
   const passwordField = (
     <Controller name="password" control={control}
       rules={{ required, minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) } }}
@@ -147,7 +152,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
         const missing = !roleOptions.some((o) => o.value === f.value);
         return (
           <TextField {...f} select fullWidth size="small" required label={translate('account.role')} disabled={isEdit}
-           error={!!fieldState.error} helperText={fieldState.error?.message ?? (isEdit ? undefined : translate('users.enterpriseRoleHint'))}>
+            error={!!fieldState.error} helperText={fieldState.error?.message ?? (isEdit ? undefined : translate('users.enterpriseRoleHint'))}>
             {missing && <MenuItem value={f.value} disabled>{translate('account.roleUnknown', { id: f.value })}</MenuItem>}
             {roleOptions.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>
@@ -176,8 +181,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       }
       right={
         <ProfileSections personal={personal}
-          province={<FormTextField control={control} name="provinceId" label="account.province" options={PROVINCES} translateLabels={false} />}
-          ward={<FormTextField control={control} name="wardId" label="account.ward" options={WARDS} translateLabels={false} />}
+          province={<FormTextField control={control} name="provinceId" label="account.province" options={PROVINCES} translateLabels={false} onChange={() => setValue('wardId', '')} />}
+          ward={<FormTextField control={control} name="wardId" label="account.ward" options={currentWards} disabled={!selectedProvince || currentWards.length === 0} translateLabels={false} />}
           address={<FormTextField control={control} name="address" label="account.address" rules={{ maxLength: maxLength(MAX.address) }} />} />
       } />
   );
