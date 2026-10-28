@@ -97,6 +97,10 @@ export class AuthService {
       refreshTtl,
     );
 
+    const avatarUrl = await this.userService.resolveAvatarUrl(
+      user.avatarObjectKey,
+    );
+
     return {
       accessToken,
       refreshToken,
@@ -109,7 +113,8 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email,
         roleId: user.roleId,
-        avatarUrl: user.avatarUrl,
+        avatarObjectKey: user.avatarObjectKey,
+        avatarUrl,
         isActive: user.isActive,
       },
     };
@@ -120,6 +125,9 @@ export class AuthService {
     const user = await this.userService.findOneOrFail({
       where: { id: userId },
     });
+    const avatarUrl = await this.userService.resolveAvatarUrl(
+      user.avatarObjectKey,
+    );
     return {
       id: user.id,
       username: user.username,
@@ -127,7 +135,8 @@ export class AuthService {
       email: user.email,
       roleId: user.roleId,
       enterpriseId: user.enterpriseId,
-      avatarUrl: user.avatarUrl,
+      avatarObjectKey: user.avatarObjectKey,
+      avatarUrl,
       isActive: user.isActive,
     };
   }

@@ -15,7 +15,6 @@ describe('UserMapper', () => {
         email: 'phanthanhthung093@gmail.com',
         phoneNumber: '0901234567',
         title: 'Chuyên viên',
-        avatarUrl: 'https://example.com/avatar.jpg',
         provinceId: '79',
         districtId: '764',
         wardId: '26740',
@@ -54,7 +53,7 @@ describe('UserMapper', () => {
       expect(entity.gender).toBeNull();
       expect(entity.phoneNumber).toBeNull();
       expect(entity.title).toBeNull();
-      expect(entity.avatarUrl).toBeNull();
+      expect(entity.avatarObjectKey).toBeNull();
       expect(entity.isActive).toBe(true);
       expect(entity.createdBy).toBeNull();
       expect(entity.updatedBy).toBeNull();
@@ -76,7 +75,7 @@ describe('UserMapper', () => {
         email: 'phanthanhthung093@gmail.com',
         phoneNumber: '0901234567',
         title: 'Chuyên viên',
-        avatarUrl: null,
+        avatarObjectKey: null,
         provinceId: '79',
         districtId: '764',
         wardId: '26740',
@@ -92,6 +91,8 @@ describe('UserMapper', () => {
 
       expect(response.id).toBe(1);
       expect(response.username).toBe('admin-vna');
+      expect(response.avatarObjectKey).toBeNull();
+      expect(response.avatarUrl).toBeNull();
       expect((response as any).passwordHash).toBeUndefined();
       expect((response as any).resetPasswordToken).toBeUndefined();
       expect((response as any).emailChangeOtp).toBeUndefined();

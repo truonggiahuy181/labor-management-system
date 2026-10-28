@@ -39,8 +39,13 @@ export class UserEntity extends BaseEntity {
   @Column({ name: 'title', type: 'varchar', length: 100, nullable: true })
   title: string | null;
 
-  @Column({ name: 'avatar_url', type: 'varchar', length: 255, nullable: true })
-  avatarUrl: string | null;
+  @Column({
+    name: 'avatar_object_key',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  avatarObjectKey: string | null;
 
   @Column({ name: 'province_id', type: 'varchar', length: 20, nullable: true })
   provinceId: string | null;

@@ -14,6 +14,7 @@ import { GlobalExceptionFilter } from './commons/filters/global-exception.filter
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
 import { SeedModule } from './database/seeds/seed.module.js';
 import { createDatabaseOptions } from './database/database-options.js';
+import { FileModule } from './modules/file/file.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { createDatabaseOptions } from './database/database-options.js';
     AuthModule,
     UserModule,
     EnterpriseModule,
+    FileModule,
     SeedModule,
   ],
   controllers: [AppController],

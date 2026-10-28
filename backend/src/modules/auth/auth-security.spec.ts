@@ -47,6 +47,7 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       findForAuthenticationByUsername: vi.fn(),
       findForAuthenticationById: vi.fn(),
       update: vi.fn(),
+      resolveAvatarUrl: vi.fn().mockResolvedValue(null),
     };
 
     redisService = {

@@ -10,8 +10,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
 import { Roles } from '../../commons/decorators/roles.decorator.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
@@ -31,6 +35,8 @@ import {
   ApiDeleteUserDocs,
 } from './docs/user.swagger.js';
 import { UserService } from './user.service.js';
+import { MAX_IMAGE_FILE_SIZE } from '../file/file.constants.js';
+import type { MultipartFile } from '../file/file.types.js';
 
 @ApiTags('Users – Người dùng')
 @ApiBearerAuth()
@@ -60,6 +66,31 @@ export class UserController {
   @ApiGetMyProfileDocs()
   getMyProfile(@CurrentUser() user: { id: number }) {
     return this.userService.getMyProfile(user.id);
+  }
+
+  @Post('me/avatar')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE },
+    }),
+  )
+  @ApiOperation({ summary: 'Tải và gắn ảnh đại diện cho tài khoản hiện tại' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  uploadMyAvatar(
+    @CurrentUser() user: { id: number },
+    @UploadedFile() file: MultipartFile | undefined,
+  ) {
+    return this.userService.uploadMyAvatar(user.id, file);
   }
 
   @Get(':id')
