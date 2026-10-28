@@ -453,6 +453,31 @@ describe('UserService', () => {
         'https://images.example.com/avatars/1/avatar.png',
       );
     });
+
+    it('cho phép quản trị viên upload avatar cho người dùng khác', async () => {
+      const avatarObjectKey =
+        'avatars/2/2026/10/550e8400-e29b-41d4-a716-446655440000.png';
+      const file = {
+        originalname: 'avatar.png',
+        mimetype: 'image/png',
+        size: 8,
+        buffer: Buffer.alloc(8),
+      };
+      (repository.findOne as any).mockResolvedValue({
+        id: 2,
+        username: 'user',
+        avatarObjectKey,
+      });
+      fileService.upload.mockResolvedValue({ objectKey: avatarObjectKey });
+
+      await service.uploadUserAvatar(2, 1, file);
+
+      expect(fileService.upload).toHaveBeenCalledWith(file, 'avatars', 2);
+      expect(repository.update).toHaveBeenCalledWith(2, {
+        avatarObjectKey,
+        updatedBy: 1,
+      });
+    });
   });
 
   describe('updateUser', () => {

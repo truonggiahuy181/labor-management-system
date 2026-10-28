@@ -100,7 +100,11 @@
   "account": {
     "detail": "User details",
     "uploadAvatar": "Upload avatar",
-    "avatarHint": "*.jpeg, *.jpg, *.png. Max size 5 MB",
+    "avatarHint": "*.jpeg, *.jpg, *.png, *.gif, *.webp. Max size 5 MB",
+    "avatarUploadSuccess": "Avatar updated successfully",
+    "avatarUploadFailed": "Could not upload avatar",
+    "avatarInvalidType": "Only JPG, PNG, GIF or WEBP images are supported",
+    "avatarTooLarge": "Avatar must not exceed 5 MB",
     "active": "Active",
     "personalInfo": "Personal information",
     "contactInfo": "Contact information",
@@ -238,7 +242,8 @@
     "lockSuccess": "Locked {{count}} accounts",
     "lockSelfSkipped": "You cannot lock your own account, skipped",
     "roleInactive": "This role is no longer active, choose another one",
-    "enterpriseRoleHint": "Business accounts are created together with their business on the Businesses page"
+    "enterpriseRoleHint": "Business accounts are created together with their business on the Businesses page",
+    "avatarUploadAfterCreateFailed": "The account was created, but the avatar upload failed. You can try again on the user details page"
   },
   "enterprises": {
     "title": "Business list",

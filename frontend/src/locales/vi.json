@@ -98,7 +98,11 @@
   "account": {
     "detail": "Chi tiết người dùng",
     "uploadAvatar": "Tải ảnh đại diện",
-    "avatarHint": "*.jpeg, *.jpg, *.png. Kích thước tối đa 5 MB",
+    "avatarHint": "*.jpeg, *.jpg, *.png, *.gif, *.webp. Kích thước tối đa 5 MB",
+    "avatarUploadSuccess": "Cập nhật ảnh đại diện thành công",
+    "avatarUploadFailed": "Không thể tải ảnh đại diện lên",
+    "avatarInvalidType": "Chỉ chấp nhận ảnh JPG, PNG, GIF hoặc WEBP",
+    "avatarTooLarge": "Ảnh đại diện không được vượt quá 5 MB",
     "active": "Kích hoạt",
     "personalInfo": "Thông tin cá nhân",
     "contactInfo": "Thông tin liên hệ",
@@ -238,7 +242,8 @@
     "lockSuccess": "Đã khoá {{count}} tài khoản",
     "lockSelfSkipped": "Không thể tự khoá tài khoản của chính mình, đã bỏ qua",
     "enterpriseRoleHint": "Tài khoản doanh nghiệp được tạo cùng doanh nghiệp ở trang Quản lý doanh nghiệp",
-    "roleInactive": "Vai trò này không còn hoạt động, hãy chọn vai trò khác"
+    "roleInactive": "Vai trò này không còn hoạt động, hãy chọn vai trò khác",
+    "avatarUploadAfterCreateFailed": "Tài khoản đã được tạo nhưng tải ảnh đại diện thất bại. Bạn có thể thử lại tại trang chi tiết người dùng"
   },
   "enterprises": {
     "title": "Danh sách doanh nghiệp",

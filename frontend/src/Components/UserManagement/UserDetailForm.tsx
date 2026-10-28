@@ -24,6 +24,7 @@ type Form = {
   username: string; password: string; fullName: string; dob: string; gender: string; title: string;
   roleId: number; email: string; provinceId: string; wardId: string; address: string; isActive: boolean;
 };
+type PendingAvatar = { file: File; previewUrl: string };
 
 export const USERS_PATH = '/admin/users';
 
@@ -51,9 +52,18 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
   const isEdit = !!user;
+  const [uploadedAvatar, setUploadedAvatar] = useState<{ userId: number; url: string | null } | null>(null);
+  const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
 
   useEffect(() => { reset(toForm(user)); }, [user, reset]);
+  useEffect(() => () => {
+    if (pendingAvatar) URL.revokeObjectURL(pendingAvatar.previewUrl);
+  }, [pendingAvatar]);
+  const avatarUrl = pendingAvatar?.previewUrl ?? (uploadedAvatar && uploadedAvatar.userId === user?.id
+    ? uploadedAvatar.url
+    : user?.avatarUrl ?? null);
 
   // Danh sách vai trò đang hoạt động trong DB; null = chưa tải được → dùng ROLE_OPTIONS cố định
   const [roles, setRoles] = useState<Role[] | null>(null);
@@ -71,11 +81,39 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     const { username, password, fullName, email, roleId, isActive } = values;
     try {
       if (isEdit) await adminUserApi.update(user.id, { fullName, isActive, ...optional(values) });
-      else await adminUserApi.create({ username, password, fullName, email, roleId, isActive, ...optional(values) } satisfies UserBody);
+      else {
+        const createdUser = await adminUserApi.create({ username, password, fullName, email, roleId, isActive, ...optional(values) } satisfies UserBody);
+        if (pendingAvatar) {
+          try {
+            await adminUserApi.uploadAvatar(createdUser.id, pendingAvatar.file);
+          } catch (avatarError) {
+            enqueueSnackbar(getErrorMessage(avatarError, translate('users.avatarUploadAfterCreateFailed')), { variant: 'warning' });
+            router.push(`${USERS_PATH}/${createdUser.id}`);
+            return;
+          }
+        }
+      }
       enqueueSnackbar(translate('common.saveSuccess'), { variant: 'success' });
       router.push(USERS_PATH);
     } catch (err) {
       enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    if (!user) {
+      setPendingAvatar({ file, previewUrl: URL.createObjectURL(file) });
+      return;
+    }
+    try {
+      setIsUploadingAvatar(true);
+      const updatedUser = await adminUserApi.uploadAvatar(user.id, file);
+      setUploadedAvatar({ userId: user.id, url: updatedUser.avatarUrl });
+      enqueueSnackbar(translate('account.avatarUploadSuccess'), { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(getErrorMessage(err, translate('account.avatarUploadFailed')), { variant: 'error' });
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -130,10 +168,11 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
 
   return (
     <ProfileLayout onSubmit={handleSubmit(onSubmit)}
-      header={<ProfileHeader onCancel={() => router.push(USERS_PATH)} saveDisabled={isSubmitting} />}
+      header={<ProfileHeader onCancel={() => router.push(USERS_PATH)} saveDisabled={isSubmitting || isUploadingAvatar} />}
       left={
         <Controller name="isActive" control={control}
-          render={({ field: f }) => <AvatarCard avatarUrl={user?.avatarUrl} active={f.value} onActiveChange={f.onChange} />} />
+          render={({ field: f }) => <AvatarCard avatarUrl={avatarUrl} active={f.value} onActiveChange={f.onChange}
+            onAvatarUpload={handleAvatarUpload} isUploadingAvatar={isUploadingAvatar || isSubmitting} />} />
       }
       right={
         <ProfileSections personal={personal}

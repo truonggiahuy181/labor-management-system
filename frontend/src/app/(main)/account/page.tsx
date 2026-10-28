@@ -2,11 +2,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Avatar, Box, Button, Card, Divider, FormControlLabel, Grid, Link, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
-import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
+import { Box, Button, Card, Divider, Grid, Link, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useSnackbar } from 'notistack';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
+import AvatarCard from '@/Components/UserProfile/AvatarCard';
 import useLocales from '@/Hooks/useLocales';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
 import { ROLE } from '@/constants/roles'
@@ -24,7 +24,7 @@ const GENDERS: Option[] = [
 const PROVINCES: Option[] = [];
 const WARDS: Option[] = [];
 const ROLE_KEYS: Record<number, string> = { [ROLE.ADMIN]: 'account.roleAdmin', [ROLE.ENTERPRISE]: 'account.roleEnterprise' };
-const EMPTY: Form = { fullName: '', dob: '', gender: '', phoneNumber: '', title: '', avatarUrl: '', provinceId: '', wardId: '', address: '' };
+const EMPTY: Form = { fullName: '', dob: '', gender: '', phoneNumber: '', title: '', provinceId: '', wardId: '', address: '' };
 
 const toForm = (p: Profile): Form => ({
   fullName: p.fullName ?? '',
@@ -32,7 +32,6 @@ const toForm = (p: Profile): Form => ({
   gender: p.gender === null ? '' : String(p.gender),
   phoneNumber: p.phoneNumber ?? '',
   title: p.title ?? '',
-  avatarUrl: p.avatarUrl ?? '',
   provinceId: p.provinceId ?? '',
   wardId: p.wardId ?? '',
   address: p.address ?? '',
@@ -51,6 +50,7 @@ export default function AccountPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const { control, handleSubmit, reset, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
 
   useEffect(() => {
@@ -67,6 +67,19 @@ export default function AccountPage() {
       enqueueSnackbar(translate('common.saveSuccess'), { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    try {
+      setIsUploadingAvatar(true);
+      const updatedProfile = await userApi.uploadAvatar(file);
+      setProfile(updatedProfile);
+      enqueueSnackbar(translate('account.avatarUploadSuccess'), { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(getErrorMessage(err, translate('account.avatarUploadFailed')), { variant: 'error' });
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -93,27 +106,15 @@ export default function AccountPage() {
       <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center' }}>
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('account.detail')}</Typography>
         <Button disabled={!isDirty} onClick={() => profile && reset(toForm(profile))}>{translate('common.cancel')}</Button>
-        <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />} disabled={!isDirty || isSubmitting}>
+        <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />} disabled={!isDirty || isSubmitting || isUploadingAvatar}>
           {translate('common.save')}
         </Button>
       </Card>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: 'flex-start' }}>
         {/* Cột trái: ảnh đại diện + kích hoạt */}
-        <Card square sx={{ width: { xs: '100%', md: 260 }, p: 3, flexShrink: 0 }}>
-          <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center' }}>
-            <Avatar src={profile?.avatarUrl ?? undefined} sx={{ width: 120, height: 120, bgcolor: 'grey.100', color: 'text.secondary' }}>
-              <Stack sx={{ alignItems: 'center' }}>
-                <PhotoCameraOutlinedIcon />
-                <Typography variant="caption">{translate('account.uploadAvatar')}</Typography>
-              </Stack>
-            </Avatar>
-            <Typography variant="caption" color="text.secondary">{translate('account.avatarHint')}</Typography>
-          </Stack>
-          <FormControlLabel sx={{ mt: 3, ml: 0, width: '100%', justifyContent: 'space-between' }} labelPlacement="start"
-            label={<Typography variant="body2" sx={{ fontWeight: 600 }}>{translate('account.active')}</Typography>}
-            control={<Switch checked={profile?.isActive ?? false} disabled />} />
-        </Card>
+        <AvatarCard avatarUrl={profile?.avatarUrl} active={profile?.isActive ?? false}
+          onAvatarUpload={handleAvatarUpload} isUploadingAvatar={isUploadingAvatar || isSubmitting} />
 
         {/* Cột phải: thông tin */}
         <Card square sx={{ flex: 1, p: 3, width: '100%' }}>

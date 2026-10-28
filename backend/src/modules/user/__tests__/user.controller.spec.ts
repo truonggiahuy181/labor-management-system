@@ -19,9 +19,28 @@ describe('UserController', () => {
       updateProfile: vi.fn(),
       updateUser: vi.fn(),
       updateStatus: vi.fn(),
+      uploadUserAvatar: vi.fn(),
     };
 
     controller = new UserController(userService as UserService);
+  });
+
+  describe('uploadUserAvatar', () => {
+    it('gọi service với user đích và admin hiện tại', async () => {
+      const file = {
+        originalname: 'avatar.png',
+        mimetype: 'image/png',
+        size: 8,
+        buffer: Buffer.alloc(8),
+      };
+      const response = { id: 2, avatarUrl: 'https://images/avatar.png' };
+      (userService.uploadUserAvatar as any).mockResolvedValue(response);
+
+      const result = await controller.uploadUserAvatar(2, { id: 1 }, file);
+
+      expect(userService.uploadUserAvatar).toHaveBeenCalledWith(2, 1, file);
+      expect(result).toBe(response);
+    });
   });
 
   describe('getAllUsers', () => {
