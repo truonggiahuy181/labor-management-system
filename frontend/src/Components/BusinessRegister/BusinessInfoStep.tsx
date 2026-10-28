@@ -60,7 +60,7 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
   // Bố cục theo thiết kế: tên NN / email / SĐT – tỉnh / xã hoạt động – địa điểm / người đứng đầu / SĐT
   const contactFields: (FieldDef | null)[] = [
     { name: 'foreignName', label: t('foreignName') },
-    { name: 'email', label: t('email'), required: true, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
+    { name: 'email', label: t('email'), required: true, disabled: isEdit, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
     { name: 'officePhone', label: t('officePhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
     { name: 'operatingProvince', label: t('operatingProvince'), options: PROVINCES },
     { name: 'operatingWard', label: t('operatingWard'), options: wardsOf(operatingProvince) },
