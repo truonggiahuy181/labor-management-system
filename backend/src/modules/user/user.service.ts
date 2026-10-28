@@ -16,6 +16,7 @@ import { RoleService } from '../role/role.service.js';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { UserQueryDto } from './dto/user-query.dto.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
+import { FileService } from '../file/file.service.js';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
@@ -23,6 +24,7 @@ export class UserService extends BaseService<UserEntity> {
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     private readonly roleService: RoleService,
+    private readonly fileService: FileService,
   ) {
     super(userRepository);
   }
@@ -95,7 +97,7 @@ export class UserService extends BaseService<UserEntity> {
       where,
       order: { id: 'DESC' },
     });
-    return UserMapper.toResponseList(users);
+    return Promise.all(users.map((user) => this.toResponse(user)));
   }
 
   /**
@@ -103,12 +105,12 @@ export class UserService extends BaseService<UserEntity> {
    */
   async getUserById(id: number): Promise<UserResponse> {
     const user = await this.findOneOrFail({ where: { id } });
-    return UserMapper.toResponse(user);
+    return this.toResponse(user);
   }
 
   async getMyProfile(userId: number): Promise<UserResponse> {
     const user = await this.findOneOrFail({ where: { id: userId } });
-    return UserMapper.toResponse(user);
+    return this.toResponse(user);
   }
 
   async createUser(
@@ -146,7 +148,7 @@ export class UserService extends BaseService<UserEntity> {
     );
 
     const savedUser = await this.userRepository.save(newUser);
-    return UserMapper.toResponse(savedUser);
+    return this.toResponse(savedUser);
   }
 
   /**
@@ -158,13 +160,17 @@ export class UserService extends BaseService<UserEntity> {
   ): Promise<UserResponse> {
     await this.findOneOrFail({ where: { id: userId } });
 
+    if (dto.avatarObjectKey) {
+      this.fileService.assertOwnedAvatarObjectKey(dto.avatarObjectKey, userId);
+    }
+
     const updateData: Partial<UserEntity> = {
       fullName: dto.fullName,
       dob: dto.dob ? new Date(dto.dob) : undefined,
       gender: dto.gender,
       phoneNumber: dto.phoneNumber,
       title: dto.title,
-      avatarUrl: dto.avatarUrl,
+      avatarObjectKey: dto.avatarObjectKey,
       provinceId: dto.provinceId,
       districtId: dto.districtId,
       wardId: dto.wardId,
@@ -180,7 +186,20 @@ export class UserService extends BaseService<UserEntity> {
     );
 
     const updatedUser = await this.update(userId, updateData);
-    return UserMapper.toResponse(updatedUser);
+    return this.toResponse(updatedUser);
+  }
+
+  async uploadMyAvatar(
+    userId: number,
+    file: import('../file/file.types.js').MultipartFile | undefined,
+  ): Promise<UserResponse> {
+    await this.findOneOrFail({ where: { id: userId } });
+    const uploaded = await this.fileService.upload(file, 'avatars', userId);
+    const updatedUser = await this.update(userId, {
+      avatarObjectKey: uploaded.objectKey,
+      updatedBy: userId,
+    });
+    return this.toResponse(updatedUser);
   }
 
   /**
@@ -207,6 +226,10 @@ export class UserService extends BaseService<UserEntity> {
       });
     }
 
+    if (dto.avatarObjectKey) {
+      this.fileService.assertOwnedAvatarObjectKey(dto.avatarObjectKey, id);
+    }
+
     // 2. Chuẩn bị dữ liệu cập nhật
     const updateData: Partial<UserEntity> = {
       fullName: dto.fullName,
@@ -214,7 +237,7 @@ export class UserService extends BaseService<UserEntity> {
       gender: dto.gender,
       phoneNumber: dto.phoneNumber,
       title: dto.title,
-      avatarUrl: dto.avatarUrl,
+      avatarObjectKey: dto.avatarObjectKey,
       provinceId: dto.provinceId,
       districtId: dto.districtId,
       wardId: dto.wardId,
@@ -238,7 +261,7 @@ export class UserService extends BaseService<UserEntity> {
     );
 
     const updatedUser = await this.update(id, updateData);
-    return UserMapper.toResponse(updatedUser);
+    return this.toResponse(updatedUser);
   }
 
   /**
@@ -264,7 +287,7 @@ export class UserService extends BaseService<UserEntity> {
       isActive,
       updatedBy: adminId ?? null,
     });
-    return UserMapper.toResponse(updatedUser);
+    return this.toResponse(updatedUser);
   }
 
   async remove(id: number, currentUserId: number): Promise<void> {
@@ -284,5 +307,17 @@ export class UserService extends BaseService<UserEntity> {
     }
 
     await this.userRepository.softDelete(id);
+  }
+
+  async resolveAvatarUrl(
+    avatarObjectKey: string | null,
+  ): Promise<string | null> {
+    if (!avatarObjectKey) return null;
+    return this.fileService.getAvatarAccessUrl(avatarObjectKey);
+  }
+
+  private async toResponse(entity: UserEntity): Promise<UserResponse> {
+    const avatarUrl = await this.resolveAvatarUrl(entity.avatarObjectKey);
+    return UserMapper.toResponse(entity, avatarUrl);
   }
 }

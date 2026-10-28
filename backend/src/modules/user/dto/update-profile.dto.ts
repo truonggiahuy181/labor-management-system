@@ -6,7 +6,6 @@ import {
   MaxLength,
   IsIn,
   Matches,
-  IsUrl,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -67,18 +66,28 @@ export class UpdateProfileDto {
   title?: string;
 
   @ApiPropertyOptional({
-    description: 'URL ảnh đại diện',
-    example: 'https://example.com/avatar.jpg',
+    description:
+      'Khóa ảnh đại diện nhận từ POST /files với folder=avatars; gửi null để gỡ avatar',
+    example: 'avatars/1/2026/10/550e8400-e29b-41d4-a716-446655440000.png',
     maxLength: 255,
+    nullable: true,
   })
   @IsOptional()
-  @IsString({ message: 'URL ảnh đại diện phải là chuỗi ký tự' })
-  @IsUrl(
-    {},
-    { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' },
-  )
-  @MaxLength(255, { message: 'URL ảnh đại diện không được vượt quá 255 ký tự' })
-  avatarUrl?: string;
+  @IsString({ message: 'Khóa ảnh đại diện phải là chuỗi ký tự' })
+  @MaxLength(255, {
+    message: 'Khóa ảnh đại diện không được vượt quá 255 ký tự',
+  })
+  avatarObjectKey?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Trường tương thích FE cũ; backend bỏ qua giá trị này vì avatarUrl được tự tạo từ avatarObjectKey',
+    deprecated: true,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  avatarUrl?: string | null;
 
   @ApiPropertyOptional({
     description: 'Mã tỉnh/thành phố',

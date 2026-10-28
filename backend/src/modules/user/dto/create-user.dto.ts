@@ -10,7 +10,6 @@ import {
   MaxLength,
   IsIn,
   Matches,
-  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -101,20 +100,6 @@ export class CreateUserDto {
   @IsString({ message: 'Chức danh phải là chuỗi ký tự' })
   @MaxLength(100, { message: 'Chức danh không được vượt quá 100 ký tự' })
   title?: string;
-
-  @ApiPropertyOptional({
-    description: 'URL ảnh đại diện',
-    example: 'https://example.com/avatar.jpg',
-    maxLength: 255,
-  })
-  @IsOptional()
-  @IsString({ message: 'URL ảnh đại diện phải là chuỗi ký tự' })
-  @IsUrl(
-    {},
-    { message: 'URL ảnh đại diện không đúng định dạng liên kết hợp lệ' },
-  )
-  @MaxLength(255, { message: 'URL ảnh đại diện không được vượt quá 255 ký tự' })
-  avatarUrl?: string;
 
   @ApiProperty({
     description:

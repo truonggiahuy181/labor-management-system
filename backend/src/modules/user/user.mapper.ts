@@ -10,6 +10,7 @@ export interface UserResponse {
   email: string | null;
   phoneNumber: string | null;
   title: string | null;
+  avatarObjectKey: string | null;
   avatarUrl: string | null;
   provinceId: string | null;
   districtId: string | null;
@@ -40,7 +41,7 @@ export class UserMapper {
       email: dto.email,
       phoneNumber: dto.phoneNumber ?? null,
       title: dto.title ?? null,
-      avatarUrl: dto.avatarUrl ?? null,
+      avatarObjectKey: null,
       provinceId: dto.provinceId ?? null,
       districtId: dto.districtId ?? null,
       wardId: dto.wardId ?? null,
@@ -56,7 +57,10 @@ export class UserMapper {
   /**
    * Chuyển UserEntity thành Response an toàn (ẩn passwordHash, tokens, OTPs)
    */
-  static toResponse(entity: UserEntity): UserResponse {
+  static toResponse(
+    entity: UserEntity,
+    avatarUrl: string | null = null,
+  ): UserResponse {
     return {
       id: entity.id,
       username: entity.username,
@@ -66,7 +70,8 @@ export class UserMapper {
       email: entity.email,
       phoneNumber: entity.phoneNumber,
       title: entity.title,
-      avatarUrl: entity.avatarUrl,
+      avatarObjectKey: entity.avatarObjectKey,
+      avatarUrl,
       provinceId: entity.provinceId,
       districtId: entity.districtId,
       wardId: entity.wardId,

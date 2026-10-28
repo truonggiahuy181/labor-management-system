@@ -20,6 +20,11 @@ describe('UserService', () => {
   let service: UserService;
   let repository: Partial<Repository<UserEntity>>;
   let roleService: { getByIdOrFail: ReturnType<typeof vi.fn> };
+  let fileService: {
+    assertOwnedAvatarObjectKey: ReturnType<typeof vi.fn>;
+    getAvatarAccessUrl: ReturnType<typeof vi.fn>;
+    upload: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     repository = {
@@ -38,9 +43,18 @@ describe('UserService', () => {
       }),
     };
 
+    fileService = {
+      assertOwnedAvatarObjectKey: vi.fn(),
+      getAvatarAccessUrl: vi
+        .fn()
+        .mockResolvedValue('https://images.example.com/avatars/1/avatar.png'),
+      upload: vi.fn(),
+    };
+
     service = new UserService(
       repository as Repository<UserEntity>,
       roleService as any,
+      fileService as any,
     );
   });
 
@@ -325,6 +339,26 @@ describe('UserService', () => {
       expect(result).toMatchObject({ id: 1, username: 'admin' });
       expect((result as any).passwordHash).toBeUndefined();
     });
+
+    it('nên trả URL public khi tài khoản có avatarObjectKey', async () => {
+      const avatarObjectKey =
+        'avatars/1/2026/10/550e8400-e29b-41d4-a716-446655440000.png';
+      (repository.findOne as any).mockResolvedValue({
+        id: 1,
+        username: 'admin',
+        avatarObjectKey,
+      });
+
+      const result = await service.getMyProfile(1);
+
+      expect(fileService.getAvatarAccessUrl).toHaveBeenCalledWith(
+        avatarObjectKey,
+      );
+      expect(result).toMatchObject({
+        avatarObjectKey,
+        avatarUrl: 'https://images.example.com/avatars/1/avatar.png',
+      });
+    });
   });
 
   describe('updateProfile', () => {
@@ -366,6 +400,57 @@ describe('UserService', () => {
 
       await expect(service.updateProfile(999, dto)).rejects.toThrow(
         NotFoundException,
+      );
+    });
+
+    it('chỉ lưu avatarObjectKey thuộc đúng người dùng', async () => {
+      const avatarObjectKey =
+        'avatars/1/2026/10/550e8400-e29b-41d4-a716-446655440000.png';
+      (repository.findOne as any).mockResolvedValue({
+        id: 1,
+        username: 'admin',
+        avatarObjectKey,
+      });
+
+      await service.updateProfile(1, { avatarObjectKey });
+
+      expect(fileService.assertOwnedAvatarObjectKey).toHaveBeenCalledWith(
+        avatarObjectKey,
+        1,
+      );
+      expect(repository.update).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ avatarObjectKey }),
+      );
+    });
+  });
+
+  describe('uploadMyAvatar', () => {
+    it('upload và tự gắn avatar vào tài khoản hiện tại', async () => {
+      const avatarObjectKey =
+        'avatars/1/2026/10/550e8400-e29b-41d4-a716-446655440000.png';
+      const file = {
+        originalname: 'avatar.png',
+        mimetype: 'image/png',
+        size: 8,
+        buffer: Buffer.alloc(8),
+      };
+      (repository.findOne as any).mockResolvedValue({
+        id: 1,
+        username: 'admin',
+        avatarObjectKey,
+      });
+      fileService.upload.mockResolvedValue({ objectKey: avatarObjectKey });
+
+      const result = await service.uploadMyAvatar(1, file);
+
+      expect(fileService.upload).toHaveBeenCalledWith(file, 'avatars', 1);
+      expect(repository.update).toHaveBeenCalledWith(1, {
+        avatarObjectKey,
+        updatedBy: 1,
+      });
+      expect(result.avatarUrl).toBe(
+        'https://images.example.com/avatars/1/avatar.png',
       );
     });
   });
