@@ -17,6 +17,7 @@ export interface Profile {
   email: string | null;
   phoneNumber: string | null;
   title: string | null;
+  avatarObjectKey?: string | null;
   avatarUrl: string | null;
   provinceId: string | null;
   wardId: string | null;
@@ -31,11 +32,16 @@ export interface Profile {
 
 // Các trường được phép sửa – khớp UpdateProfileDto của backend
 export type ProfileUpdate = Partial<Pick<Profile,
-  'fullName' | 'dob' | 'gender' | 'phoneNumber' | 'title' | 'avatarUrl' | 'provinceId' | 'wardId' | 'address'>>;
+  'fullName' | 'dob' | 'gender' | 'phoneNumber' | 'title' | 'provinceId' | 'wardId' | 'address'>>;
 
 export const userApi = {
   getMe: () => api.get<BackendResponse<Profile>>('/users/me').then((r) => r.data.data),
   updateMe: (body: ProfileUpdate) => api.patch<BackendResponse<Profile>>('/users/me', body).then((r) => r.data.data),
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<BackendResponse<Profile>>('/users/me/avatar', formData).then((r) => r.data.data);
+  },
 
   // Đổi email 3 bước – các route nằm trong AuthController
   requestEmailChange: () => api.post('/auth/request-email-change'),
@@ -88,6 +94,11 @@ export const adminUserApi = {
   create: (body: UserBody) => api.post<BackendResponse<Profile>>('/users', body).then((r) => r.data.data),
   update: (id: number, body: UserUpdate) =>
     api.patch<BackendResponse<Profile>>(`/users/${id}`, body).then((r) => r.data.data),
+  uploadAvatar: (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<BackendResponse<Profile>>(`/users/${id}/avatar`, formData).then((r) => r.data.data);
+  },
   resetPassword: (id: number, newPassword: string) =>
     api.patch<BackendResponse<Profile>>(`/users/${id}`, { password: newPassword }).then((r) => r.data.data),
   updateStatus: (id: number, isActive: boolean) =>

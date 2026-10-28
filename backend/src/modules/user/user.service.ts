@@ -193,11 +193,27 @@ export class UserService extends BaseService<UserEntity> {
     userId: number,
     file: import('../file/file.types.js').MultipartFile | undefined,
   ): Promise<UserResponse> {
+    return this.uploadAvatar(userId, userId, file);
+  }
+
+  async uploadUserAvatar(
+    userId: number,
+    adminId: number,
+    file: import('../file/file.types.js').MultipartFile | undefined,
+  ): Promise<UserResponse> {
+    return this.uploadAvatar(userId, adminId, file);
+  }
+
+  private async uploadAvatar(
+    userId: number,
+    updatedBy: number,
+    file: import('../file/file.types.js').MultipartFile | undefined,
+  ): Promise<UserResponse> {
     await this.findOneOrFail({ where: { id: userId } });
     const uploaded = await this.fileService.upload(file, 'avatars', userId);
     const updatedUser = await this.update(userId, {
       avatarObjectKey: uploaded.objectKey,
-      updatedBy: userId,
+      updatedBy,
     });
     return this.toResponse(updatedUser);
   }

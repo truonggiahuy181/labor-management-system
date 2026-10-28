@@ -93,6 +93,33 @@ export class UserController {
     return this.userService.uploadMyAvatar(user.id, file);
   }
 
+  @Post(':id/avatar')
+  @Roles(RoleCode.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_IMAGE_FILE_SIZE },
+    }),
+  )
+  @ApiOperation({ summary: 'Quản trị viên tải và gắn avatar cho người dùng' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  uploadUserAvatar(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { id: number },
+    @UploadedFile() file: MultipartFile | undefined,
+  ) {
+    return this.userService.uploadUserAvatar(id, user.id, file);
+  }
+
   @Get(':id')
   @Roles(RoleCode.ADMIN)
   @ApiGetUserByIdDocs()
