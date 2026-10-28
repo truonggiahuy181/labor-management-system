@@ -1,6 +1,5 @@
 // src/services/enterprise.ts
 // Quản lý doanh nghiệp (chỉ Quản trị viên) – khớp EnterpriseController / CreateEnterpriseDto của backend.
-// Những gì backend chưa hỗ trợ (xoá, file đính kèm, mật khẩu mặc định...) ghi ở frontend/BACKEND_CHANGES.md
 import api from './api';
 import type { BusinessInfo } from './business';
 import type { BackendResponse } from './user';
@@ -36,20 +35,22 @@ export interface Industry { id: number; industryCode: string; industryName: stri
 
 // Backend tạo tài khoản doanh nghiệp với username = MST và mật khẩu cố định
 // (backend/src/modules/enterprise/enterprise.service.ts: argon2.hash('12345678')), API không trả mật khẩu về
-export const ENTERPRISE_DEFAULT_PASSWORD = '12345678';
+export interface CreatedEnterprise {
+  enterprise: Enterprise;
+  initialAccess: { username: string; temporaryPassword: string };
+}
 
 export const enterpriseApi = {
   list: () => api.get<BackendResponse<Enterprise[]>>('/enterprises').then((r) => r.data.data ?? []),
   get: (id: number) => api.get<BackendResponse<Enterprise>>(`/enterprises/${id}`).then((r) => r.data.data),
   create: (body: Partial<EnterpriseBody>) =>
-    api.post<BackendResponse<Enterprise>>('/enterprises', body).then((r) => r.data.data),
+    api.post<BackendResponse<CreatedEnterprise>>('/enterprises', body).then((r) => r.data.data),
   update: (id: number, body: Partial<EnterpriseBody>) =>
     api.patch<BackendResponse<Enterprise>>(`/enterprises/${id}`, body).then((r) => r.data.data),
   updateStatus: (id: number, isActive: boolean) =>
     api.patch<BackendResponse<Enterprise>>(`/enterprises/${id}/status`, { isActive }).then((r) => r.data.data),
   // Backend CHƯA có route này (xem BACKEND_CHANGES.md) – gọi sẽ nhận 404 cho tới khi được bổ sung
-  remove: (ids: number[]) =>
-    api.delete<BackendResponse<{ deleted: number }>>('/enterprises', { data: { ids } }).then((r) => r.data.data),
+  remove: (id: number) => api.delete(`/enterprises/${id}`).then(() => undefined),
 };
 
 // ─── Chuyển đổi với form dùng chung của luồng đăng ký (BusinessInfo, Components/BusinessRegister) ───

@@ -32,14 +32,15 @@ const TEXT_COLUMNS = [
 ] as const;
 const DEBOUNCE_MS = 400;
 
-const toParams = (f: Filters): UserFilters => ({
-  ...(f.fullName && { fullName: f.fullName }),
-  ...(f.username && { username: f.username }),
-  ...(f.email && { email: f.email }),
-  ...(f.title && { title: f.title }),
-  ...(f.roleId && { roleId: Number(f.roleId) }),
-  ...(f.isActive && { isActive: f.isActive === 'true' }),
+const toParams = (roleId: string, isActive: string): UserFilters => ({
+  ...(roleId && { roleId: Number(roleId) }),
+  ...(isActive && { isActive: isActive === 'true' }),
 });
+const TEXT_FILTERS = ['fullName', 'username', 'email', 'title'] as const;
+const matchesText = (u: Profile, f: Filters) => TEXT_FILTERS.every((k) => {
+  const q = f[k].trim().toLowerCase();
+  return !q || (u[k] ?? '').toLowerCase().includes(q);
+ });
 
 function useDebounced<T>(value: T, ms: number) {
   const [debounced, setDebounced] = useState(value);
@@ -60,8 +61,7 @@ export default function UsersPage() {
   const debouncedFilters = useDebounced(filters, DEBOUNCE_MS);
   const [page, setPage] = useState(0);              // TablePagination đếm từ 0, backend từ 1
   const [pageSize, setPageSize] = useState(10);
-  const [rows, setRows] = useState<Profile[]>([]);
-  const [total, setTotal] = useState(0);
+  const [allRows, setAllRows] = useState<Profile[]>([]);
   const [reloadCount, setReloadCount] = useState(0);
   const [loadedKey, setLoadedKey] = useState('');
   const [selected, setSelected] = useState<number[]>([]);
@@ -69,10 +69,8 @@ export default function UsersPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isAdmin = user?.roleId === ROLE.ADMIN;
 
-  const query = useMemo(
-    () => ({ ...toParams(debouncedFilters), pageNumber: page + 1, pageSize }),
-    [debouncedFilters, page, pageSize],
-  );
+  const { roleId, isActive } = debouncedFilters;
+  const query = useMemo(() => toParams(roleId, isActive), [roleId, isActive]);
   // Mỗi lần query đổi hoặc bấm tải lại là một request mới; loading đến khi request đó xong
   const requestKey = `${JSON.stringify(query)}#${reloadCount}`;
   const loading = isAdmin && loadedKey !== requestKey;
@@ -84,8 +82,7 @@ export default function UsersPage() {
     adminUserApi.list(query)
       .then((res) => {
         if (cancelled) return;
-        setRows(res.data);
-        setTotal(res.total);
+        setAllRows(res);
       })
       .catch((err) => {
         if (!cancelled) enqueueSnackbar(getErrorMessage(err, translate('users.loadFailed')), { variant: 'error' });
@@ -93,6 +90,11 @@ export default function UsersPage() {
       .finally(() => { if (!cancelled) setLoadedKey(requestKey); });
     return () => { cancelled = true; };
   }, [isAdmin, query, requestKey, enqueueSnackbar, translate]);
+
+  const filtered = useMemo(() => allRows.filter((u) => matchesText(u, debouncedFilters)), [allRows, debouncedFilters]);
+  const total = filtered.length;
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(total / pageSize) - 1)); // sau khi xoá, trang cuối có thể không còn
+  const rows = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
 
   const setFilter = (key: keyof Filters, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
@@ -107,31 +109,34 @@ export default function UsersPage() {
   const toggleOne = (id: number) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   const toggleActive = async (row: Profile, isActive: boolean) => {
-    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive } : r)));
-    try {
-      await adminUserApi.update(row.id, { isActive });
-    } catch (err) {
-      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive: !isActive } : r)));
+    setAllRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive } : r)));
+     try {
+       await adminUserApi.update(row.id, { isActive });
+     } catch (err) {
+      setAllRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive: !isActive } : r)));
       enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
     }
   };
 
-  const lockSelected = async () => {
-    // 1. Bỏ tài khoản đang đăng nhập ra khỏi danh sách cần khoá
+  const deleteSelected  = async () => {
+    // 1. Bỏ tài khoản đang đăng nhập ra khỏi danh sách cần xoá
     const ids = selected.filter((id) => id !== Number(user?.id));
 
-    // 2. Gọi PATCH /users/:id/status { isActive: false } cho từng user, chạy song song
-    const results = await Promise.allSettled(ids.map((id) => adminUserApi.updateStatus(id, false)));
+    const softDelete = async (id: number) => {
+      if (allRows.find((r) => r.id === id)?.isActive !== false) await adminUserApi.updateStatus(id, false);;
+        await adminUserApi.remove(id);
+    };
 
+    const results = await Promise.allSettled(ids.map(softDelete));
     // 3. Đếm số request thành công
-    const locked = results.filter((r) => r.status === 'fulfilled').length;
+    const deleted = results.filter((r) => r.status === 'fulfilled').length;
 
     // 4. Lấy request lỗi đầu tiên (nếu có) để hiện thông báo lỗi của backend
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
 
     // 5. Thông báo kết quả
-    if (locked) enqueueSnackbar(translate('users.lockSuccess', { count: locked }), { variant: 'success' });
-    if (ids.length < selected.length) enqueueSnackbar(translate('users.lockSelfSkipped'), { variant: 'warning' });
+    if (deleted) enqueueSnackbar(translate('users.deleteSuccess', { count: deleted }), { variant: 'success' });
+    if (ids.length < selected.length) enqueueSnackbar(translate('users.deleteSelfSkipped'), { variant: 'warning' });
     if (failed) enqueueSnackbar(getErrorMessage(failed.reason, translate('common.unknownError')), { variant: 'error' });
 
     // 6. Dọn trạng thái và tải lại bảng
@@ -271,7 +276,7 @@ export default function UsersPage() {
             sx={{ color: 'text.secondary' }}>
             {translate('users.exportData')}
           </Button>
-          <TablePagination component="div" sx={{ ml: 'auto' }} count={total} page={page} rowsPerPage={pageSize}
+          <TablePagination component="div" sx={{ ml: 'auto' }} count={total} page={currentPage} rowsPerPage={pageSize}
             rowsPerPageOptions={[10, 20, 50]} labelRowsPerPage=""
             labelDisplayedRows={({ from, to, count }) => translate('users.of', { from, to, count })}
             onPageChange={(_, p) => setPage(p)}
@@ -285,7 +290,7 @@ export default function UsersPage() {
         <DialogContent>{translate('users.deleteConfirm', { count: selected.length })}</DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmDelete(false)}>{translate('common.cancel')}</Button>
-          <Button variant="contained" color="error" onClick={lockSelected}>{translate('users.lock')}</Button>
+          <Button variant="contained" color="error" onClick={deleteSelected}>{translate('users.delete')}</Button>
         </DialogActions>
       </Dialog>
     </Stack>

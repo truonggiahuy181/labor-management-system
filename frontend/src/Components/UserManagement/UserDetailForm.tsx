@@ -31,6 +31,7 @@ export const USERS_PATH = '/admin/users';
 const PASSWORD_MIN = 8;
 const MAX = { username: 50, fullName: 100, email: 100, title: 100, address: 255 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ENTERPRISE_ROLE_CODE = 'ENTERPRISE_USER';
 
 const toForm = (u?: Profile | null): Form => ({
   username: u?.username ?? '', password: '', fullName: u?.fullName ?? '', dob: u?.dob?.slice(0, 10) ?? '',
@@ -60,8 +61,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     roleApi.list().then((rs) => setRoles(rs.filter((r) => r.isActive))).catch(() => setRoles(null));
   }, []);
   const roleOptions = roles
-    ? roles.map((r) => ({ value: r.id, label: r.roleName }))
-    : ROLE_OPTIONS.map((o) => ({ value: o.value, label: translate(o.label) }));
+    ? roles.filter((r) => isEdit || r.roleCode !== ENTERPRISE_ROLE_CODE).map((r) => ({ value: r.id, label: r.roleName }))
+    : ROLE_OPTIONS.filter((o) => isEdit || o.value !== ROLE.ENTERPRISE).map((o) => ({ value: o.value, label: translate(o.label) }));
 
   const required = translate('common.required');
   const maxLength = (value: number) => ({ value, message: translate('users.maxLength', { max: value }) });
@@ -69,7 +70,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const onSubmit = async (values: Form) => {
     const { username, password, fullName, email, roleId, isActive } = values;
     try {
-      if (isEdit) await adminUserApi.update(user.id, { fullName, roleId, isActive, ...optional(values) });
+      if (isEdit) await adminUserApi.update(user.id, { fullName, isActive, ...optional(values) });
       else await adminUserApi.create({ username, password, fullName, email, roleId, isActive, ...optional(values) } satisfies UserBody);
       enqueueSnackbar(translate('common.saveSuccess'), { variant: 'success' });
       router.push(USERS_PATH);
@@ -102,13 +103,13 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const titleField = <FormTextField control={control} name="title" label="account.title" rules={{ maxLength: maxLength(MAX.title) }} />;
   const roleField = (
     <Controller name="roleId" control={control}
-      rules={{ validate: (v) => !roles || roles.some((r) => r.id === v) || translate('users.roleInactive') }}
+      rules={{ validate: (v) => isEdit || !roles || roleOptions.some((o) => o.value === v) || translate('users.roleInactive') }}
       render={({ field: f, fieldState }) => {
         // Vai trò hiện tại không còn trong DB → vẫn hiện để người dùng thấy và chọn lại
         const missing = !roleOptions.some((o) => o.value === f.value);
         return (
-          <TextField {...f} select fullWidth size="small" required label={translate('account.role')}
-            error={!!fieldState.error} helperText={fieldState.error?.message}>
+          <TextField {...f} select fullWidth size="small" required label={translate('account.role')} disabled={isEdit}
+           error={!!fieldState.error} helperText={fieldState.error?.message ?? (isEdit ? undefined : translate('users.enterpriseRoleHint'))}>
             {missing && <MenuItem value={f.value} disabled>{translate('account.roleUnknown', { id: f.value })}</MenuItem>}
             {roleOptions.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
           </TextField>

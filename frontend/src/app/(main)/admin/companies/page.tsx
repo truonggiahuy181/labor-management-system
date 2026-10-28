@@ -97,7 +97,7 @@ export default function CompaniesPage() {
   // Tài khoản của doanh nghiệp: user có enterpriseId trùng, hoặc username = mã số thuế
   const openResetPassword = async (row: Enterprise) => {
     try {
-      const { data } = await adminUserApi.list({ pageNumber: 1, pageSize: 1000 });
+      const data = await adminUserApi.list();
       const account = data.find((u) => u.enterpriseId === row.id) ?? data.find((u) => u.username === row.taxCode);
       if (account) setResetting(account);
       else enqueueSnackbar(translate('enterprises.accountNotFound'), { variant: 'warning' });
@@ -107,21 +107,32 @@ export default function CompaniesPage() {
   };
 
   const deleteSelected = async () => {
-    try {
-      const { deleted } = await enterpriseApi.remove(selected);
-      enqueueSnackbar(translate('enterprises.deleteSuccess', { count: deleted }), { variant: 'success' });
-      setSelected([]);
-      load();
-    } catch (err) {
-      // Backend chưa có DELETE /enterprises (BACKEND_CHANGES.md) → 404
-      const notSupported = (err as { response?: { status?: number } })?.response?.status === 404;
-      enqueueSnackbar(
-        notSupported ? translate('enterprises.deleteNotSupported') : getErrorMessage(err, translate('common.unknownError')),
-        { variant: 'error' },
-      );
-    } finally {
-      setConfirmDelete(false);
+    // Backend chỉ xoá doanh nghiệp đã ngừng hoạt động và không còn tài khoản (chưa bị xoá):
+    // còn tài khoản thì bỏ qua và báo; không thì ngừng hoạt động (nếu cần) rồi DELETE /enterprises/:id (xoá mềm)
+    const hasAccount: string[] = [];
+    const softDelete = async (id: number) => {
+      const row = rows.find((r) => r.id === id);
+      if ((await adminUserApi.list({ enterpriseId: id })).length) {
+        hasAccount.push(row?.enterpriseName ?? String(id));
+        return false;
+      }
+      if (row?.isActive !== false) await enterpriseApi.updateStatus(id, false);
+      await enterpriseApi.remove(id);
+      return true;
+    };
+    const results = await Promise.allSettled(selected.map(softDelete));
+
+    const deleted = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (deleted) enqueueSnackbar(translate('enterprises.deleteSuccess', { count: deleted }), { variant: 'success' });
+    if (hasAccount.length) {
+      enqueueSnackbar(translate('enterprises.deleteHasAccount', { names: hasAccount.join(', ') }), { variant: 'warning' });
     }
+    if (failed) enqueueSnackbar(getErrorMessage(failed.reason, translate('common.unknownError')), { variant: 'error' });
+
+    setSelected([]);
+    setConfirmDelete(false);
+    load();
   };
 
   const openForm = (e: Enterprise | null) => { setEditing(e); setFormOpen(true); };

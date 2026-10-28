@@ -19,7 +19,7 @@ import useLocales from '@/Hooks/useLocales';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
 import {
-  ENTERPRISE_DEFAULT_PASSWORD, enterpriseApi, toBusinessInfo, toEnterpriseBody, type Enterprise,
+  enterpriseApi, toBusinessInfo, toEnterpriseBody, type Enterprise,
 } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 import type { CatalogOptions } from './options';
@@ -118,10 +118,10 @@ export default function BusinessRegisterDialog({
         await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
         enqueueSnackbar(translate('enterprises.updateSuccess'), { variant: 'success' });
       } else {
-        const created = await enterpriseApi.create(toEnterpriseBody(info));
+        const { enterprise: created, initialAccess } = await enterpriseApi.create(toEnterpriseBody(info));
         enqueueSnackbar(translate('enterprises.createSuccess'), { variant: 'success' });
         setAccount({
-          username: created.taxCode, tempPassword: ENTERPRISE_DEFAULT_PASSWORD,
+          username: initialAccess.username, tempPassword: initialAccess.temporaryPassword,
           companyName: created.enterpriseName, email: created.email,
         });
       }
@@ -159,7 +159,7 @@ export default function BusinessRegisterDialog({
             <Step><StepLabel>{t('stepInfo')}</StepLabel></Step>
             <Step><StepLabel>{t('stepConfirm')}</StepLabel></Step>
           </Stepper>
-          <IconButton onClick={close} sx={{ position: 'absolute', right: 8, top: 8 }} aria-label={t('cancel')}>
+          <IconButton onClick={close} sx={{ position: 'absolute', right: 8, top: 8 }} aria-label={t('close')}>
             <Close />
           </IconButton>
         </DialogTitle>
