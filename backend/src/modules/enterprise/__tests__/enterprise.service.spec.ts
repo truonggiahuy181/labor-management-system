@@ -296,17 +296,48 @@ describe('EnterpriseService', () => {
     });
   });
 
-  it('never updates email even when the service is called directly', async () => {
+  it('updates email of the enterprise and its account together', async () => {
     const existing = enterpriseEntity();
     repository.findOne.mockResolvedValue(existing);
+    transactionManager.update = vi.fn();
 
-    await service.update(10, { email: 'new@abc.vn' } as any, 7);
+    await service.update(10, { email: '  New@ABC.vn ' }, 7);
 
+    expect(userService.findByEmail).toHaveBeenCalledWith('new@abc.vn');
+    expect(transactionManager.update).toHaveBeenCalledWith(
+      expect.anything(),
+      10,
+      expect.objectContaining({ email: 'new@abc.vn', updatedBy: 7 }),
+    );
+    expect(transactionManager.update).toHaveBeenCalledWith(
+      expect.anything(),
+      { enterpriseId: 10, username: '0101234567' },
+      { email: 'new@abc.vn', updatedBy: 7 },
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects changing to an email that is already in use', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+    userService.findByEmail.mockResolvedValue({ id: 99 });
+    transactionManager.update = vi.fn();
+
+    await expect(
+      service.update(10, { email: 'taken@abc.vn' }, 7),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(transactionManager.update).not.toHaveBeenCalled();
+  });
+
+  it('skips the email check when the email is unchanged', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+
+    await service.update(10, { email: 'CONTACT@abc.vn', enterpriseName: 'X' }, 7);
+
+    expect(userService.findByEmail).not.toHaveBeenCalled();
     expect(repository.update).toHaveBeenCalledWith(
       10,
       expect.not.objectContaining({ email: expect.anything() }),
     );
-    expect(userService.findByEmail).not.toHaveBeenCalled();
   });
 
   it('never updates tax code even when the service is called directly', async () => {

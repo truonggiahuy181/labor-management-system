@@ -24,7 +24,7 @@ export default function useCatalogs() {
       options.find((o) => o.value === String(value ?? ''))?.label ?? '';
     const catalog: CatalogOptions = { businessTypes: businessTypeOptions, industries: industryOptions };
     return {
-      catalog,       // truyền vào form dùng chung (BusinessRegisterDialog / ConfirmStep)
+      catalog,       // truyền vào form dùng chung (EnterpriseForm / ConfirmStep)
       businessTypeOptions,
       industryOptions,
       locations,

@@ -184,18 +184,35 @@ export class EnterpriseService {
     const updateData = {
       ...dto,
       updatedBy: updaterId ?? null,
-    } as Partial<EnterpriseEntity> & { taxCode?: string; email?: string };
+    } as Partial<EnterpriseEntity> & { taxCode?: string };
 
     // Bảo vệ thêm ở tầng service nếu được gọi trực tiếp mà không qua ValidationPipe.
     delete updateData.taxCode;
-    delete updateData.email;
     Object.keys(updateData).forEach((key) => {
       if ((updateData as Record<string, unknown>)[key] === undefined) {
         delete (updateData as Record<string, unknown>)[key];
       }
     });
 
-    await this.enterpriseRepository.update(id, updateData);
+    const newEmail = dto.email?.trim().toLowerCase();
+    if (newEmail === undefined || newEmail === enterprise.email) {
+      delete updateData.email;
+      await this.enterpriseRepository.update(id, updateData);
+      return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+    }
+
+    // Đổi email: email mới chưa ai dùng, đổi cùng lúc email doanh nghiệp và
+    // email tài khoản doanh nghiệp (tên đăng nhập = mã số thuế) để OTP / quên mật khẩu gửi đúng nơi
+    await this.assertEmailAvailable(newEmail);
+    updateData.email = newEmail;
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(EnterpriseEntity, id, updateData);
+      await manager.update(
+        UserEntity,
+        { enterpriseId: id, username: enterprise.taxCode },
+        { email: newEmail, updatedBy: updaterId ?? null },
+      );
+    });
     return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
   }
 

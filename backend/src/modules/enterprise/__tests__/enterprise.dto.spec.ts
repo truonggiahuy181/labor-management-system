@@ -74,11 +74,10 @@ describe('CreateEnterpriseDto', () => {
 });
 
 describe('UpdateEnterpriseDto', () => {
-  it('rejects taxCode and email because they are immutable', async () => {
+  it('rejects taxCode because it is immutable', async () => {
     const dto = plainToInstance(UpdateEnterpriseDto, {
       enterpriseName: 'Công ty ABC cập nhật',
       taxCode: '0109999999',
-      email: 'new@abc.vn',
     });
 
     const errors = await validate(dto, {
@@ -94,13 +93,20 @@ describe('UpdateEnterpriseDto', () => {
             whitelistValidation: expect.any(String),
           }),
         }),
-        expect.objectContaining({
-          property: 'email',
-          constraints: expect.objectContaining({
-            whitelistValidation: expect.any(String),
-          }),
-        }),
       ]),
     );
+  });
+
+  it('accepts a valid email and rejects an invalid one', async () => {
+    const validate$ = (email: string) =>
+      validate(plainToInstance(UpdateEnterpriseDto, { email }), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
+
+    expect(await validate$('new@abc.vn')).toHaveLength(0);
+    expect(await validate$('not-an-email')).toEqual([
+      expect.objectContaining({ property: 'email' }),
+    ]);
   });
 });

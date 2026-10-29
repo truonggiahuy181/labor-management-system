@@ -12,6 +12,7 @@ import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
+import { notBlank, stripSpaces } from '@/services/text';
 import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,6 +30,7 @@ type FieldDef = {
   searchable?: boolean;
   type?: 'date';
   span?: 1 | 2 | 3;     // số cột chiếm trên lưới 3 cột
+  noSpaces?: boolean;   // MST / email / SĐT: rời ô thì bỏ hết khoảng trắng
 };
 
 const filterOptions = createFilterOptions<Option>({
@@ -66,7 +68,7 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
 
   const companyFields: FieldDef[] = [
     { name: 'companyName', label: t('companyName'), required: true },
-    { name: 'taxCode', label: t('taxCode'), required: true, disabled: isEdit, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
+    { name: 'taxCode', label: t('taxCode'), required: true, disabled: isEdit, noSpaces: true, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
     { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
     { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
@@ -78,14 +80,14 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
   // Bố cục theo thiết kế: tên NN / email / SĐT – tỉnh / xã hoạt động – địa điểm / người đứng đầu / SĐT
   const contactFields: (FieldDef | null)[] = [
     { name: 'foreignName', label: t('foreignName') },
-    { name: 'email', label: t('email'), required: true, disabled: isEdit, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
-    { name: 'officePhone', label: t('officePhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
+    { name: 'email', label: t('email'), required: true, noSpaces: true, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
+    { name: 'officePhone', label: t('officePhone'), noSpaces: true, rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
     { name: 'operatingProvince', label: t('operatingProvince'), options: locations.provinceOptions, searchable: true },
     { name: 'operatingWard', label: t('operatingWard'), options: operatingWards, searchable: true },
     null,
     { name: 'businessLocation', label: t('businessLocation') },
     { name: 'leaderName', label: t('leaderName') },
-    { name: 'leaderPhone', label: t('leaderPhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
+    { name: 'leaderPhone', label: t('leaderPhone'), noSpaces: true, rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
   ];
 
   const renderField = (def: FieldDef | null, index: number) => def ? (
@@ -93,7 +95,12 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
       <Controller
         name={def.name}
         control={control}
-        rules={{ ...def.rules, required: def.required ? translate('common.required') : false }}
+        rules={{
+          ...def.rules,
+          required: def.required ? translate('common.required') : false,
+          // Ô chữ bắt buộc: chỉ gõ dấu cách cũng tính là bỏ trống
+          ...(def.required && !def.options && { validate: (v: string) => notBlank(v) || translate('common.required') }),
+        }}
         render={({ field, fieldState }) => {
           const disabled = def.disabled || (!!def.options && def.options.length === 0);
           const selectValue = (value: string) => {
@@ -154,6 +161,11 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
               error={!!fieldState.error}
               helperText={fieldState.error?.message}
               onChange={(e) => selectValue(e.target.value)}
+              // Vẫn cho gõ dấu cách; rời ô thì mới bỏ hết khoảng trắng, rồi mới kiểm tra lỗi
+              onBlur={() => {
+                if (def.noSpaces && field.value !== stripSpaces(field.value)) field.onChange(stripSpaces(field.value));
+                field.onBlur();
+              }}
               slotProps={def.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
             >
               {def.options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
