@@ -4,7 +4,7 @@
 import { useEffect, useRef } from 'react';
 import { Controller, type RegisterOptions, type UseFormReturn } from 'react-hook-form';
 import {
-  Box, IconButton, MenuItem, Paper, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
+  Autocomplete, Box, createFilterOptions, IconButton, MenuItem, Paper, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
@@ -26,9 +26,14 @@ type FieldDef = {
   disabled?: boolean;
   rules?: RegisterOptions<BusinessInfo, keyof BusinessInfo>;
   options?: Option[];
+  searchable?: boolean;
   type?: 'date';
   span?: 1 | 2 | 3;     // số cột chiếm trên lưới 3 cột
 };
+
+const filterOptions = createFilterOptions<Option>({
+  stringify: (option) => `${option.label} ${option.value}`,
+});
 
 type Props = {
   form: UseFormReturn<BusinessInfo>;
@@ -65,8 +70,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
     { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
-    { name: 'province', label: t('province'), required: true, options: locations.provinceOptions },
-    { name: 'ward', label: t('ward'), required: true, options: wards },
+    { name: 'province', label: t('province'), required: true, options: locations.provinceOptions, searchable: true },
+    { name: 'ward', label: t('ward'), required: true, options: wards, searchable: true },
     { name: 'address', label: t('address'), required: true, span: 2 },
   ];
 
@@ -75,8 +80,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'foreignName', label: t('foreignName') },
     { name: 'email', label: t('email'), required: true, disabled: isEdit, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
     { name: 'officePhone', label: t('officePhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
-    { name: 'operatingProvince', label: t('operatingProvince'), options: locations.provinceOptions },
-    { name: 'operatingWard', label: t('operatingWard'), options: operatingWards },
+    { name: 'operatingProvince', label: t('operatingProvince'), options: locations.provinceOptions, searchable: true },
+    { name: 'operatingWard', label: t('operatingWard'), options: operatingWards, searchable: true },
     null,
     { name: 'businessLocation', label: t('businessLocation') },
     { name: 'leaderName', label: t('leaderName') },
@@ -89,29 +94,72 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
         name={def.name}
         control={control}
         rules={{ ...def.rules, required: def.required ? translate('common.required') : false }}
-        render={({ field, fieldState }) => (
-          <TextField
-            {...field}
-            fullWidth
-            size="small"
-            label={def.label}
-            required={def.required}
-            type={def.type}
-            select={!!def.options}
-            disabled={def.disabled || (!!def.options && def.options.length === 0)}
-            error={!!fieldState.error}
-            helperText={fieldState.error?.message}
-            onChange={(e) => {
-              field.onChange(e);
-              // Đổi tỉnh → xoá phường/xã đã chọn
-              if (def.name === 'province') setValue('ward', '');
-              if (def.name === 'operatingProvince') setValue('operatingWard', '');
-            }}
-            slotProps={def.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
-          >
-            {def.options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-          </TextField>
-        )}
+        render={({ field, fieldState }) => {
+          const disabled = def.disabled || (!!def.options && def.options.length === 0);
+          const selectValue = (value: string) => {
+            field.onChange(value);
+            // Đổi tỉnh → xoá phường/xã đã chọn
+            if (def.name === 'province') setValue('ward', '');
+            if (def.name === 'operatingProvince') setValue('operatingWard', '');
+          };
+
+          if (def.searchable && def.options) {
+            const unknownOption = field.value && !def.options.some((option) => option.value === field.value)
+              ? { value: field.value, label: field.value }
+              : null;
+            const availableOptions = unknownOption ? [unknownOption, ...def.options] : def.options;
+            const selectedOption = availableOptions.find((option) => option.value === field.value) ?? null;
+
+            return (
+              <Autocomplete
+                fullWidth
+                size="small"
+                options={availableOptions}
+                value={selectedOption}
+                disabled={disabled}
+                autoHighlight
+                autoSelect
+                openOnFocus
+                selectOnFocus
+                filterOptions={filterOptions}
+                getOptionLabel={(option) => option.label}
+                isOptionEqualToValue={(option, value) => option.value === value.value}
+                onBlur={field.onBlur}
+                onChange={(_, option) => selectValue(option?.value ?? '')}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    inputRef={field.ref}
+                    name={field.name}
+                    label={def.label}
+                    required={def.required}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                )}
+              />
+            );
+          }
+
+          return (
+            <TextField
+              {...field}
+              fullWidth
+              size="small"
+              label={def.label}
+              required={def.required}
+              type={def.type}
+              select={!!def.options}
+              disabled={disabled}
+              error={!!fieldState.error}
+              helperText={fieldState.error?.message}
+              onChange={(e) => selectValue(e.target.value)}
+              slotProps={def.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
+            >
+              {def.options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+            </TextField>
+          );
+        }}
       />
     </Box>
   ) : <Box key={`empty-${index}`} sx={{ display: { xs: 'none', md: 'block' } }} />;
