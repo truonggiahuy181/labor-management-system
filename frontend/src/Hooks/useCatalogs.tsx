@@ -1,13 +1,15 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { catalogApi, type BusinessType, type Industry } from '@/services/enterprise';
-import { PROVINCES, wardsOf, type CatalogOptions, type Option } from '@/Components/BusinessRegister/options';
+import { type CatalogOptions, type Option } from '@/Components/BusinessRegister/options';
+import useLocations from './useLocations';
 
 export type { Option };
 
 export default function useCatalogs() {
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const locations = useLocations();
 
   useEffect(() => {
     // Lỗi tải danh mục chỉ làm ô chọn trống, không chặn trang
@@ -25,11 +27,12 @@ export default function useCatalogs() {
       catalog,       // truyền vào form dùng chung (BusinessRegisterDialog / ConfirmStep)
       businessTypeOptions,
       industryOptions,
-      // Tất cả phường/xã của mọi tỉnh – dùng cho ô lọc trên bảng
-      allWardOptions: PROVINCES.flatMap((p) => p.wards),
+      locations,
+      // Các phường/xã của những tỉnh đã được tải – trang doanh nghiệp tải theo dữ liệu đang có
+      allWardOptions: locations.allWardOptions,
       businessTypeLabel: (id: number | null | undefined) => find(businessTypeOptions, id),
       industryLabel: (id: number | null | undefined) => find(industryOptions, id),
-      wardLabel: (province: string | null | undefined, ward: string | null | undefined) => find(wardsOf(province ?? ''), ward),
+      wardLabel: locations.wardLabel,
     };
-  }, [businessTypes, industries]);
+  }, [businessTypes, industries, locations]);
 }

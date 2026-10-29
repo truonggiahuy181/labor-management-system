@@ -41,6 +41,7 @@ export default function CompaniesPage() {
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
   const catalogs = useCatalogs();
+  const { ensureWards } = catalogs.locations;
   const isAdmin = user?.roleId === ROLE.ADMIN;
 
   const [rows, setRows] = useState<Enterprise[]>([]);
@@ -68,6 +69,17 @@ export default function CompaniesPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [isAdmin, reloadCount, enqueueSnackbar, translate]);
+
+  useEffect(() => {
+    for (const provinceCode of new Set(rows.map((row) => row.provinceId))) {
+      void ensureWards(provinceCode);
+    }
+    for (const provinceCode of new Set(
+      rows.map((row) => row.operatingProvinceId).filter((code): code is string => !!code),
+    )) {
+      void ensureWards(provinceCode);
+    }
+  }, [ensureWards, rows]);
 
   const filtered = useMemo(() => rows.filter((e) => matches(e, filters)), [rows, filters]);
   const pageRows = filtered.slice(page * pageSize, (page + 1) * pageSize);
@@ -275,7 +287,7 @@ export default function CompaniesPage() {
       <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="md" fullWidth scroll="paper">
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('enterprises.detailTitle')}</DialogTitle>
         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
-          {viewing && <ConfirmStep info={toBusinessInfo(viewing)} catalog={catalogs.catalog} />}
+          {viewing && <ConfirmStep info={toBusinessInfo(viewing)} catalog={catalogs.catalog} locations={catalogs.locations} />}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button onClick={() => setViewing(null)}>{translate('businessRegister.close')}</Button>

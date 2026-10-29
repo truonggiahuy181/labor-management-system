@@ -5,7 +5,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { MenuItem, TextField } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
@@ -14,8 +14,9 @@ import FormTextField from '@/Components/UserProfile/FormTextField';
 import ProfileHeader from '@/Components/UserProfile/ProfileHeader';
 import ProfileLayout from '@/Components/UserProfile/ProfileLayout';
 import ProfileSections from '@/Components/UserProfile/ProfileSections';
-import { GENDERS, PROVINCES, WARDS, wardsOf } from '@/Components/UserProfile/options';
+import { GENDERS } from '@/Components/UserProfile/options';
 import useLocales from '@/Hooks/useLocales';
+import useLocations from '@/Hooks/useLocations';
 import { ROLE } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, roleApi, type Profile, type Role, type UserBody } from '@/services/user';
 import { ROLE_OPTIONS } from './roleOptions';
@@ -38,7 +39,7 @@ const toForm = (u?: Profile | null): Form => ({
   username: u?.username ?? '', password: '', fullName: u?.fullName ?? '', dob: u?.dob?.slice(0, 10) ?? '',
   gender: u?.gender == null ? '' : String(u.gender), title: u?.title ?? '', roleId: u?.roleId ?? ROLE.ADMIN,
   email: u?.email ?? '',
-  provinceId: u?.provinceId === '79' ? 'HCM' : u?.provinceId === '01' ? 'HN' : (u?.provinceId ?? ''),
+  provinceId: u?.provinceId ?? '',
   wardId: u?.wardId ?? '', address: u?.address ?? '',
   isActive: u?.isActive ?? true,
 });
@@ -57,10 +58,16 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const [uploadedAvatar, setUploadedAvatar] = useState<{ userId: number; url: string | null } | null>(null);
   const [pendingAvatar, setPendingAvatar] = useState<PendingAvatar | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
+  const locations = useLocations();
+  const { ensureWards } = locations;
+  const { control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
 
-  const selectedProvince = watch('provinceId');
-  const currentWards = wardsOf(selectedProvince);
+  const selectedProvince = useWatch({ control, name: 'provinceId' });
+  const currentWards = locations.wardsOf(selectedProvince);
+
+  useEffect(() => {
+    void ensureWards(selectedProvince);
+  }, [ensureWards, selectedProvince]);
 
   useEffect(() => { reset(toForm(user)); }, [user, reset]);
   useEffect(() => () => {
@@ -181,8 +188,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       }
       right={
         <ProfileSections personal={personal}
-          province={<FormTextField control={control} name="provinceId" label="account.province" options={PROVINCES} translateLabels={false} onChange={() => setValue('wardId', '')} />}
-          ward={<FormTextField control={control} name="wardId" label="account.ward" options={currentWards} disabled={!selectedProvince || currentWards.length === 0} translateLabels={false} />}
+          province={<FormTextField control={control} name="provinceId" label="account.province" options={locations.provinceOptions} disabled={locations.loadingProvinces} translateLabels={false} onChange={() => setValue('wardId', '')} />}
+          ward={<FormTextField control={control} name="wardId" label="account.ward" options={currentWards} disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0} translateLabels={false} />}
           address={<FormTextField control={control} name="address" label="account.address" rules={{ maxLength: maxLength(MAX.address) }} />} />
       } />
   );

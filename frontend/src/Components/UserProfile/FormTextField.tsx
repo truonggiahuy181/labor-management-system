@@ -16,7 +16,7 @@ type Props<T extends FieldValues> = {
   required?: boolean;                  // hiện dấu * khi ô không có rules.required (vd. ô bị khoá)
   disabled?: boolean;
   type?: string;
-  onChange?: (value: any) => void;
+  onChange?: (value: unknown) => void;
 };
 
 export default function FormTextField<T extends FieldValues>({

@@ -1,7 +1,7 @@
 // src/Components/BusinessRegister/BusinessInfoStep.tsx
 // Bước 1 – Thông tin doanh nghiệp: thông tin DN (bắt buộc), thông tin liên hệ, file đính kèm.
 'use client';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Controller, type RegisterOptions, type UseFormReturn } from 'react-hook-form';
 import {
   Box, IconButton, MenuItem, Paper, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
@@ -10,8 +10,9 @@ import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import useLocales from '@/Hooks/useLocales';
+import type { LocationCatalog } from '@/Hooks/useLocations';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
-import { DEFAULT_CATALOG, PROVINCES, wardsOf, type CatalogOptions, type Option } from './options';
+import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^0\d{9}$/;
@@ -34,10 +35,11 @@ type Props = {
   files: BusinessFiles;
   onFilesChange: (files: BusinessFiles) => void;
   catalog?: CatalogOptions;
+  locations: LocationCatalog;
   isEdit?: boolean;     // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
 };
 
-export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, isEdit = false }: Props) {
+export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false }: Props) {
   const { translate } = useLocales();
   const { control, watch, setValue } = form;
   const t = (key: string) => translate(`businessRegister.${key}`);
@@ -45,6 +47,17 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
 
   const province = watch('province');
   const operatingProvince = watch('operatingProvince');
+  const { ensureWards } = locations;
+  const wards = locations.wardsOf(province);
+  const operatingWards = locations.wardsOf(operatingProvince);
+
+  useEffect(() => {
+    void ensureWards(province);
+  }, [ensureWards, province]);
+
+  useEffect(() => {
+    void ensureWards(operatingProvince);
+  }, [ensureWards, operatingProvince]);
 
   const companyFields: FieldDef[] = [
     { name: 'companyName', label: t('companyName'), required: true },
@@ -52,8 +65,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
     { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
-    { name: 'province', label: t('province'), required: true, options: PROVINCES },
-    { name: 'ward', label: t('ward'), required: true, options: wardsOf(province) },
+    { name: 'province', label: t('province'), required: true, options: locations.provinceOptions },
+    { name: 'ward', label: t('ward'), required: true, options: wards },
     { name: 'address', label: t('address'), required: true, span: 2 },
   ];
 
@@ -62,8 +75,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'foreignName', label: t('foreignName') },
     { name: 'email', label: t('email'), required: true, disabled: isEdit, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
     { name: 'officePhone', label: t('officePhone'), rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
-    { name: 'operatingProvince', label: t('operatingProvince'), options: PROVINCES },
-    { name: 'operatingWard', label: t('operatingWard'), options: wardsOf(operatingProvince) },
+    { name: 'operatingProvince', label: t('operatingProvince'), options: locations.provinceOptions },
+    { name: 'operatingWard', label: t('operatingWard'), options: operatingWards },
     null,
     { name: 'businessLocation', label: t('businessLocation') },
     { name: 'leaderName', label: t('leaderName') },
