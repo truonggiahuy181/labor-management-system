@@ -16,6 +16,7 @@ import ChevronRight from '@mui/icons-material/ChevronRight';
 import Check from '@mui/icons-material/Check';
 import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
+import useLocations from '@/Hooks/useLocations';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
 import {
@@ -52,6 +53,7 @@ export default function BusinessRegisterDialog({
   const { translate, translateError } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
+  const locations = useLocations();
 
   const form = useForm<BusinessInfo>({ defaultValues: EMPTY_INFO, mode: 'onTouched' });
   const [files, setFiles] = useState<BusinessFiles>(EMPTY_FILES);
@@ -167,8 +169,8 @@ export default function BusinessRegisterDialog({
         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
           {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
           {step === 0
-            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalog} isEdit={isEdit} />
-            : <ConfirmStep info={form.getValues()} files={files} catalog={catalog} />}
+            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalog} locations={locations} isEdit={isEdit} />
+            : <ConfirmStep info={form.getValues()} files={files} catalog={catalog} locations={locations} />}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 1.5 }}>

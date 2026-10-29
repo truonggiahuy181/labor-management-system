@@ -18,31 +18,10 @@ export const INDUSTRIES: Option[] = [
   { value: '6201', label: '6201 - Lập trình máy vi tính' },
 ];
 
-// Tỉnh/thành → phường/xã (đơn vị hành chính 2 cấp)
-export const PROVINCES: (Option & { wards: Option[] })[] = [
-  {
-    value: 'HCM', label: 'Thành phố Hồ Chí Minh',
-    wards: [
-      { value: 'HIEP_BINH', label: 'Phường Hiệp Bình' },
-      { value: 'TAN_DINH', label: 'Phường Tân Định' },
-      { value: 'SAI_GON', label: 'Phường Sài Gòn' },
-    ],
-  },
-  {
-    value: 'HN', label: 'Thành phố Hà Nội',
-    wards: [
-      { value: 'HOAN_KIEM', label: 'Phường Hoàn Kiếm' },
-      { value: 'BA_DINH', label: 'Phường Ba Đình' },
-    ],
-  },
-];
-
 // Danh mục loại hình / ngành nghề truyền vào form: luồng đăng ký dùng mặc định,
 // Quản trị viên truyền danh mục thật từ API (Hooks/useCatalogs)
 export type CatalogOptions = { businessTypes: Option[]; industries: Option[] };
 export const DEFAULT_CATALOG: CatalogOptions = { businessTypes: BUSINESS_TYPES, industries: INDUSTRIES };
-
-export const wardsOf = (province: string) => PROVINCES.find((p) => p.value === province)?.wards ?? [];
 
 export const labelOf = (options: Option[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;

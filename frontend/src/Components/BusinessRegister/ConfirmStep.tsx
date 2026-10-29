@@ -3,18 +3,19 @@
 'use client';
 import { Box, Paper, Typography } from '@mui/material';
 import useLocales from '@/Hooks/useLocales';
+import type { LocationCatalog } from '@/Hooks/useLocations';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
 import { FilesTable } from './BusinessInfoStep';
-import { DEFAULT_CATALOG, PROVINCES, labelOf, wardsOf, type CatalogOptions } from './options';
+import { DEFAULT_CATALOG, labelOf, type CatalogOptions } from './options';
 
 const formatDate = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
 
 // "162 đường số 2, Phường X, Thành phố Y" – bỏ phần trống
 const joinAddress = (...parts: string[]) => parts.filter(Boolean).join(', ');
 
-type Props = { info: BusinessInfo; files?: BusinessFiles; catalog?: CatalogOptions };   // files bỏ trống = không hiện bảng file
+type Props = { info: BusinessInfo; files?: BusinessFiles; catalog?: CatalogOptions; locations: LocationCatalog };   // files bỏ trống = không hiện bảng file
 
-export default function ConfirmStep({ info, files, catalog = DEFAULT_CATALOG }: Props) {
+export default function ConfirmStep({ info, files, catalog = DEFAULT_CATALOG, locations }: Props) {
   const { translate } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
 
@@ -27,11 +28,11 @@ export default function ConfirmStep({ info, files, catalog = DEFAULT_CATALOG }: 
     [t('licenseDate'), formatDate(info.licenseDate)],
     [t('businessType'), labelOf(catalog.businessTypes, info.businessType)],
     [t('mainIndustry'), labelOf(catalog.industries, info.mainIndustry)],
-    [t('registeredAddress'), joinAddress(info.address, labelOf(wardsOf(info.province), info.ward), labelOf(PROVINCES, info.province))],
+    [t('registeredAddress'), joinAddress(info.address, locations.wardLabel(info.province, info.ward), locations.provinceLabel(info.province))],
     [t('businessLocation'), joinAddress(
       info.businessLocation,
-      labelOf(wardsOf(info.operatingProvince), info.operatingWard),
-      labelOf(PROVINCES, info.operatingProvince),
+      locations.wardLabel(info.operatingProvince, info.operatingWard),
+      locations.provinceLabel(info.operatingProvince),
     )],
     [t('leaderName'), info.leaderName],
     [t('leaderPhone'), info.leaderPhone],

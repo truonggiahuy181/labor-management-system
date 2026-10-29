@@ -1,15 +1,16 @@
 // src/app/(main)/account/page.tsx  →  /account  (Thông tin tài khoản)
 'use client';
 import { useEffect, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Box, Button, Card, Divider, Grid, Link, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useSnackbar } from 'notistack';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import AvatarCard from '@/Components/UserProfile/AvatarCard';
 import useLocales from '@/Hooks/useLocales';
+import useLocations from '@/Hooks/useLocations';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
-import { GENDERS, PROVINCES, wardsOf, type Option } from '@/Components/UserProfile/options';
+import { GENDERS, type Option } from '@/Components/UserProfile/options';
 import { ROLE } from '@/constants/roles'
 type Form = Required<{ [K in keyof ProfileUpdate]: string }>;
 
@@ -22,7 +23,7 @@ const toForm = (p: Profile): Form => ({
   gender: p.gender === null ? '' : String(p.gender),
   phoneNumber: p.phoneNumber ?? '',
   title: p.title ?? '',
-  provinceId: p.provinceId === '79' ? 'HCM' : p.provinceId === '01' ? 'HN' : (p.provinceId ?? ''),
+  provinceId: p.provinceId ?? '',
   wardId: p.wardId ?? '',
   address: p.address ?? '',
 });
@@ -41,10 +42,16 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
+  const locations = useLocations();
+  const { ensureWards } = locations;
+  const { control, handleSubmit, reset, setValue, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
 
-  const selectedProvince = watch('provinceId');
-  const currentWards = wardsOf(selectedProvince);
+  const selectedProvince = useWatch({ control, name: 'provinceId' });
+  const currentWards = locations.wardsOf(selectedProvince);
+
+  useEffect(() => {
+    void ensureWards(selectedProvince);
+  }, [ensureWards, selectedProvince]);
 
   useEffect(() => {
     userApi.getMe()
@@ -160,10 +167,10 @@ export default function AccountPage() {
           <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('account.contactInfo')}</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
-              {field('provinceId', 'account.province', {}, PROVINCES, false, () => setValue('wardId', '', { shouldDirty: true }))}
+              {field('provinceId', 'account.province', { disabled: locations.loadingProvinces }, locations.provinceOptions, false, () => setValue('wardId', '', { shouldDirty: true }))}
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              {field('wardId', 'account.ward', { disabled: !selectedProvince || currentWards.length === 0 }, currentWards, false)}
+              {field('wardId', 'account.ward', { disabled: !selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0 }, currentWards, false)}
             </Grid>
             <Grid size={12}>{field('address', 'account.address')}</Grid>
           </Grid>
