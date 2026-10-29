@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { IsNotFutureDate } from '../../../commons/validators/is-not-future-date.validator.js';
 
 export class UpdateProfileDto {
   // ── Tên đăng nhập & Email: KHÔNG được phép thay đổi qua endpoint này (xử lý ở service/luồng OTP)
@@ -29,6 +30,7 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsDateString({}, { message: 'Ngày sinh không đúng định dạng YYYY-MM-DD' })
+  @IsNotFutureDate({ message: 'Ngày sinh không được lớn hơn ngày hiện tại' })
   dob?: string;
 
   @ApiPropertyOptional({
