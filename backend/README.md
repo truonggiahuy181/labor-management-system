@@ -122,3 +122,26 @@ tài liệu vào bucket public. Khi cần dùng tài liệu, tạo bucket privat
 Luôn lưu `objectKey` vào dữ liệu nghiệp vụ. `avatarUrl` và URL logo là URL public cố định;
 presigned URL của `documents` không được lưu vì sẽ hết hạn. `documents` chỉ chủ sở hữu
 hoặc `ADMIN` được truy cập.
+
+---
+
+## 7. Danh mục tỉnh/thành phố và phường/xã
+
+Migration `010_create_location_catalog` tạo hai bảng `provinces`, `wards` và seed
+snapshot gồm 34 tỉnh/thành phố, 3.321 phường/xã theo danh mục sau tháng 7/2025.
+Mã tỉnh gồm 2 chữ số và mã phường/xã gồm 5 chữ số; các bảng nghiệp vụ tiếp tục lưu
+các mã này trong `province_id`, `ward_id`.
+
+- `GET /api/v1/locations/provinces`: lấy danh sách tỉnh/thành phố.
+- `GET /api/v1/locations/provinces/:provinceCode/wards`: lấy phường/xã theo tỉnh.
+
+Hai API này là public và đọc từ database, không gọi dịch vụ bên thứ ba lúc ứng dụng
+hoạt động. Khi cần tải danh mục mới từ Province Open API v2 để chuẩn bị cập nhật:
+
+```bash
+npm run locations:refresh
+```
+
+Lệnh trên tạo file `vietnam-locations.latest.json`. Hãy kiểm tra dữ liệu rồi tạo một
+migration và snapshot có phiên bản mới trước khi triển khai; không chỉnh sửa snapshot
+`vietnam-locations-2025-07.json` của migration `010` đã chạy.

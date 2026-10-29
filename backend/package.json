@@ -28,7 +28,8 @@
     "migration:run": "npm run build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "migration:generate": "npm run build && typeorm migration:generate src/database/migrations/AutoMigration.migration -d dist/database/data-source.js --esm",
-    "migration:create": "typeorm migration:create src/database/migrations/Migration.migration --esm"
+    "migration:create": "typeorm migration:create src/database/migrations/Migration.migration --esm",
+    "locations:refresh": "node scripts/refresh-location-catalog.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1158.0",

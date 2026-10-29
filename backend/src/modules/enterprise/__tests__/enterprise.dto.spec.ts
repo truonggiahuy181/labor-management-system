@@ -14,7 +14,7 @@ const createDto = (
     industryId: 1,
     registrationDate: '2020-01-15',
     provinceId: '79',
-    wardId: '26734',
+    wardId: '26740',
     address: '12 Nguyễn Huệ',
     email: 'contact@abc.vn',
     ...overrides,

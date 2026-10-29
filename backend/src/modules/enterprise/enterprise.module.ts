@@ -8,6 +8,7 @@ import { BusinessTypeModule } from '../business-type/business-type.module.js';
 import { IndustryModule } from '../industry/industry.module.js';
 import { RoleModule } from '../role/role.module.js';
 import { UserEntity } from '../user/user.entity.js';
+import { LocationModule } from '../location/location.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UserEntity } from '../user/user.entity.js';
     BusinessTypeModule,
     IndustryModule,
     RoleModule,
+    LocationModule,
   ],
   controllers: [EnterpriseController],
   providers: [EnterpriseService],

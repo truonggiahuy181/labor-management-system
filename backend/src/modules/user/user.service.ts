@@ -17,6 +17,7 @@ import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { UserQueryDto } from './dto/user-query.dto.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
 import { FileService } from '../file/file.service.js';
+import { LocationService } from '../location/location.service.js';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
@@ -25,6 +26,7 @@ export class UserService extends BaseService<UserEntity> {
     private readonly userRepository: Repository<UserEntity>,
     private readonly roleService: RoleService,
     private readonly fileService: FileService,
+    private readonly locationService: LocationService,
   ) {
     super(userRepository);
   }
@@ -117,6 +119,11 @@ export class UserService extends BaseService<UserEntity> {
     dto: CreateUserDto,
     creatorId?: number,
   ): Promise<UserResponse> {
+    await this.locationService.assertValidSelection(
+      dto.provinceId,
+      dto.wardId,
+    );
+
     // 1. Kiểm tra username đã tồn tại chưa
     const existingUsername = await this.findByUsername(dto.username);
     if (existingUsername) {
@@ -158,7 +165,14 @@ export class UserService extends BaseService<UserEntity> {
     userId: number,
     dto: UpdateProfileDto,
   ): Promise<UserResponse> {
-    await this.findOneOrFail({ where: { id: userId } });
+    const user = await this.findOneOrFail({ where: { id: userId } });
+
+    if (dto.provinceId !== undefined || dto.wardId !== undefined) {
+      await this.locationService.assertValidSelection(
+        dto.provinceId ?? user.provinceId,
+        dto.wardId ?? user.wardId,
+      );
+    }
 
     if (dto.avatarObjectKey) {
       this.fileService.assertOwnedAvatarObjectKey(dto.avatarObjectKey, userId);
@@ -227,6 +241,13 @@ export class UserService extends BaseService<UserEntity> {
     adminId?: number,
   ): Promise<UserResponse> {
     const user = await this.findOneOrFail({ where: { id } });
+
+    if (dto.provinceId !== undefined || dto.wardId !== undefined) {
+      await this.locationService.assertValidSelection(
+        dto.provinceId ?? user.provinceId,
+        dto.wardId ?? user.wardId,
+      );
+    }
 
     // 1. Kiểm tra email nếu có thay đổi và tránh trùng lặp với user khác
     if (dto.email && dto.email !== user.email) {

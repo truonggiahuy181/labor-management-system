@@ -19,6 +19,7 @@ import { BusinessTypeService } from '../business-type/business-type.service.js';
 import { IndustryService } from '../industry/industry.service.js';
 import { RoleService } from '../role/role.service.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
+import { LocationService } from '../location/location.service.js';
 
 const INITIAL_ENTERPRISE_PASSWORD = '12345678';
 
@@ -42,6 +43,7 @@ export class EnterpriseService {
     private readonly roleService: RoleService,
     private readonly userService: UserService,
     private readonly dataSource: DataSource,
+    private readonly locationService: LocationService,
   ) {}
 
   async getAll(query: EnterpriseQueryDto = {}): Promise<EnterpriseResponse[]> {
@@ -86,6 +88,15 @@ export class EnterpriseService {
     dto: CreateEnterpriseDto,
     creatorId?: number,
   ): Promise<CreateEnterpriseResult> {
+    await this.locationService.assertValidSelection(
+      dto.provinceId,
+      dto.wardId,
+    );
+    await this.locationService.assertValidSelection(
+      dto.operatingProvinceId,
+      dto.operatingWardId,
+    );
+
     await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
     await this.industryService.getLevelFourByIdOrFail(dto.industryId);
     await this.assertTaxCodeAvailable(dto.taxCode);
@@ -146,7 +157,23 @@ export class EnterpriseService {
     dto: UpdateEnterpriseDto,
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
-    await this.findEntityOrFail(id);
+    const enterprise = await this.findEntityOrFail(id);
+
+    if (dto.provinceId !== undefined || dto.wardId !== undefined) {
+      await this.locationService.assertValidSelection(
+        dto.provinceId ?? enterprise.provinceId,
+        dto.wardId ?? enterprise.wardId,
+      );
+    }
+    if (
+      dto.operatingProvinceId !== undefined ||
+      dto.operatingWardId !== undefined
+    ) {
+      await this.locationService.assertValidSelection(
+        dto.operatingProvinceId ?? enterprise.operatingProvinceId,
+        dto.operatingWardId ?? enterprise.operatingWardId,
+      );
+    }
     if (dto.businessTypeId !== undefined) {
       await this.businessTypeService.getActiveByIdOrFail(dto.businessTypeId);
     }
