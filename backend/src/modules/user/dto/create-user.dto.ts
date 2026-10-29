@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { IsNotFutureDate } from '../../../commons/validators/is-not-future-date.validator.js';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -55,6 +56,7 @@ export class CreateUserDto {
   })
   @IsOptional()
   @IsDateString({}, { message: 'Ngày sinh không đúng định dạng YYYY-MM-DD' })
+  @IsNotFutureDate({ message: 'Ngày sinh không được lớn hơn ngày hiện tại' })
   dob?: string;
 
   @ApiPropertyOptional({

@@ -111,6 +111,7 @@
     "username": "Tên đăng nhập",
     "fullName": "Họ và tên",
     "dob": "Ngày tháng năm sinh",
+    "dobFuture": "Ngày sinh không được lớn hơn ngày hiện tại",
     "gender": "Giới tính",
     "genderMale": "Nam",
     "genderFemale": "Nữ",

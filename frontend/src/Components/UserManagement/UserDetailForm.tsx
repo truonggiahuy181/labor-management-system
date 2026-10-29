@@ -20,6 +20,7 @@ import useLocations from '@/Hooks/useLocations';
 import { ROLE } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, roleApi, type Profile, type Role, type UserBody } from '@/services/user';
 import { ROLE_OPTIONS } from './roleOptions';
+import { getLocalToday, isNotFutureDate } from '@/services/date';
 
 type Form = {
   username: string; password: string; fullName: string; dob: string; gender: string; title: string;
@@ -148,7 +149,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const fullNameField = (
     <FormTextField control={control} name="fullName" label="account.fullName" rules={{ required, maxLength: maxLength(MAX.fullName) }} />
   );
-  const dobField = <FormTextField control={control} name="dob" label="account.dob" type="date" />;
+  const dobField = <FormTextField control={control} name="dob" label="account.dob" type="date" max={getLocalToday()}
+    rules={{ validate: (value) => isNotFutureDate(String(value ?? '')) || translate('account.dobFuture') }} />;
   const genderField = <FormTextField control={control} name="gender" label="account.gender" options={GENDERS} />;
   const titleField = <FormTextField control={control} name="title" label="account.title" rules={{ maxLength: maxLength(MAX.title) }} />;
   const roleField = (
@@ -188,8 +190,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       }
       right={
         <ProfileSections personal={personal}
-          province={<FormTextField control={control} name="provinceId" label="account.province" options={locations.provinceOptions} disabled={locations.loadingProvinces} translateLabels={false} onChange={() => setValue('wardId', '')} />}
-          ward={<FormTextField control={control} name="wardId" label="account.ward" options={currentWards} disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0} translateLabels={false} />}
+          province={<FormTextField control={control} name="provinceId" label="account.province" options={locations.provinceOptions} searchable disabled={locations.loadingProvinces} translateLabels={false} onChange={() => setValue('wardId', '')} />}
+          ward={<FormTextField control={control} name="wardId" label="account.ward" options={currentWards} searchable disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0} translateLabels={false} />}
           address={<FormTextField control={control} name="address" label="account.address" rules={{ maxLength: maxLength(MAX.address) }} />} />
       } />
   );

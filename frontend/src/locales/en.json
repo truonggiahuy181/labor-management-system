@@ -111,6 +111,7 @@
     "username": "Username",
     "fullName": "Full name",
     "dob": "Date of birth",
+    "dobFuture": "Date of birth cannot be in the future",
     "gender": "Gender",
     "genderMale": "Male",
     "genderFemale": "Female",
