@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreateUserDto } from '../dto/create-user.dto.js';
 import { UpdateUserDto } from '../dto/update-user.dto.js';
+import { UpdateProfileDto } from '../dto/update-profile.dto.js';
 
 const validationOptions = {
   whitelist: true,
@@ -41,4 +42,34 @@ describe('User DTO relationship rules', () => {
       );
     },
   );
+});
+
+describe('User DTO date-of-birth rules', () => {
+  it.each([CreateUserDto, UpdateProfileDto, UpdateUserDto])(
+    '%s rejects a future date of birth',
+    async (DtoClass) => {
+      const dto = plainToInstance(DtoClass, { dob: '9999-01-01' });
+
+      const errors = await validate(dto, validationOptions);
+
+      expect(errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            property: 'dob',
+            constraints: expect.objectContaining({
+              isNotFutureDate: 'Ngày sinh không được lớn hơn ngày hiện tại',
+            }),
+          }),
+        ]),
+      );
+    },
+  );
+
+  it('accepts a date of birth in the past', async () => {
+    const dto = plainToInstance(UpdateProfileDto, { dob: '1995-06-01' });
+
+    const errors = await validate(dto, validationOptions);
+
+    expect(errors.find((error) => error.property === 'dob')).toBeUndefined();
+  });
 });

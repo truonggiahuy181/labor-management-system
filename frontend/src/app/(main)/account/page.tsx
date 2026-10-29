@@ -7,11 +7,13 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useSnackbar } from 'notistack';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import AvatarCard from '@/Components/UserProfile/AvatarCard';
+import FormTextField from '@/Components/UserProfile/FormTextField';
 import useLocales from '@/Hooks/useLocales';
 import useLocations from '@/Hooks/useLocations';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
 import { GENDERS, type Option } from '@/Components/UserProfile/options';
 import { ROLE } from '@/constants/roles'
+import { getLocalToday, isNotFutureDate } from '@/services/date';
 type Form = Required<{ [K in keyof ProfileUpdate]: string }>;
 
 const ROLE_KEYS: Record<number, string> = { [ROLE.ADMIN]: 'account.roleAdmin', [ROLE.ENTERPRISE]: 'account.roleEnterprise' };
@@ -146,7 +148,15 @@ export default function AccountPage() {
               <TextField fullWidth size="small" label={translate('account.username')} value={profile?.username ?? ''} disabled required />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>{field('fullName', 'account.fullName', { required: true })}</Grid>
-            <Grid size={{ xs: 12, md: 6 }}>{field('dob', 'account.dob', { type: 'date', slotProps: { inputLabel: { shrink: true } } })}</Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Controller name="dob" control={control}
+                rules={{ validate: (value) => isNotFutureDate(value) || translate('account.dobFuture') }}
+                render={({ field: dobField, fieldState }) => (
+                  <TextField {...dobField} fullWidth size="small" type="date" label={translate('account.dob')}
+                    error={!!fieldState.error} helperText={fieldState.error?.message}
+                    slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: getLocalToday() } }} />
+                )} />
+            </Grid>
             <Grid size={{ xs: 12, md: 6 }}>{field('gender', 'account.gender', {}, GENDERS)}</Grid>
             <Grid size={{ xs: 12, md: 6 }}>{field('title', 'account.title')}</Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -167,10 +177,15 @@ export default function AccountPage() {
           <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('account.contactInfo')}</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
-              {field('provinceId', 'account.province', { disabled: locations.loadingProvinces }, locations.provinceOptions, false, () => setValue('wardId', '', { shouldDirty: true }))}
+              <FormTextField control={control} name="provinceId" label="account.province"
+                options={locations.provinceOptions} searchable disabled={locations.loadingProvinces}
+                translateLabels={false} onChange={() => setValue('wardId', '', { shouldDirty: true })} />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              {field('wardId', 'account.ward', { disabled: !selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0 }, currentWards, false)}
+              <FormTextField control={control} name="wardId" label="account.ward"
+                options={currentWards} searchable
+                disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0}
+                translateLabels={false} />
             </Grid>
             <Grid size={12}>{field('address', 'account.address')}</Grid>
           </Grid>
