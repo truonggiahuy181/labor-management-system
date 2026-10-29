@@ -1,10 +1,9 @@
 // src/app/(main)/layout.tsx
 'use client';
 import { useState } from 'react';
-import { AppBar, Box, IconButton, Toolbar } from '@mui/material';
+import { Box, IconButton } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import AuthGuard from '@/Components/AuthGuard';
-import LanguageSwitcher from '@/Components/LanguageSwitcher';
 import Sidebar from '@/Components/Sidebar';
 import useLocales from '@/Hooks/useLocales';
 
@@ -17,23 +16,20 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <Box sx={{ display: 'flex', minHeight: '100vh' }}>
         {sidebarOpen && <Sidebar onToggle={() => setSidebarOpen(false)} />}
 
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <AppBar position="sticky" color="inherit" elevation={1}>
-            <Toolbar sx={{ gap: 2 }}>
-              {/* Sidebar đang ẩn thì hiện nút mở lại */}
-              {!sidebarOpen && (
-                <IconButton onClick={() => setSidebarOpen(true)} aria-label={translate('menu.toggle')}>
-                  <MenuIcon />
-                </IconButton>
-              )}
-              <Box sx={{ flexGrow: 1 }} />
-              <LanguageSwitcher />
-              {/* Đăng xuất nằm trong menu tài khoản ở chân Sidebar */}
-            </Toolbar>
-          </AppBar>
-          {/* Nội dung tràn hết chiều ngang còn lại */}
-          <Box component="main" sx={{ p: 3 }}>{children}</Box>
-        </Box>
+        {/* Sidebar đang ẩn thì hiện nút nổi ở góc trái để mở lại
+            (đổi ngôn ngữ và đăng xuất nằm trong menu tài khoản ở chân Sidebar) */}
+        {!sidebarOpen && (
+          <IconButton
+            onClick={() => setSidebarOpen(true)}
+            aria-label={translate('menu.toggle')}
+            sx={{ position: 'fixed', top: 24, left: 12, zIndex: 'appBar', bgcolor: 'background.paper', boxShadow: 2, '&:hover': { bgcolor: 'grey.100' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
+
+        {/* Nội dung tràn hết chiều ngang còn lại; chừa chỗ cho nút mở Sidebar khi đang ẩn */}
+        <Box component="main" sx={{ flex: 1, minWidth: 0, p: 3, pl: sidebarOpen ? 3 : 9 }}>{children}</Box>
       </Box>
     </AuthGuard>
   );

@@ -19,6 +19,7 @@ type Props<T extends FieldValues> = {
   max?: string;
   searchable?: boolean;               // cho phép gõ để tìm/chọn option (vd. tỉnh/phường)
   onChange?: (value: unknown) => void;
+  hint?: string;                       // dòng gợi ý dưới ô (đã dịch), lỗi kiểm tra sẽ hiện thay chỗ này
 };
 
 const filterOptions = createFilterOptions<Option>({
@@ -26,7 +27,7 @@ const filterOptions = createFilterOptions<Option>({
 });
 
 export default function FormTextField<T extends FieldValues>({
-  control, name, label, rules, options, translateLabels = true, required, disabled, type, max, searchable = false, onChange,
+  control, name, label, rules, options, translateLabels = true, required, disabled, type, max, searchable = false, onChange, hint,
 }: Props<T>) {
   const { translate } = useLocales();
   return (
@@ -78,7 +79,7 @@ export default function FormTextField<T extends FieldValues>({
         return (
           <TextField {...field} fullWidth size="small" label={translate(label)} select={!!options} type={type}
             disabled={disabled} required={required ?? !!rules?.required}
-            error={!!fieldState.error} helperText={fieldState.error?.message}
+            error={!!fieldState.error} helperText={fieldState.error?.message ?? hint}
             onChange={(e) => {
               field.onChange(e);
               onChange?.(e.target.value);

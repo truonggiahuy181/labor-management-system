@@ -64,7 +64,7 @@ export const toBusinessInfo = (e: Enterprise): BusinessInfo => ({
   operatingProvince: e.operatingProvinceId ?? '', operatingWard: e.operatingWardId ?? '', businessLocation: e.operatingAddress ?? '',
 });
 
-// Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) và email không gửi
+// Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) không gửi
 // vì UpdateEnterpriseDto của backend không cho đổi hai trường này.
 export const toEnterpriseBody = (info: BusinessInfo, isEdit = false): Partial<EnterpriseBody> => {
   const fields: Record<string, string> = {
@@ -74,7 +74,8 @@ export const toEnterpriseBody = (info: BusinessInfo, isEdit = false): Partial<En
     representativeName: info.leaderName, representativePhone: info.leaderPhone,
     operatingProvinceId: info.operatingProvince, operatingWardId: info.operatingWard, operatingAddress: info.businessLocation,
   };
-  if (isEdit) { delete fields.taxCode; delete fields.email; }
+  // Mã số thuế là tên đăng nhập nên không gửi khi sửa; email đổi được (backend đồng bộ sang tài khoản doanh nghiệp)
+  if (isEdit) delete fields.taxCode;
   const body: Record<string, string | number | null> = {};
   Object.entries(fields).forEach(([key, value]) => {
     if (value?.trim()) body[key] = value.trim();

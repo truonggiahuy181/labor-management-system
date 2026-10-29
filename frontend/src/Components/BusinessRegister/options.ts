@@ -1,5 +1,6 @@
 // src/Components/BusinessRegister/options.ts
 // Danh mục mẫu cho các ô chọn. TODO: thay bằng API danh mục (loại hình, ngành nghề VSIC, tỉnh/xã).
+import type { BusinessFiles, BusinessInfo } from '@/services/business';
 
 export type Option = { value: string; label: string };
 
@@ -25,3 +26,11 @@ export const DEFAULT_CATALOG: CatalogOptions = { businessTypes: BUSINESS_TYPES, 
 
 export const labelOf = (options: Option[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;
+
+// Form trống dùng chung cho Đăng ký doanh nghiệp và trang Thêm doanh nghiệp của Quản trị viên
+export const EMPTY_BUSINESS_INFO: BusinessInfo = {
+  companyName: '', taxCode: '', businessType: '', mainIndustry: '', licenseDate: '', province: '', ward: '', address: '',
+  foreignName: '', email: '', officePhone: '', leaderName: '', leaderPhone: '',
+  operatingProvince: '', operatingWard: '', businessLocation: '',
+};
+export const EMPTY_BUSINESS_FILES: BusinessFiles = { businessLicense: null, otherDocument: null };

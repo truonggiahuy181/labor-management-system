@@ -32,12 +32,14 @@ export const USERS_PATH = '/admin/users';
 
 // Giới hạn độ dài theo CreateUserDto của backend
 const PASSWORD_MIN = 8;
+// Mật khẩu điền sẵn khi thêm mới người dùng (giống mật khẩu mặc định của tài khoản doanh nghiệp)
+const DEFAULT_PASSWORD = '12345678';
 const MAX = { username: 50, fullName: 100, email: 100, title: 100, address: 255 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ENTERPRISE_ROLE_CODE = 'ENTERPRISE_USER';
 
 const toForm = (u?: Profile | null): Form => ({
-  username: u?.username ?? '', password: '', fullName: u?.fullName ?? '', dob: u?.dob?.slice(0, 10) ?? '',
+  username: u?.username ?? '', password: u ? '' : DEFAULT_PASSWORD, fullName: u?.fullName ?? '', dob: u?.dob?.slice(0, 10) ?? '',
   gender: u?.gender == null ? '' : String(u.gender), title: u?.title ?? '', roleId: u?.roleId ?? ROLE.ADMIN,
   email: u?.email ?? '',
   provinceId: u?.provinceId ?? '',
@@ -93,7 +95,11 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const onSubmit = async (values: Form) => {
     const { username, password, fullName, email, roleId, isActive } = values;
     try {
-      if (isEdit) await adminUserApi.update(user.id, { fullName, isActive, ...optional(values) });
+      if (isEdit) {
+        // Chỉ gửi email khi đổi để backend không phải kiểm tra trùng
+        const emailChanged = email.trim().toLowerCase() !== (user.email ?? '').toLowerCase();
+        await adminUserApi.update(user.id, { fullName, isActive, ...(emailChanged && { email: email.trim() }), ...optional(values) });
+      }
       else {
         const createdUser = await adminUserApi.create({ username, password, fullName, email, roleId, isActive, ...optional(values) } satisfies UserBody);
         if (pendingAvatar) {
@@ -168,9 +174,11 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
         );
       }} />
   );
+  // Quản trị viên sửa được email; tài khoản doanh nghiệp đổi email thì backend đổi cùng email doanh nghiệp
   const emailField = (
-    <FormTextField control={control} name="email" label="account.email" disabled={isEdit}
-      rules={isEdit ? undefined : {
+    <FormTextField control={control} name="email" label="account.email"
+      hint={user?.enterpriseId ? translate('users.enterpriseEmailHint') : undefined}
+      rules={{
         required, maxLength: maxLength(MAX.email), pattern: { value: EMAIL_RE, message: translate('signup.invalidEmail') },
       }} />
   );

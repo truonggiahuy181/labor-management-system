@@ -556,6 +556,36 @@ describe('UserService', () => {
       );
     });
 
+    it('đổi email tài khoản doanh nghiệp thì đổi cùng email doanh nghiệp', async () => {
+      const mockUser: any = {
+        id: 5,
+        username: '0100123458',
+        email: 'old@abc.vn',
+        enterpriseId: 10,
+      };
+      (repository.findOne as any).mockImplementation(async ({ where }: any) =>
+        where?.id === 5 ? mockUser : null,
+      );
+      const manager = { update: vi.fn() };
+      (repository as any).manager = {
+        transaction: vi.fn((cb: (m: typeof manager) => unknown) => cb(manager)),
+      };
+
+      await service.updateUser(5, { email: ' New@ABC.vn ' }, 1);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        expect.anything(),
+        5,
+        expect.objectContaining({ email: 'new@abc.vn', updatedBy: 1 }),
+      );
+      expect(manager.update).toHaveBeenCalledWith(
+        expect.anything(),
+        { id: 10, taxCode: '0100123458' },
+        { email: 'new@abc.vn', updatedBy: 1 },
+      );
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
     it('không cho thay đổi roleId khi gọi service trực tiếp', async () => {
       (repository.findOne as any).mockResolvedValue({
         id: 2,
