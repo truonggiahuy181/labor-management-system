@@ -25,6 +25,9 @@ describe('UserService', () => {
     getAvatarAccessUrl: ReturnType<typeof vi.fn>;
     upload: ReturnType<typeof vi.fn>;
   };
+  let locationService: {
+    assertValidSelection: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     repository = {
@@ -50,11 +53,15 @@ describe('UserService', () => {
         .mockResolvedValue('https://images.example.com/avatars/1/avatar.png'),
       upload: vi.fn(),
     };
+    locationService = {
+      assertValidSelection: vi.fn().mockResolvedValue(undefined),
+    };
 
     service = new UserService(
       repository as Repository<UserEntity>,
       roleService as any,
       fileService as any,
+      locationService as any,
     );
   });
 

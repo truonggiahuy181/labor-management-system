@@ -15,6 +15,7 @@ import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
 import { SeedModule } from './database/seeds/seed.module.js';
 import { createDatabaseOptions } from './database/database-options.js';
 import { FileModule } from './modules/file/file.module.js';
+import { LocationModule } from './modules/location/location.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { FileModule } from './modules/file/file.module.js';
     UserModule,
     EnterpriseModule,
     FileModule,
+    LocationModule,
     SeedModule,
   ],
   controllers: [AppController],

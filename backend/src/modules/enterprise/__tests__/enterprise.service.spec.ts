@@ -18,7 +18,7 @@ const createDto = (): CreateEnterpriseDto => ({
   industryId: 1,
   registrationDate: '2020-01-15',
   provinceId: '79',
-  wardId: '26734',
+  wardId: '26740',
   address: '12 Nguyễn Huệ',
   email: 'contact@abc.vn',
 });
@@ -31,7 +31,7 @@ const enterpriseEntity = (overrides: Record<string, unknown> = {}) => ({
   industryId: 1,
   registrationDate: '2020-01-15',
   provinceId: '79',
-  wardId: '26734',
+  wardId: '26740',
   address: '12 Nguyễn Huệ',
   foreignName: null,
   email: 'contact@abc.vn',
@@ -57,6 +57,7 @@ describe('EnterpriseService', () => {
   let businessTypeService: Record<string, any>;
   let industryService: Record<string, any>;
   let roleService: Record<string, any>;
+  let locationService: { assertValidSelection: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     repository = {
@@ -82,6 +83,9 @@ describe('EnterpriseService', () => {
         roleCode: 'ENTERPRISE_USER',
       }),
     };
+    locationService = {
+      assertValidSelection: vi.fn().mockResolvedValue(undefined),
+    };
     transactionManager = {
       create: vi.fn((_: unknown, values: Record<string, unknown>) => values),
       save: vi.fn(async (entity: Record<string, unknown>) =>
@@ -104,6 +108,7 @@ describe('EnterpriseService', () => {
       roleService as any,
       userService as any,
       dataSource as any,
+      locationService as any,
     );
   });
 

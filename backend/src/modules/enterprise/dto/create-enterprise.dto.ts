@@ -45,16 +45,22 @@ export class CreateEnterpriseDto {
   @IsDateString({}, { message: 'Ngày cấp phép không hợp lệ' })
   registrationDate: string;
 
-  @ApiProperty({ example: '79', maxLength: 20 })
+  @ApiProperty({ example: '79', minLength: 2, maxLength: 2 })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(20)
+  @MaxLength(2)
+  @Matches(/^\d{2}$/, {
+    message: 'Mã tỉnh/thành phố phải gồm đúng 2 chữ số',
+  })
   provinceId: string;
 
-  @ApiProperty({ example: '26734', maxLength: 20 })
+  @ApiProperty({ example: '26740', minLength: 5, maxLength: 5 })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(20)
+  @MaxLength(5)
+  @Matches(/^\d{5}$/, {
+    message: 'Mã phường/xã phải gồm đúng 5 chữ số',
+  })
   wardId: string;
 
   @ApiProperty({ example: '12 Nguyễn Huệ', maxLength: 255 })
@@ -91,16 +97,22 @@ export class CreateEnterpriseDto {
   @Matches(PHONE_RE, { message: 'Số điện thoại không hợp lệ' })
   representativePhone?: string;
 
-  @ApiPropertyOptional({ maxLength: 20 })
+  @ApiPropertyOptional({ minLength: 2, maxLength: 2 })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(2)
+  @Matches(/^\d{2}$/, {
+    message: 'Mã tỉnh/thành phố hoạt động phải gồm đúng 2 chữ số',
+  })
   operatingProvinceId?: string;
 
-  @ApiPropertyOptional({ maxLength: 20 })
+  @ApiPropertyOptional({ minLength: 5, maxLength: 5 })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(5)
+  @Matches(/^\d{5}$/, {
+    message: 'Mã phường/xã hoạt động phải gồm đúng 5 chữ số',
+  })
   operatingWardId?: string;
 
   @ApiPropertyOptional({ maxLength: 255 })

@@ -123,11 +123,15 @@ export class CreateUserDto {
   @ApiPropertyOptional({
     description: 'Mã tỉnh/thành phố',
     example: '79',
-    maxLength: 20,
+    minLength: 2,
+    maxLength: 2,
   })
   @IsOptional()
   @IsString({ message: 'Mã tỉnh/thành phố phải là chuỗi ký tự' })
-  @MaxLength(20, { message: 'Mã tỉnh/thành phố không được vượt quá 20 ký tự' })
+  @MaxLength(2, { message: 'Mã tỉnh/thành phố không được vượt quá 2 ký tự' })
+  @Matches(/^\d{2}$/, {
+    message: 'Mã tỉnh/thành phố phải gồm đúng 2 chữ số',
+  })
   provinceId?: string;
 
   @ApiPropertyOptional({
@@ -143,11 +147,15 @@ export class CreateUserDto {
   @ApiPropertyOptional({
     description: 'Mã phường/xã',
     example: '26740',
-    maxLength: 20,
+    minLength: 5,
+    maxLength: 5,
   })
   @IsOptional()
   @IsString({ message: 'Mã phường/xã phải là chuỗi ký tự' })
-  @MaxLength(20, { message: 'Mã phường/xã không được vượt quá 20 ký tự' })
+  @MaxLength(5, { message: 'Mã phường/xã không được vượt quá 5 ký tự' })
+  @Matches(/^\d{5}$/, {
+    message: 'Mã phường/xã phải gồm đúng 5 chữ số',
+  })
   wardId?: string;
 
   @ApiPropertyOptional({
