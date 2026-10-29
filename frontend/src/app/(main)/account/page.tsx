@@ -32,10 +32,11 @@ const toForm = (p: Profile): Form => ({
   address: p.address ?? '',
 });
 
-// Form dùng chuỗi rỗng cho ô trống; gửi lên thì bỏ ô trống và đổi gender về số
+// Form dùng chuỗi rỗng cho ô trống; gửi lên thì bỏ khoảng trắng đầu / cuối, bỏ ô trống (kể cả chỉ có dấu cách)
+// và đổi gender về số
 const toUpdate = (f: Form): ProfileUpdate => {
   const body: ProfileUpdate = {};
-  for (const [k, v] of Object.entries(f)) if (v !== '') Object.assign(body, { [k]: v });
+  for (const [k, v] of Object.entries(f)) if (v.trim() !== '') Object.assign(body, { [k]: v.trim() });
   if (f.gender !== '') body.gender = Number(f.gender);
   return body;
 };

@@ -21,6 +21,7 @@ import { ROLE } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, roleApi, type Profile, type Role, type UserBody } from '@/services/user';
 import { ROLE_OPTIONS } from './roleOptions';
 import { getLocalToday, isNotFutureDate } from '@/services/date';
+import { notBlank, stripSpaces } from '@/services/text';
 
 type Form = {
   username: string; password: string; fullName: string; dob: string; gender: string; title: string;
@@ -47,10 +48,10 @@ const toForm = (u?: Profile | null): Form => ({
   isActive: u?.isActive ?? true,
 });
 
-// Ô trống thì không gửi để backend bỏ qua kiểm tra định dạng; giới tính đổi về số
+// Ô trống (kể cả chỉ có dấu cách) thì không gửi để backend bỏ qua kiểm tra định dạng; giới tính đổi về số
 const optional = ({ dob, gender, title, provinceId, wardId, address }: Form) => ({
-  ...(dob && { dob }), ...(gender && { gender: Number(gender) }), ...(title && { title }),
-  ...(provinceId && { provinceId }), ...(wardId && { wardId }), ...(address && { address }),
+  ...(dob && { dob }), ...(gender && { gender: Number(gender) }), ...(title.trim() && { title: title.trim() }),
+  ...(provinceId && { provinceId }), ...(wardId && { wardId }), ...(address.trim() && { address: address.trim() }),
 });
 
 export default function UserDetailForm({ user }: { user: Profile | null }) {
@@ -63,7 +64,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const locations = useLocations();
   const { ensureWards } = locations;
-  const { control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
+  const { control, handleSubmit, reset, setValue, getValues, formState: { isSubmitting } } = useForm<Form>({ defaultValues: toForm(user) });
 
   const selectedProvince = useWatch({ control, name: 'provinceId' });
   const currentWards = locations.wardsOf(selectedProvince);
@@ -93,7 +94,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const maxLength = (value: number) => ({ value, message: translate('users.maxLength', { max: value }) });
 
   const onSubmit = async (values: Form) => {
-    const { username, password, fullName, email, roleId, isActive } = values;
+    const { username, password, email, roleId, isActive } = values;
+    const fullName = values.fullName.trim();
     try {
       if (isEdit) {
         // Chỉ gửi email khi đổi để backend không phải kiểm tra trùng
@@ -119,6 +121,12 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     }
   };
 
+  // Nhấn Enter để lưu thì ô chưa bị rời (chưa bỏ khoảng trắng) → bỏ ở tên đăng nhập / email trước khi kiểm tra
+  const submitForm = (e?: React.BaseSyntheticEvent) => {
+    for (const name of ['username', 'email'] as const) setValue(name, stripSpaces(getValues(name)));
+    return handleSubmit(onSubmit)(e);
+  };
+
   const handleAvatarUpload = async (file: File) => {
     if (!user) {
       setPendingAvatar({ file, previewUrl: URL.createObjectURL(file) });
@@ -137,7 +145,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   };
 
   const usernameField = (
-    <FormTextField control={control} name="username" label="account.username" disabled={isEdit} required
+    <FormTextField control={control} name="username" label="account.username" disabled={isEdit} required noSpaces
       rules={isEdit ? undefined : {
         required, maxLength: maxLength(MAX.username),
         pattern: { value: /^[a-zA-Z0-9_-]+$/, message: translate('users.invalidUsername') },
@@ -153,7 +161,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       )} />
   );
   const fullNameField = (
-    <FormTextField control={control} name="fullName" label="account.fullName" rules={{ required, maxLength: maxLength(MAX.fullName) }} />
+    <FormTextField control={control} name="fullName" label="account.fullName" rules={{ required, maxLength: maxLength(MAX.fullName), validate: (v) => notBlank(v) || required }} />
   );
   const dobField = <FormTextField control={control} name="dob" label="account.dob" type="date" max={getLocalToday()}
     rules={{ validate: (value) => isNotFutureDate(String(value ?? '')) || translate('account.dobFuture') }} />;
@@ -176,7 +184,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   );
   // Quản trị viên sửa được email; tài khoản doanh nghiệp đổi email thì backend đổi cùng email doanh nghiệp
   const emailField = (
-    <FormTextField control={control} name="email" label="account.email"
+    <FormTextField control={control} name="email" label="account.email" noSpaces
       hint={user?.enterpriseId ? translate('users.enterpriseEmailHint') : undefined}
       rules={{
         required, maxLength: maxLength(MAX.email), pattern: { value: EMAIL_RE, message: translate('signup.invalidEmail') },
@@ -189,7 +197,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     : [usernameField, passwordField, fullNameField, dobField, genderField, titleField, roleField, emailField];
 
   return (
-    <ProfileLayout onSubmit={handleSubmit(onSubmit)}
+    <ProfileLayout onSubmit={submitForm}
       header={<ProfileHeader onCancel={() => router.push(USERS_PATH)} saveDisabled={isSubmitting || isUploadingAvatar} />}
       left={
         <Controller name="isActive" control={control}

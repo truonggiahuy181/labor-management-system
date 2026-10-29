@@ -4,6 +4,7 @@
 import { Controller, type Control, type ControllerProps, type FieldValues, type Path } from 'react-hook-form';
 import { Autocomplete, createFilterOptions, MenuItem, TextField } from '@mui/material';
 import useLocales from '@/Hooks/useLocales';
+import { stripSpaces } from '@/services/text';
 import type { Option } from './options';
 
 type Props<T extends FieldValues> = {
@@ -20,6 +21,7 @@ type Props<T extends FieldValues> = {
   searchable?: boolean;               // cho phép gõ để tìm/chọn option (vd. tỉnh/phường)
   onChange?: (value: unknown) => void;
   hint?: string;                       // dòng gợi ý dưới ô (đã dịch), lỗi kiểm tra sẽ hiện thay chỗ này
+  noSpaces?: boolean;                  // tên đăng nhập / email: rời ô thì bỏ hết khoảng trắng
 };
 
 const filterOptions = createFilterOptions<Option>({
@@ -27,7 +29,7 @@ const filterOptions = createFilterOptions<Option>({
 });
 
 export default function FormTextField<T extends FieldValues>({
-  control, name, label, rules, options, translateLabels = true, required, disabled, type, max, searchable = false, onChange, hint,
+  control, name, label, rules, options, translateLabels = true, required, disabled, type, max, searchable = false, onChange, hint, noSpaces,
 }: Props<T>) {
   const { translate } = useLocales();
   return (
@@ -83,6 +85,14 @@ export default function FormTextField<T extends FieldValues>({
             onChange={(e) => {
               field.onChange(e);
               onChange?.(e.target.value);
+            }}
+            // Vẫn cho gõ dấu cách; rời ô thì mới bỏ hết khoảng trắng, rồi mới kiểm tra lỗi
+            onBlur={() => {
+              if (noSpaces && typeof field.value === 'string') {
+                const value = stripSpaces(field.value);
+                if (value !== field.value) { field.onChange(value); onChange?.(value); }
+              }
+              field.onBlur();
             }}
             slotProps={type === 'date' ? { inputLabel: { shrink: true }, htmlInput: { max } } : undefined}>
             {isUnknown && <MenuItem value={field.value} disabled>{field.value}</MenuItem>}
