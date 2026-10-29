@@ -9,20 +9,10 @@ import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import AvatarCard from '@/Components/UserProfile/AvatarCard';
 import useLocales from '@/Hooks/useLocales';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
+import { GENDERS, PROVINCES, wardsOf, type Option } from '@/Components/UserProfile/options';
 import { ROLE } from '@/constants/roles'
 type Form = Required<{ [K in keyof ProfileUpdate]: string }>;
-type Option = { value: string; label: string };
 
-// label là key dịch, khi render mới gọi translate
-const GENDERS: Option[] = [
-  { value: '1', label: 'account.genderMale' },
-  { value: '0', label: 'account.genderFemale' },
-  { value: '2', label: 'account.genderOther' },
-];
-// Tạm thời: backend chưa có API tỉnh/phường và vai trò → điền từ API khi có
-// (tên tỉnh/phường lấy từ API nên không cần dịch, đặt translateLabels = false)
-const PROVINCES: Option[] = [];
-const WARDS: Option[] = [];
 const ROLE_KEYS: Record<number, string> = { [ROLE.ADMIN]: 'account.roleAdmin', [ROLE.ENTERPRISE]: 'account.roleEnterprise' };
 const EMPTY: Form = { fullName: '', dob: '', gender: '', phoneNumber: '', title: '', provinceId: '', wardId: '', address: '' };
 
@@ -32,7 +22,7 @@ const toForm = (p: Profile): Form => ({
   gender: p.gender === null ? '' : String(p.gender),
   phoneNumber: p.phoneNumber ?? '',
   title: p.title ?? '',
-  provinceId: p.provinceId ?? '',
+  provinceId: p.provinceId === '79' ? 'HCM' : p.provinceId === '01' ? 'HN' : (p.provinceId ?? ''),
   wardId: p.wardId ?? '',
   address: p.address ?? '',
 });
@@ -51,7 +41,10 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const { control, handleSubmit, reset, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
+  const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
+
+  const selectedProvince = watch('provinceId');
+  const currentWards = wardsOf(selectedProvince);
 
   useEffect(() => {
     userApi.getMe()
@@ -84,15 +77,37 @@ export default function AccountPage() {
   };
 
   // Ô nhập dùng chung: labelKey là key dịch; options có thì thành ô chọn
-  const field = (name: keyof Form, labelKey: string, extra: object = {}, options?: Option[], translateLabels = true) => (
+  const field = (
+    name: keyof Form,
+    labelKey: string,
+    extra: object = {},
+    options?: Option[],
+    translateLabels = true,
+    onChangeCustom?: (val: string) => void
+  ) => (
     <Controller name={name} control={control}
-      render={({ field: f }) => (
-        <TextField {...f} {...extra} fullWidth size="small" label={translate(labelKey)} select={!!options}>
-          {options?.map((o) => (
-            <MenuItem key={o.value} value={o.value}>{translateLabels ? translate(o.label) : o.label}</MenuItem>
-          ))}
-        </TextField>
-      )} />
+      render={({ field: f }) => {
+        const isUnknown = !!(options && f.value && !options.some((o) => o.value === f.value));
+        return (
+          <TextField
+            {...f}
+            {...extra}
+            fullWidth
+            size="small"
+            label={translate(labelKey)}
+            select={!!options}
+            onChange={(e) => {
+              f.onChange(e);
+              onChangeCustom?.(e.target.value);
+            }}
+          >
+            {isUnknown && <MenuItem value={f.value} disabled>{f.value}</MenuItem>}
+            {options?.map((o) => (
+              <MenuItem key={o.value} value={o.value}>{translateLabels ? translate(o.label) : o.label}</MenuItem>
+            ))}
+          </TextField>
+        );
+      }} />
   );
 
   const roleName = profile
@@ -144,8 +159,12 @@ export default function AccountPage() {
 
           <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('account.contactInfo')}</Typography>
           <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>{field('provinceId', 'account.province', {}, PROVINCES, false)}</Grid>
-            <Grid size={{ xs: 12, md: 6 }}>{field('wardId', 'account.ward', {}, WARDS, false)}</Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              {field('provinceId', 'account.province', {}, PROVINCES, false, () => setValue('wardId', '', { shouldDirty: true }))}
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              {field('wardId', 'account.ward', { disabled: !selectedProvince || currentWards.length === 0 }, currentWards, false)}
+            </Grid>
             <Grid size={12}>{field('address', 'account.address')}</Grid>
           </Grid>
         </Card>
