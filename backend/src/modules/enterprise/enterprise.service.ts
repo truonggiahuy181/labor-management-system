@@ -48,7 +48,7 @@ export class EnterpriseService {
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
     private readonly fileService: FileService,
-  ) {}
+  ) { }
 
   async getAll(query: EnterpriseQueryDto = {}): Promise<EnterpriseResponse[]> {
     const baseWhere: FindOptionsWhere<EnterpriseEntity> = {};
@@ -69,13 +69,13 @@ export class EnterpriseService {
     const where:
       | FindOptionsWhere<EnterpriseEntity>
       | FindOptionsWhere<EnterpriseEntity>[] = search
-      ? [
+        ? [
           { ...baseWhere, enterpriseName: ILike(`%${search}%`) },
           { ...baseWhere, taxCode: ILike(`%${search}%`) },
           { ...baseWhere, email: ILike(`%${search}%`) },
           { ...baseWhere, representativeName: ILike(`%${search}%`) },
         ]
-      : baseWhere;
+        : baseWhere;
 
     const enterprises = await this.enterpriseRepository.find({
       where,
@@ -354,7 +354,7 @@ export class EnterpriseService {
     return enterprise;
   }
 
-<<<<<<< HEAD
+
   private toResponse(enterprise: EnterpriseEntity): EnterpriseResponse {
     const files = Object.fromEntries(
       Object.entries(enterprise.files ?? {}).map(([fileType, file]) => [
@@ -373,10 +373,7 @@ export class EnterpriseService {
     return EnterpriseMapper.toResponse(enterprise, files);
   }
 
-  private async assertTaxCodeAvailable(taxCode: string): Promise<void> {
-=======
   async assertTaxCodeAvailable(taxCode: string): Promise<void> {
->>>>>>> cae6c8b (feat: register-enterprise)
     const [enterprise, user] = await Promise.all([
       this.enterpriseRepository.findOne({
         where: { taxCode },
