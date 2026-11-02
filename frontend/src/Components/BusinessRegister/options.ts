@@ -27,9 +27,12 @@ export const DEFAULT_CATALOG: CatalogOptions = { businessTypes: BUSINESS_TYPES, 
 export const labelOf = (options: Option[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;
 
+// Tỉnh/Thành phố ĐKKD cố định: Thành phố Hồ Chí Minh (mã tỉnh 79), ô chọn bị khoá
+export const HCM_PROVINCE_CODE = '79';
+
 // Form trống dùng chung cho Đăng ký doanh nghiệp và trang Thêm doanh nghiệp của Quản trị viên
 export const EMPTY_BUSINESS_INFO: BusinessInfo = {
-  companyName: '', taxCode: '', businessType: '', mainIndustry: '', licenseDate: '', province: '', ward: '', address: '',
+  companyName: '', taxCode: '', businessType: '', mainIndustry: '', licenseDate: '', province: HCM_PROVINCE_CODE, ward: '', address: '',
   foreignName: '', email: '', officePhone: '', leaderName: '', leaderPhone: '',
   operatingProvince: '', operatingWard: '', businessLocation: '',
 };

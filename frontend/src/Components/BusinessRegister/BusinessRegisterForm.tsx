@@ -110,7 +110,7 @@ export default function BusinessRegisterForm() {
 
   return (
     <Stack spacing={2}>
-      <Stepper activeStep={step} sx={{ width: '100%', maxWidth: 420, mx: 'auto' }}>
+      <Stepper activeStep={step} sx={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
         <Step><StepLabel>{t('stepInfo')}</StepLabel></Step>
         <Step><StepLabel>{t('stepConfirm')}</StepLabel></Step>
       </Stepper>

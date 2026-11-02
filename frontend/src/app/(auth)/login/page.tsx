@@ -1,6 +1,6 @@
 // src/app/(auth)/login/page.tsx
 'use client';
-import { useState } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
@@ -10,7 +10,6 @@ import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import useAuth from '@/Hooks/useAuth';
 import { authApi, getErrorCode } from '@/services/auth';
-import BusinessRegisterDialog from '@/Components/BusinessRegister/BusinessRegisterDialog';
 
 type LoginForm = { username: string; password: string; remember: boolean };
 
@@ -22,11 +21,19 @@ export default function LoginPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { login } = useAuth();
   const router = useRouter();
-  const [registerOpen, setRegisterOpen] = useState(false)
 
   const { control, handleSubmit, setValue, formState: { isSubmitting } } = useForm<LoginForm>({
     defaultValues: { username: '', password: '', remember: true },
   });
+
+  // Từ trang Đăng ký doanh nghiệp ("Đăng nhập ngay") sang: /login?username=... → điền sẵn rồi bỏ query khỏi URL.
+  // Đọc window.location trong effect thay vì useSearchParams để không phải bọc Suspense (cacheComponents)
+  useEffect(() => {
+    const username = new URLSearchParams(window.location.search).get('username');
+    if (!username) return;
+    setValue('username', username);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, [setValue]);
 
   const showError = (code?: string) => {
     // Tài khoản bị vô hiệu hóa: toast cảnh báo kèm hướng dẫn liên hệ quản trị viên
@@ -113,14 +120,9 @@ export default function LoginPage() {
       <Button type="submit" variant="contained" disabled={isSubmitting}>
         {translate('login.title')}
       </Button>
-      <Button variant="outlined" onClick={() => setRegisterOpen(true)}>
+      <Button variant="outlined" component={Link} href="/register">
         {translate('login.goSignup')}
       </Button>
-      <BusinessRegisterDialog
-        open={registerOpen}
-        onClose={() => setRegisterOpen(false)}
-        onRegistered={(username) => setValue('username', username)}
-      />
     </Stack>
   );
 }

@@ -72,7 +72,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
     { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
-    { name: 'province', label: t('province'), required: true, options: locations.provinceOptions, searchable: true },
+    // Cố định Thành phố Hồ Chí Minh (EMPTY_BUSINESS_INFO.province), chỉ chọn Phường/Xã
+    { name: 'province', label: t('province'), required: true, disabled: true, options: locations.provinceOptions, searchable: true },
     { name: 'ward', label: t('ward'), required: true, options: wards, searchable: true },
     { name: 'address', label: t('address'), required: true, span: 2 },
   ];

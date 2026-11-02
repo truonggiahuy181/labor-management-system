@@ -1,14 +1,17 @@
 // src/app/(auth)/layout.tsx
 'use client';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Box, Card, CircularProgress } from '@mui/material';
 import LanguageSwitcher from '@/Components/LanguageSwitcher';
 import useAuth from '@/Hooks/useAuth';
 
+const WIDE_PAGES = ['/register'];
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && user) router.replace('/account');
@@ -16,6 +19,19 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (loading || user) {
     return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>;
+  }
+
+  // Trang có form nhiều trường (Đăng ký doanh nghiệp): bỏ hình minh hoạ, Card rộng hết cỡ
+  if (WIDE_PAGES.includes(pathname)) {
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: { xs: 2, md: 4 }, px: 2 }}>
+        <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 1 }}><LanguageSwitcher /></Box>
+        <Card sx={{ maxWidth: 1100, mx: 'auto', p: { xs: 2, md: 4 }, borderRadius: 2, boxShadow: '0 4px 24px rgba(145, 158, 171, 0.24)' }}>
+          <Box component="img" src="/images/quoc-huy.png" alt="Quốc huy" sx={{ display: 'block', width: 72, height: 72, mx: 'auto', mb: 1 }} />
+          {children}
+        </Card>
+      </Box>
+    );
   }
 
   return (
