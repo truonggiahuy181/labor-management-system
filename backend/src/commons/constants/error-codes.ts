@@ -57,6 +57,7 @@ export const ErrorCode = {
   OTP_NOT_REQUESTED: 'OTP_NOT_REQUESTED',
   OTP_TOO_MANY_ATTEMPTS: 'OTP_TOO_MANY_ATTEMPTS',
   OTP_RESEND_TOO_SOON: 'OTP_RESEND_TOO_SOON',
+  VERIFY_TOKEN_INVALID: 'VERIFY_TOKEN_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

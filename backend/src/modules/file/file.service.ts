@@ -157,7 +157,8 @@ export class FileService {
     if (
       folder === 'documents' &&
       user.roleCode !== RoleCode.ADMIN &&
-      user.id !== ownerId
+      user.id !== ownerId &&
+      ownerId !== 0
     ) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -173,6 +174,26 @@ export class FileService {
       accessUrlExpiresIn: PUBLIC_UPLOAD_FOLDERS.includes(folder)
         ? null
         : this.accessUrlExpiresIn,
+    };
+  }
+
+  async getPublicDocumentAccessUrl(
+    objectKey: string,
+  ): Promise<FileAccessResponse> {
+    const { folder, ownerId } = this.getObjectKeyOwnership(objectKey);
+    this.assertStorageConfigured(folder);
+
+    if (folder !== 'documents' || ownerId !== 0) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Bạn không có quyền truy cập tệp này.',
+      });
+    }
+
+    return {
+      objectKey,
+      accessUrl: await this.signObject(objectKey),
+      accessUrlExpiresIn: this.accessUrlExpiresIn,
     };
   }
 

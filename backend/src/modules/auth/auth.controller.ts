@@ -26,6 +26,9 @@ import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto.js';
+import { RequestRegisterEnterpriseOtpDto } from './dto/request-register-enterprise-otp.dto.js';
+import { VerifyRegisterEnterpriseOtpDto } from './dto/verify-register-enterprise-otp.dto.js';
+import { RegisterEnterpriseDto } from './dto/register-enterprise.dto.js';
 import { Public } from '../../commons/decorators/public.decorator.js';
 import { CurrentUser } from '../../commons/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../../commons/guards/jwt-auth.guard.js';
@@ -643,5 +646,91 @@ export class AuthController {
     @Body() dto: ConfirmEmailChangeDto,
   ) {
     return this.authService.confirmEmailChange(user.id, dto);
+  }
+
+  // ─── 8. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 1: Gửi OTP ────────────────────────────
+  @Public()
+  @Post('register-enterprise/request-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      '[Register Enterprise – Step 1] Gửi OTP xác thực email đăng ký doanh nghiệp',
+    description:
+      'Kiểm tra mã số thuế và email chưa tồn tại trong hệ thống, sau đó gửi OTP 6 số qua email.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Gửi mã OTP thành công.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Định dạng email hoặc mã số thuế không hợp lệ.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Mã số thuế hoặc email đã tồn tại trong hệ thống.',
+  })
+  requestRegisterEnterpriseOtp(@Body() dto: RequestRegisterEnterpriseOtpDto) {
+    return this.authService.requestRegisterEnterpriseOtp(dto);
+  }
+
+  // ─── 8b. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 2: Xác minh OTP ────────────────────────
+  @Public()
+  @Post('register-enterprise/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      '[Register Enterprise – Step 2] Xác minh mã OTP đăng ký doanh nghiệp',
+    description:
+      'Xác minh OTP và nhận verifyToken để hoàn tất đăng ký ở bước tiếp theo.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Xác minh OTP thành công, trả về verifyToken.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Mã OTP không đúng hoặc đã hết hạn.',
+  })
+  verifyRegisterEnterpriseOtp(@Body() dto: VerifyRegisterEnterpriseOtpDto) {
+    return this.authService.verifyRegisterEnterpriseOtp(dto);
+  }
+
+  // ─── 8c. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 3: Tạo doanh nghiệp & tài khoản ─────────
+  @Public()
+  @Post('register-enterprise')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: '[Register Enterprise – Step 3] Hoàn tất đăng ký doanh nghiệp',
+    description:
+      'Nhận thông tin hồ sơ doanh nghiệp kèm verifyToken. Tạo doanh nghiệp và tài khoản mặc định (username = MST, pass = 12345678).',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Đăng ký doanh nghiệp thành công.',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Dữ liệu không hợp lệ hoặc verifyToken không chính xác/hết hạn.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Mã số thuế hoặc email đã tồn tại.',
+  })
+  registerEnterprise(@Body() dto: RegisterEnterpriseDto) {
+    return this.authService.registerEnterprise(dto);
+  }
+
+  // Alias để tương thích với frontend gọi /auth/register-business
+  @Public()
+  @Post('register-business')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      '[Register Enterprise – Step 3 Alias] Hoàn tất đăng ký doanh nghiệp (alias register-business)',
+  })
+  registerBusiness(@Body() dto: RegisterEnterpriseDto) {
+    return this.authService.registerEnterprise(dto);
   }
 }

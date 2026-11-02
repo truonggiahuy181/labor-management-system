@@ -4,19 +4,28 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { UserService } from '../user/user.service.js';
+import { UserEntity } from '../user/user.entity.js';
+import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
+import { EnterpriseService } from '../enterprise/enterprise.service.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto.js';
+import { RequestRegisterEnterpriseOtpDto } from './dto/request-register-enterprise-otp.dto.js';
+import { VerifyRegisterEnterpriseOtpDto } from './dto/verify-register-enterprise-otp.dto.js';
+import { RegisterEnterpriseDto } from './dto/register-enterprise.dto.js';
 import type { JwtPayload } from './strategies/jwt.strategy.js';
 import { RedisService } from '../../commons/redis/redis.service.js';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
@@ -39,6 +48,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    @Optional()
+    private readonly enterpriseService?: EnterpriseService,
+    @Optional()
+    @InjectRepository(EnterpriseEntity)
+    private readonly enterpriseRepository?: Repository<EnterpriseEntity>,
+    @Optional()
+    private readonly dataSource?: DataSource,
   ) { }
 
   // ─── 1. ĐĂNG NHẬP ───────────────────────────────────────────────────────────
@@ -536,13 +552,14 @@ export class AuthService {
       dto.otp,
     );
 
-    if (user.email === dto.newEmail) {
+    const normalizedNewEmail = dto.newEmail.trim().toLowerCase();
+    if (user.email === normalizedNewEmail) {
       throw new BadRequestException(
         'Email mới không được trùng với email hiện tại.',
       );
     }
 
-    const existingUser = await this.userService.findByEmail(dto.newEmail);
+    const existingUser = await this.userService.findByEmail(normalizedNewEmail);
     if (existingUser && existingUser.id !== userId) {
       throw new ConflictException({
         code: ErrorCode.EMAIL_EXISTS,
@@ -550,15 +567,168 @@ export class AuthService {
       });
     }
 
-    await this.userService.update(userId, {
-      email: dto.newEmail,
-      emailChangeOtp: null,
-      emailChangeOtpExpires: null,
-      updatedBy: userId,
-    } as any);
+    if (this.enterpriseRepository && user.enterpriseId) {
+      const existingEnterprise = await this.enterpriseRepository.findOne({
+        where: { email: normalizedNewEmail },
+      });
+      if (existingEnterprise && existingEnterprise.id !== user.enterpriseId) {
+        throw new ConflictException({
+          code: ErrorCode.EMAIL_EXISTS,
+          message: 'Email này đã được sử dụng bởi doanh nghiệp khác.',
+        });
+      }
+    }
+
+    if (this.dataSource && user.enterpriseId) {
+      await this.dataSource.transaction(async (manager) => {
+        await manager.update(UserEntity, userId, {
+          email: normalizedNewEmail,
+          emailChangeOtp: null,
+          emailChangeOtpExpires: null,
+          updatedBy: userId,
+        });
+        await manager.update(EnterpriseEntity, user.enterpriseId, {
+          email: normalizedNewEmail,
+          updatedBy: userId,
+        });
+      });
+    } else {
+      await this.userService.update(userId, {
+        email: normalizedNewEmail,
+        emailChangeOtp: null,
+        emailChangeOtpExpires: null,
+        updatedBy: userId,
+      } as any);
+    }
     await this.redisService.clearOtpAttempts(`ec:${userId}`);
 
     return { message: 'Cập nhật email thành công.' };
+  }
+
+  // ─── 8. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 1: Gửi OTP ────────────────────────────
+  async requestRegisterEnterpriseOtp(dto: RequestRegisterEnterpriseOtpDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const normalizedTaxCode = dto.taxCode.trim();
+
+    if (this.enterpriseService) {
+      await this.enterpriseService.assertTaxCodeAvailable(normalizedTaxCode);
+      await this.enterpriseService.assertEmailAvailable(normalizedEmail);
+    }
+
+    await this.assertOtpCooldown(`reg:${normalizedEmail}`);
+
+    const otp = this.generateOtp();
+    await this.redisService.setTemp(
+      `reg_otp:${normalizedEmail}`,
+      JSON.stringify({ otp, taxCode: normalizedTaxCode, attempts: 0 }),
+      OTP_EXPIRY_MINUTES * 60,
+    );
+    await this.redisService.clearOtpAttempts(`reg:${normalizedEmail}`);
+
+    await this.sendRegisterEnterpriseOtpEmail(normalizedEmail, otp);
+
+    return {
+      message: `Mã OTP đã được gửi về email ${this.maskEmail(normalizedEmail)}. Có hiệu lực trong ${OTP_EXPIRY_MINUTES} phút.`,
+      otpExpiryMinutes: OTP_EXPIRY_MINUTES,
+    };
+  }
+
+  // ─── 8b. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 2: Xác minh OTP ────────────────────────
+  async verifyRegisterEnterpriseOtp(dto: VerifyRegisterEnterpriseOtpDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const raw = await this.redisService.getTemp(`reg_otp:${normalizedEmail}`);
+    if (!raw) {
+      throw new BadRequestException({
+        code: ErrorCode.OTP_EXPIRED,
+        message: 'Mã OTP không chính xác hoặc đã hết hạn.',
+      });
+    }
+
+    let parsed: { otp: string; taxCode: string; attempts: number };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new BadRequestException({
+        code: ErrorCode.OTP_INVALID,
+        message: 'Mã OTP không đúng.',
+      });
+    }
+
+    if (parsed.otp !== dto.otp.trim()) {
+      const attempts = await this.redisService.incrementOtpAttempts(
+        `reg:${normalizedEmail}`,
+        OTP_EXPIRY_MINUTES * 60,
+      );
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        await this.redisService.deleteTemp(`reg_otp:${normalizedEmail}`);
+        await this.redisService.clearOtpAttempts(`reg:${normalizedEmail}`);
+        throw new BadRequestException({
+          code: ErrorCode.OTP_TOO_MANY_ATTEMPTS,
+          message: 'Nhập sai quá nhiều lần. Vui lòng yêu cầu mã mới.',
+        });
+      }
+      throw new BadRequestException({
+        code: ErrorCode.OTP_INVALID,
+        message: 'Mã OTP không đúng. Vui lòng kiểm tra lại.',
+      });
+    }
+
+    const verifyToken = crypto.randomUUID();
+    await this.redisService.setTemp(
+      `reg_token:${verifyToken}`,
+      JSON.stringify({ email: normalizedEmail, taxCode: parsed.taxCode }),
+      15 * 60,
+    );
+    await this.redisService.deleteTemp(`reg_otp:${normalizedEmail}`);
+    await this.redisService.clearOtpAttempts(`reg:${normalizedEmail}`);
+
+    return {
+      verified: true,
+      verifyToken,
+      message: 'Xác thực email thành công. Bạn có thể tiến hành hoàn tất đăng ký.',
+    };
+  }
+
+  // ─── 8c. ĐĂNG KÝ DOANH NGHIỆP – BƯỚC 3: Tạo doanh nghiệp & tài khoản ─────────
+  async registerEnterprise(dto: RegisterEnterpriseDto) {
+    const rawToken = await this.redisService.getTemp(`reg_token:${dto.verifyToken}`);
+    if (!rawToken) {
+      throw new BadRequestException({
+        code: ErrorCode.VERIFY_TOKEN_INVALID,
+        message: 'Mã xác thực email không hợp lệ hoặc đã hết hạn. Vui lòng xác thực lại.',
+      });
+    }
+
+    let tokenData: { email: string; taxCode: string };
+    try {
+      tokenData = JSON.parse(rawToken);
+    } catch {
+      throw new BadRequestException({
+        code: ErrorCode.VERIFY_TOKEN_INVALID,
+        message: 'Mã xác thực không hợp lệ.',
+      });
+    }
+
+    if (
+      tokenData.email !== dto.email.trim().toLowerCase() ||
+      tokenData.taxCode !== dto.taxCode.trim()
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VERIFY_TOKEN_INVALID,
+        message: 'Email hoặc mã số thuế không khớp với thông tin đã xác thực.',
+      });
+    }
+
+    if (!this.enterpriseService) {
+      throw new BadRequestException('EnterpriseService chưa được khởi tạo.');
+    }
+
+    const { verifyToken, ...createDto } = dto;
+    const result = await this.enterpriseService.create(createDto);
+
+    await this.redisService.deleteTemp(`reg_token:${dto.verifyToken}`);
+
+    return result;
   }
 
   // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
@@ -937,5 +1107,75 @@ export class AuthService {
         },
       ],
     });
+  }
+
+  /**
+   * Email xác thực đăng ký doanh nghiệp mới – gửi OTP
+   */
+  private async sendRegisterEnterpriseOtpEmail(
+    email: string,
+    otp: string,
+  ): Promise<void> {
+    const transporter = this.getMailTransporter();
+    const appName = this.configService.get<string>(
+      'APP_NAME',
+      'Hệ thống Quản lý Lao động',
+    );
+    const expiryText = `${OTP_EXPIRY_MINUTES} phút`;
+
+    try {
+      await transporter.sendMail({
+        from: `"${appName}" <${this.configService.get<string>('MAIL_USER')}>`,
+        to: email,
+        subject: `[${appName}] Mã xác thực đăng ký tài khoản doanh nghiệp`,
+        html: `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xác thực đăng ký tài khoản</title>
+</head>
+<body style="margin:0;padding:0;background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#111111;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#ffffff;">
+    <tr>
+      <td align="center" style="padding:20px 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:700px;background-color:#ffffff;border:1px solid #e5e7eb;padding:24px;">
+          <tr>
+            <td>
+              <h2 style="margin:0 0 16px;color:#1a3291;font-size:22px;font-weight:700;">
+                Xác thực đăng ký tài khoản doanh nghiệp
+              </h2>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">
+                Quý doanh nghiệp đang thực hiện đăng ký tài khoản trên hệ thống <strong>${appName}</strong>.
+              </p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">
+                Mã OTP xác thực email của bạn là:
+              </p>
+              <div style="background-color:#f0f4ff;padding:16px;text-align:center;border-radius:8px;margin:20px 0;">
+                <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#1a3291;">${otp}</span>
+              </div>
+              <p style="margin:0 0 8px;font-size:14px;color:#555;">
+                Mã OTP có hiệu lực trong <strong>${expiryText}</strong>.
+              </p>
+              <p style="margin:0;font-size:14px;color:#555;">
+                Nếu không phải bạn thực hiện yêu cầu này, vui lòng bỏ qua email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+        `,
+      });
+    } catch (err) {
+      console.warn(
+        `[Mail] Không thể gửi email tới ${email}. Mã OTP đăng ký là: ${otp}`,
+        err,
+      );
+    }
   }
 }

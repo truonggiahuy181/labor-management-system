@@ -6,13 +6,18 @@ import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { AuthCookieService } from './auth-cookie.service.js';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserModule } from '../user/user.module.js';
 import { RedisModule } from '../../commons/redis/redis.module.js';
+import { EnterpriseModule } from '../enterprise/enterprise.module.js';
+import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
 
 @Module({
   imports: [
     UserModule,
     RedisModule,
+    EnterpriseModule,
+    TypeOrmModule.forFeature([EnterpriseEntity]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

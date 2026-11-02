@@ -23,5 +23,6 @@ import { FileModule } from '../file/file.module.js';
   ],
   controllers: [EnterpriseController],
   providers: [EnterpriseService],
+  exports: [EnterpriseService],
 })
 export class EnterpriseModule {}
