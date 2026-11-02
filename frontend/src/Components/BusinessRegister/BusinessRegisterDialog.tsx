@@ -3,10 +3,9 @@
 //   1. Thông tin doanh nghiệp → "Tiếp tục" gửi OTP về email
 //   2. Hộp thoại Xác thực email → nhập OTP đúng thì sang bước xác nhận
 //   3. Xác nhận đăng ký → "Xác nhận" tạo tài khoản; dùng được ngay, tên đăng nhập = mã số thuế
-// mode="admin" (Quản trị viên, trang Quản lý doanh nghiệp): bỏ bước OTP, thêm mới bằng POST /enterprises,
-// truyền `enterprise` để cập nhật bằng PATCH /enterprises/:id.
+// Quản trị viên thêm / cập nhật doanh nghiệp ở trang riêng (Components/EnterpriseManagement/EnterpriseForm)
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Step, StepLabel, Stepper,
@@ -19,68 +18,36 @@ import useLocales from '@/Hooks/useLocales';
 import useLocations from '@/Hooks/useLocations';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
-import {
-  enterpriseApi, toBusinessFiles, toBusinessInfo, toEnterpriseBody, type Enterprise, type EnterpriseFileType,
-} from '@/services/enterprise';
-import { getErrorMessage } from '@/services/user';
-import type { CatalogOptions } from './options';
+import { EMPTY_BUSINESS_FILES, EMPTY_BUSINESS_INFO } from './options';
 import BusinessInfoStep from './BusinessInfoStep';
 import ConfirmStep from './ConfirmStep';
 import EmailOtpDialog from './EmailOtpDialog';
 import AccountInfoDialog from './AccountInfoDialog';
-import CreatedAccountDialog from './CreatedAccountDialog';
-
-const EMPTY_INFO: BusinessInfo = {
-  companyName: '', taxCode: '', businessType: '', mainIndustry: '', licenseDate: '', province: '', ward: '', address: '',
-  foreignName: '', email: '', officePhone: '', leaderName: '', leaderPhone: '',
-  operatingProvince: '', operatingWard: '', businessLocation: '',
-};
-const EMPTY_FILES: BusinessFiles = { businessLicense: null, otherDocument: null };
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  mode?: 'register' | 'admin';
   onRegistered?: (username: string) => void;   // ví dụ: điền sẵn tên đăng nhập ở trang login
-  onCreated?: () => void;   // admin thêm / cập nhật doanh nghiệp thành công (ví dụ: tải lại danh sách)
-  enterprise?: Enterprise | null;   // admin: có giá trị = cập nhật doanh nghiệp này
-  catalog?: CatalogOptions;         // admin: danh mục loại hình / ngành nghề thật từ API
 };
 
-export default function BusinessRegisterDialog({
-  open, onClose, onRegistered, mode = 'register', onCreated, enterprise = null, catalog,
-}: Props) {
+export default function BusinessRegisterDialog({ open, onClose, onRegistered }: Props) {
   const { translate, translateError } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
   const locations = useLocations();
 
-  const form = useForm<BusinessInfo>({ defaultValues: EMPTY_INFO, mode: 'onTouched' });
-  const [files, setFiles] = useState<BusinessFiles>(EMPTY_FILES);
+  const form = useForm<BusinessInfo>({ defaultValues: EMPTY_BUSINESS_INFO, mode: 'onTouched' });
+  const [files, setFiles] = useState<BusinessFiles>(EMPTY_BUSINESS_FILES);
   const [step, setStep] = useState<0 | 1>(0);
   const [otpOpen, setOtpOpen] = useState(false);
   const [verifyToken, setVerifyToken] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState<RegisteredAccount | null>(null);
-  const isAdmin = mode === 'admin';
-  const isEdit = isAdmin && !!enterprise;
-
-  // Mở để sửa → điền sẵn dữ liệu doanh nghiệp (form.reset không phải setState của React)
-  useEffect(() => {
-    if (open) {
-      form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_INFO);
-      const timer = window.setTimeout(
-        () => setFiles(enterprise ? toBusinessFiles(enterprise) : EMPTY_FILES),
-        0,
-      );
-      return () => window.clearTimeout(timer);
-    }
-  }, [open, enterprise, form]);
 
   const reset = () => {
-    form.reset(EMPTY_INFO);
-    setFiles(EMPTY_FILES);
+    form.reset(EMPTY_BUSINESS_INFO);
+    setFiles(EMPTY_BUSINESS_FILES);
     setStep(0);
     setVerifyToken('');
     setError('');
@@ -94,8 +61,6 @@ export default function BusinessRegisterDialog({
   // Bước 1 → gửi OTP. Bắt buộc có Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
     async ({ email, taxCode }) => {
-      // Luồng quản trị cho phép bổ sung file sau; luồng tự đăng ký vẫn bắt buộc GPKD.
-      if (isAdmin) { setError(''); return setStep(1); }
       if (!files.businessLicense) return setError(t('licenseRequired'));
       setError('');
       setBusy(true);
@@ -118,61 +83,7 @@ export default function BusinessRegisterDialog({
     setStep(1);
   };
 
-  const syncEnterpriseFiles = async (enterpriseId: number) => {
-    const previousFiles = enterprise ? toBusinessFiles(enterprise) : EMPTY_FILES;
-    const fileTypes: EnterpriseFileType[] = ['businessLicense', 'otherDocument'];
-    for (const fileType of fileTypes) {
-      const selectedFile = files[fileType];
-      if (selectedFile instanceof File) {
-        await enterpriseApi.uploadFile(enterpriseId, fileType, selectedFile);
-      } else if (!selectedFile && previousFiles[fileType]) {
-        await enterpriseApi.removeFile(enterpriseId, fileType);
-      }
-    }
-  };
-
-  const submitAdmin = async () => {
-    const info = form.getValues();
-    setError('');
-    setBusy(true);
-    try {
-      let enterpriseId: number;
-      if (enterprise) {
-        const updated = await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
-        enterpriseId = updated.id;
-      } else {
-        const { enterprise: created, initialAccess } = await enterpriseApi.create(toEnterpriseBody(info));
-        enterpriseId = created.id;
-        setAccount({
-          username: initialAccess.username, tempPassword: initialAccess.temporaryPassword,
-          companyName: created.enterpriseName, email: created.email,
-        });
-      }
-
-      try {
-        await syncEnterpriseFiles(enterpriseId);
-      } catch (fileError) {
-        enqueueSnackbar(
-          getErrorMessage(fileError, translate('enterprises.fileUploadFailed')),
-          { variant: 'warning' },
-        );
-      }
-
-      enqueueSnackbar(
-        translate(enterprise ? 'enterprises.updateSuccess' : 'enterprises.createSuccess'),
-        { variant: 'success' },
-      );
-      onCreated?.();
-      close();
-    } catch (err) {
-      setError(getErrorMessage(err, translate('common.unknownError')));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const submit = async () => {
-    if (isAdmin) return submitAdmin();
     setError('');
     setBusy(true);
     try {
@@ -204,8 +115,8 @@ export default function BusinessRegisterDialog({
         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
           {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
           {step === 0
-            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalog} locations={locations} isEdit={isEdit} />
-            : <ConfirmStep info={form.getValues()} files={files} catalog={catalog} locations={locations} />}
+            ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} locations={locations} />
+            : <ConfirmStep info={form.getValues()} files={files} locations={locations} />}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 1.5 }}>
@@ -234,14 +145,14 @@ export default function BusinessRegisterDialog({
         onClose={() => setOtpOpen(false)}
         onVerified={onVerified}
       />}
-      {isAdmin ? <CreatedAccountDialog account={account} onClose={() => setAccount(null)} /> : <AccountInfoDialog
+      <AccountInfoDialog
         account={account}
         onClose={() => setAccount(null)}
         onLogin={(username) => {
-        setAccount(null);
-        onRegistered?.(username);
-      }}
-      />}
+          setAccount(null);
+          onRegistered?.(username);
+        }}
+      />
     </>
   );
 }

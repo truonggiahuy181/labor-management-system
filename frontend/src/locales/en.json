@@ -20,7 +20,9 @@
     "password": "Password",
     "noAccount": "Don't have an account?",
     "goSignup": "Sign up",
-    "success": "Logged in successfully"
+    "success": "Logged in successfully",
+    "inactiveTitle": "Account deactivated",
+    "inactiveMessage": "Your account can no longer sign in. Please contact an administrator to reactivate it."
   },
   "signup": {
     "title": "Create account",
@@ -46,6 +48,7 @@
   },
   "errors": {
     "WRONG_PASSWORD": "Incorrect username or password",
+    "ACCOUNT_INACTIVE": "Your account has been deactivated. Please contact an administrator.",
     "WRONG_OLD_PASSWORD": "Current password is incorrect",
     "USERNAME_EXISTS": "Username already exists",
     "EMAIL_EXISTS": "Email is already in use",
@@ -244,10 +247,15 @@
     "lockSelfSkipped": "You cannot lock your own account, skipped",
     "roleInactive": "This role is no longer active, choose another one",
     "enterpriseRoleHint": "Business accounts are created together with their business on the Businesses page",
+    "enterpriseEmailHint": "Changing this email also updates the email on the Businesses page (no OTP needed)",
     "avatarUploadAfterCreateFailed": "The account was created, but the avatar upload failed. You can try again on the user details page"
   },
   "enterprises": {
     "title": "Business list",
+    "createTitle": "Add business",
+    "editTitle": "Update business",
+    "stepConfirmCreate": "Confirm creation",
+    "stepConfirmUpdate": "Confirm update",
     "importFile": "Import from file",
     "industry": "Business line",
     "ward": "Ward",

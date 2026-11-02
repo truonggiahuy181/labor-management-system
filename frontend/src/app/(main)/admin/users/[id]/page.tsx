@@ -19,6 +19,7 @@ export default function EditUserPage() {
   const [failed, setFailed] = useState(false);
   const isAdmin = user?.roleId === ROLE.ADMIN;
 
+  // cacheComponents giữ trang đã rời (ẩn đi chứ không huỷ): rời trang thì xoá dữ liệu để lần mở sau tải bản mới nhất
   useEffect(() => {
     if (!isAdmin) return;
     adminUserApi.get(Number(id))
@@ -27,6 +28,7 @@ export default function EditUserPage() {
         setFailed(true);
         enqueueSnackbar(getErrorMessage(err, translate('users.loadFailed')), { variant: 'error' });
       });
+    return () => { setTarget(null); setFailed(false); };
   }, [isAdmin, id, enqueueSnackbar, translate]);
 
   if (user && !isAdmin) {

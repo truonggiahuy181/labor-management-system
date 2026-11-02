@@ -2,12 +2,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { Box, Button, Card, Divider, Grid, Link, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import { Link, MenuItem, Stack, TextField } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import AvatarCard from '@/Components/UserProfile/AvatarCard';
 import FormTextField from '@/Components/UserProfile/FormTextField';
+import ProfileHeader from '@/Components/UserProfile/ProfileHeader';
+import ProfileLayout from '@/Components/UserProfile/ProfileLayout';
+import ProfileSections from '@/Components/UserProfile/ProfileSections';
 import useLocales from '@/Hooks/useLocales';
 import useLocations from '@/Hooks/useLocations';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
@@ -30,10 +32,11 @@ const toForm = (p: Profile): Form => ({
   address: p.address ?? '',
 });
 
-// Form dùng chuỗi rỗng cho ô trống; gửi lên thì bỏ ô trống và đổi gender về số
+// Form dùng chuỗi rỗng cho ô trống; gửi lên thì bỏ khoảng trắng đầu / cuối, bỏ ô trống (kể cả chỉ có dấu cách)
+// và đổi gender về số
 const toUpdate = (f: Form): ProfileUpdate => {
   const body: ProfileUpdate = {};
-  for (const [k, v] of Object.entries(f)) if (v !== '') Object.assign(body, { [k]: v });
+  for (const [k, v] of Object.entries(f)) if (v.trim() !== '') Object.assign(body, { [k]: v.trim() });
   if (f.gender !== '') body.gender = Number(f.gender);
   return body;
 };
@@ -123,79 +126,47 @@ export default function AccountPage() {
     ? ROLE_KEYS[profile.roleId] ? translate(ROLE_KEYS[profile.roleId]) : translate('account.roleUnknown', { id: profile.roleId })
     : '';
 
+  const personal = [
+    <TextField key="username" fullWidth size="small" label={translate('account.username')} value={profile?.username ?? ''} disabled required />,
+    field('fullName', 'account.fullName', { required: true }),
+    <Controller key="dob" name="dob" control={control}
+      rules={{ validate: (value) => isNotFutureDate(value) || translate('account.dobFuture') }}
+      render={({ field: dobField, fieldState }) => (
+        <TextField {...dobField} fullWidth size="small" type="date" label={translate('account.dob')}
+          error={!!fieldState.error} helperText={fieldState.error?.message}
+          slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: getLocalToday() } }} />
+      )} />,
+    field('gender', 'account.gender', {}, GENDERS),
+    field('title', 'account.title'),
+    <TextField key="role" fullWidth size="small" label={translate('account.role')} required disabled value={roleName} />,
+    <Stack key="email" direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+      <TextField fullWidth size="small" label={translate('account.email')} value={profile?.email ?? ''} disabled />
+      <Link component="button" type="button" onClick={() => setEmailOpen(true)} sx={{ whiteSpace: 'nowrap' }}>
+        {translate('account.change')}
+      </Link>
+    </Stack>,
+  ];
+
+  // Dùng chung khung với trang Chi tiết người dùng (Components/UserProfile)
   return (
-    // m: -3 bù lại padding p: 3 của <main> trong (main)/layout.tsx → cả trang tràn sát sidebar và mép phải
-    <Stack component="form" spacing={2} sx={{ m: -3 }} onSubmit={handleSubmit(onSubmit)} noValidate>
-      {/* Thanh tiêu đề + Huỷ bỏ / Lưu */}
-      <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center' }}>
-        <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('account.detail')}</Typography>
-        <Button disabled={!isDirty} onClick={() => profile && reset(toForm(profile))}>{translate('common.cancel')}</Button>
-        <Button type="submit" variant="contained" startIcon={<SaveOutlinedIcon />} disabled={!isDirty || isSubmitting || isUploadingAvatar}>
-          {translate('common.save')}
-        </Button>
-      </Card>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: 'flex-start' }}>
-        {/* Cột trái: ảnh đại diện + kích hoạt */}
-        <AvatarCard avatarUrl={profile?.avatarUrl} active={profile?.isActive ?? false}
-          onAvatarUpload={handleAvatarUpload} isUploadingAvatar={isUploadingAvatar || isSubmitting} />
-
-        {/* Cột phải: thông tin */}
-        <Card square sx={{ flex: 1, p: 3, width: '100%' }}>
-          <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('account.personalInfo')}</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField fullWidth size="small" label={translate('account.username')} value={profile?.username ?? ''} disabled required />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>{field('fullName', 'account.fullName', { required: true })}</Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Controller name="dob" control={control}
-                rules={{ validate: (value) => isNotFutureDate(value) || translate('account.dobFuture') }}
-                render={({ field: dobField, fieldState }) => (
-                  <TextField {...dobField} fullWidth size="small" type="date" label={translate('account.dob')}
-                    error={!!fieldState.error} helperText={fieldState.error?.message}
-                    slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: getLocalToday() } }} />
-                )} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>{field('gender', 'account.gender', {}, GENDERS)}</Grid>
-            <Grid size={{ xs: 12, md: 6 }}>{field('title', 'account.title')}</Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField fullWidth size="small" label={translate('account.role')} required disabled value={roleName} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-                <TextField fullWidth size="small" label={translate('account.email')} value={profile?.email ?? ''} disabled />
-                <Link component="button" type="button" onClick={() => setEmailOpen(true)} sx={{ whiteSpace: 'nowrap' }}>
-                  {translate('account.change')}
-                </Link>
-              </Stack>
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('account.contactInfo')}</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormTextField control={control} name="provinceId" label="account.province"
-                options={locations.provinceOptions} searchable disabled={locations.loadingProvinces}
-                translateLabels={false} onChange={() => setValue('wardId', '', { shouldDirty: true })} />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormTextField control={control} name="wardId" label="account.ward"
-                options={currentWards} searchable
-                disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0}
-                translateLabels={false} />
-            </Grid>
-            <Grid size={12}>{field('address', 'account.address')}</Grid>
-          </Grid>
-        </Card>
-      </Stack>
-
-      <Box>
-        <ChangeEmailDialog open={emailOpen} currentEmail={profile?.email ?? ''} onClose={() => setEmailOpen(false)}
-          onChanged={(email) => setProfile((p) => (p ? { ...p, email } : p))} />
-      </Box>
-    </Stack>
+    <ProfileLayout onSubmit={handleSubmit(onSubmit)}
+      header={<ProfileHeader onCancel={() => profile && reset(toForm(profile))} cancelDisabled={!isDirty}
+        saveDisabled={!isDirty || isSubmitting || isUploadingAvatar} />}
+      left={<AvatarCard avatarUrl={profile?.avatarUrl} active={profile?.isActive ?? false}
+        onAvatarUpload={handleAvatarUpload} isUploadingAvatar={isUploadingAvatar || isSubmitting} />}
+      right={
+        <ProfileSections personal={personal}
+          province={<FormTextField control={control} name="provinceId" label="account.province"
+            options={locations.provinceOptions} searchable disabled={locations.loadingProvinces}
+            translateLabels={false} onChange={() => setValue('wardId', '', { shouldDirty: true })} />}
+          ward={<FormTextField control={control} name="wardId" label="account.ward"
+            options={currentWards} searchable
+            disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0}
+            translateLabels={false} />}
+          address={field('address', 'account.address')} />
+      }>
+      <ChangeEmailDialog open={emailOpen} currentEmail={profile?.email ?? ''} onClose={() => setEmailOpen(false)}
+        onChanged={(email) => setProfile((p) => (p ? { ...p, email } : p))} />
+    </ProfileLayout>
   );
 }

@@ -47,21 +47,21 @@ export class AuthService {
       dto.username,
     );
 
-    if (!canAuthenticate(user)) {
+    const isPasswordValid =
+      !!user && (await argon2.verify(user.passwordHash, dto.password));
+    if (!isPasswordValid) {
       throw new UnauthorizedException({
         code: ErrorCode.WRONG_PASSWORD,
         message: 'Tài khoản hoặc mật khẩu không đúng. Xin vui lòng thử lại.',
       });
     }
 
-    const isPasswordValid = await argon2.verify(
-      user.passwordHash,
-      dto.password,
-    );
-    if (!isPasswordValid) {
+    // Chỉ báo tài khoản bị vô hiệu hóa sau khi mật khẩu đúng để tránh dò tài khoản
+    if (!canAuthenticate(user)) {
       throw new UnauthorizedException({
-        code: ErrorCode.WRONG_PASSWORD,
-        message: 'Tài khoản hoặc mật khẩu không đúng. Xin vui lòng thử lại.',
+        code: ErrorCode.ACCOUNT_INACTIVE,
+        message:
+          'Tài khoản của bạn đã ngừng hoạt động. Vui lòng liên hệ quản trị viên.',
       });
     }
 

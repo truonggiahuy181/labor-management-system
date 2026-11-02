@@ -168,8 +168,8 @@ export default function UsersPage() {
   const filterCell = { py: 1, px: 1, borderBottom: 1, borderColor: 'divider' };
 
   return (
-    // Bảng cao vừa màn hình: trừ AppBar 64px và padding trên + dưới của <main> (2 × 24px)
-    <Stack spacing={2} sx={{ height: 'calc(100vh - 64px - 48px)' }}>
+    // Bảng cao vừa màn hình: trừ padding trên + dưới của <main> (2 × 24px)
+    <Stack spacing={2} sx={{ height: 'calc(100vh - 48px)' }}>
       <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('users.title')}</Typography>
         {/* Import: chưa có API / thiết kế file mẫu */}

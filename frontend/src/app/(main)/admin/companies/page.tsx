@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem,
   Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
@@ -12,8 +13,8 @@ import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { useSnackbar } from 'notistack';
-import BusinessRegisterDialog from '@/Components/BusinessRegister/BusinessRegisterDialog';
 import ConfirmStep from '@/Components/BusinessRegister/ConfirmStep';
+import { COMPANIES_PATH } from '@/Components/EnterpriseManagement/EnterpriseForm';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
 import useAuth from '@/Hooks/useAuth';
 import useCatalogs, { type Option } from '@/Hooks/useCatalogs';
@@ -40,6 +41,7 @@ export default function CompaniesPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
+  const router = useRouter();
   const catalogs = useCatalogs();
   const { ensureWards } = catalogs.locations;
   const isAdmin = user?.roleId === ROLE.ADMIN;
@@ -51,8 +53,6 @@ export default function CompaniesPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<number[]>([]);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Enterprise | null>(null);
   const [viewing, setViewing] = useState<Enterprise | null>(null);
   const [resetting, setResetting] = useState<Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -147,7 +147,8 @@ export default function CompaniesPage() {
     load();
   };
 
-  const openForm = (e: Enterprise | null) => { setEditing(e); setFormOpen(true); };
+  // Thêm mới / cập nhật mở trang riêng (Components/EnterpriseManagement/EnterpriseForm)
+  const openForm = (e: Enterprise | null) => router.push(e ? `${COMPANIES_PATH}/${e.id}` : `${COMPANIES_PATH}/create`);
 
   if (user && !isAdmin) {
     return <Typography color="text.secondary">{translate('users.adminOnly')}</Typography>;
@@ -184,8 +185,8 @@ export default function CompaniesPage() {
   ];
 
   return (
-    // Bảng cao vừa màn hình: trừ AppBar 64px và padding trên + dưới của <main> (2 × 24px)
-    <Stack spacing={2} sx={{ height: 'calc(100vh - 64px - 48px)' }}>
+    // Bảng cao vừa màn hình: trừ padding trên + dưới của <main> (2 × 24px)
+    <Stack spacing={2} sx={{ height: 'calc(100vh - 48px)' }}>
       <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('enterprises.title')}</Typography>
         {/* Thêm từ file: chưa có API / file mẫu */}
@@ -278,9 +279,6 @@ export default function CompaniesPage() {
         </Stack>
       </Card>
 
-      {/* Dùng chung form với luồng Đăng ký doanh nghiệp */}
-      <BusinessRegisterDialog mode="admin" open={formOpen} enterprise={editing} catalog={catalogs.catalog}
-        onClose={() => setFormOpen(false)} onCreated={load} />
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
 
       {/* Xem chi tiết (chỉ đọc) */}

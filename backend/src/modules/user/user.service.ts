@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Not, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { UserEntity } from './user.entity.js';
+import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
 import { BaseService } from '../../commons/bases/base.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
@@ -250,10 +251,15 @@ export class UserService extends BaseService<UserEntity> {
     }
 
     // 1. Kiểm tra email nếu có thay đổi và tránh trùng lặp với user khác
-    if (dto.email && dto.email !== user.email) {
-      const existingEmail = await this.findByEmail(dto.email);
+    const newEmail = dto.email?.trim().toLowerCase();
+    const emailChanged = !!newEmail && newEmail !== user.email;
+    if (emailChanged) {
+      const existingEmail = await this.findByEmail(newEmail);
       if (existingEmail && existingEmail.id !== id) {
-        throw new ConflictException('Email đã tồn tại trong hệ thống.');
+        throw new ConflictException({
+          code: ErrorCode.EMAIL_EXISTS,
+          message: 'Email đã tồn tại trong hệ thống.',
+        });
       }
     }
     if ('roleId' in dto || 'enterpriseId' in dto) {
@@ -280,7 +286,7 @@ export class UserService extends BaseService<UserEntity> {
       wardId: dto.wardId,
       address: dto.address,
       isActive: dto.isActive,
-      email: dto.email,
+      email: emailChanged ? newEmail : undefined,
       updatedBy: adminId ?? null,
     };
 
@@ -296,6 +302,21 @@ export class UserService extends BaseService<UserEntity> {
         (updateData as any)[key] === undefined &&
         delete (updateData as any)[key],
     );
+
+    // Tài khoản chính của doanh nghiệp (tên đăng nhập = mã số thuế): đổi email thì đổi cùng email doanh nghiệp.
+    // Chiều ngược lại nằm ở EnterpriseService.update → hai trang Quản lý doanh nghiệp / tài khoản luôn khớp
+    const enterpriseId = user.enterpriseId;
+    if (emailChanged && enterpriseId) {
+      await this.userRepository.manager.transaction(async (manager) => {
+        await manager.update(UserEntity, id, updateData);
+        await manager.update(
+          EnterpriseEntity,
+          { id: enterpriseId, taxCode: user.username },
+          { email: newEmail, updatedBy: adminId ?? null },
+        );
+      });
+      return this.toResponse(await this.findOneOrFail({ where: { id } }));
+    }
 
     const updatedUser = await this.update(id, updateData);
     return this.toResponse(updatedUser);

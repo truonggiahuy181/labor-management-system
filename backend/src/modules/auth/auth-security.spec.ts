@@ -13,6 +13,7 @@ import { CsrfGuard } from '../../commons/guards/csrf.guard.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import type { UserService } from '../user/user.service.js';
 import { RedisService } from '../../commons/redis/redis.service.js';
+import { ErrorCode } from '../../commons/constants/error-codes.js';
 
 describe('Auth & Cookie Security Review Test Suite', () => {
   let configService: ConfigService;
@@ -121,7 +122,9 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         {
           id: 2,
           username: 'enterprise-user',
-          passwordHash: 'unused-because-access-is-denied-first',
+          passwordHash: await import('argon2').then((a) =>
+            a.hash('password123'),
+          ),
           isActive: true,
           roleId: 2,
           enterpriseId: 10,
@@ -136,8 +139,65 @@ describe('Auth & Cookie Security Review Test Suite', () => {
           password: 'password123',
           rememberMe: false,
         }),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.ACCOUNT_INACTIVE },
+      });
       expect(redisService.saveRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('rejects login with ACCOUNT_INACTIVE when the user is inactive and password is correct', async () => {
+      vi.mocked(userService.findForAuthenticationByUsername!).mockResolvedValue(
+        {
+          id: 3,
+          username: 'inactive-user',
+          passwordHash: await import('argon2').then((a) =>
+            a.hash('password123'),
+          ),
+          isActive: false,
+          roleId: 1,
+          enterpriseId: null,
+          role: { roleCode: 'ADMIN', isActive: true },
+          enterprise: null,
+        } as any,
+      );
+
+      await expect(
+        authService.login({
+          username: 'inactive-user',
+          password: 'password123',
+          rememberMe: false,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.ACCOUNT_INACTIVE },
+      });
+      expect(redisService.saveRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('returns WRONG_PASSWORD for an inactive user with a wrong password', async () => {
+      vi.mocked(userService.findForAuthenticationByUsername!).mockResolvedValue(
+        {
+          id: 3,
+          username: 'inactive-user',
+          passwordHash: await import('argon2').then((a) =>
+            a.hash('password123'),
+          ),
+          isActive: false,
+          roleId: 1,
+          enterpriseId: null,
+          role: { roleCode: 'ADMIN', isActive: true },
+          enterprise: null,
+        } as any,
+      );
+
+      await expect(
+        authService.login({
+          username: 'inactive-user',
+          password: 'wrong-password',
+          rememberMe: false,
+        }),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.WRONG_PASSWORD },
+      });
     });
   });
 

@@ -78,8 +78,8 @@ export const toBusinessFiles = (e: Enterprise): BusinessFiles => ({
   otherDocument: e.files?.otherDocument ?? null,
 });
 
-// Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) và email không gửi
-// vì UpdateEnterpriseDto của backend không cho đổi hai trường này.
+// Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) không gửi
+// vì UpdateEnterpriseDto của backend không cho đổi mã số thuế; email được đồng bộ sang tài khoản doanh nghiệp.
 export const toEnterpriseBody = (info: BusinessInfo, isEdit = false): Partial<EnterpriseBody> => {
   const fields: Record<string, string> = {
     enterpriseName: info.companyName, taxCode: info.taxCode, businessTypeId: info.businessType, industryId: info.mainIndustry,
@@ -88,7 +88,8 @@ export const toEnterpriseBody = (info: BusinessInfo, isEdit = false): Partial<En
     representativeName: info.leaderName, representativePhone: info.leaderPhone,
     operatingProvinceId: info.operatingProvince, operatingWardId: info.operatingWard, operatingAddress: info.businessLocation,
   };
-  if (isEdit) { delete fields.taxCode; delete fields.email; }
+  // Mã số thuế là tên đăng nhập nên không gửi khi sửa; email đổi được (backend đồng bộ sang tài khoản doanh nghiệp)
+  if (isEdit) delete fields.taxCode;
   const body: Record<string, string | number | null> = {};
   Object.entries(fields).forEach(([key, value]) => {
     if (value?.trim()) body[key] = value.trim();

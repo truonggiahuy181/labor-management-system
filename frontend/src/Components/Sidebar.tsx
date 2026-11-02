@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Avatar, Box, Collapse, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Stack, Typography } from '@mui/material';
+import { Avatar, Box, Collapse, Divider, IconButton, List, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Stack, Typography } from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -12,6 +12,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
+import LanguageIcon from '@mui/icons-material/Language';
+import CheckIcon from '@mui/icons-material/Check';
 import ChangePasswordDialog from '@/Components/ChangePasswordDialog';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
@@ -54,10 +56,12 @@ const MENU: MenuGroup[] = [
 
 export default function Sidebar({ onToggle }: { onToggle?: () => void }) {
   const { user, logout } = useAuth();
-  const { translate } = useLocales();
+  const { translate, allLang, currentLang, onChangeLang } = useLocales();
   const pathname = usePathname();
   const router = useRouter();
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [langAnchor, setLangAnchor] = useState<HTMLElement | null>(null);
+  const closeMenus = () => { setLangAnchor(null); setMenuAnchor(null); };
   const [passwordOpen, setPasswordOpen] = useState(false);
   const canSee = (roles: RoleId[] | undefined, roleId: number) => !roles || (roles as number[]).includes(roleId);
   const menu = user
@@ -143,9 +147,35 @@ export default function Sidebar({ onToggle }: { onToggle?: () => void }) {
         <MenuItem onClick={() => { setMenuAnchor(null); setPasswordOpen(true); }}>
           <ListItemIcon><KeyOutlinedIcon fontSize="small" /></ListItemIcon>{translate('changePassword.title')}
         </MenuItem>
+        {/* Ngôn ngữ: mở menu con bên phải để chọn */}
+        <MenuItem onClick={(e) => setLangAnchor(e.currentTarget)} selected={!!langAnchor}>
+          <ListItemIcon><LanguageIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{translate('common.language')}</ListItemText>
+          <Typography variant="body2" sx={{ color: 'text.secondary', ml: 2 }}>{currentLang.label}</Typography>
+          <ChevronRightIcon fontSize="small" sx={{ color: 'text.secondary', ml: 0.5 }} />
+        </MenuItem>
+        <Divider />
         <MenuItem onClick={goLogin} sx={{ color: 'error.main' }}>
           <ListItemIcon><LogoutIcon fontSize="small" color="error" /></ListItemIcon>{translate('common.logout')}
         </MenuItem>
+      </Menu>
+
+      <Menu
+        anchorEl={langAnchor}
+        open={!!langAnchor}
+        onClose={() => setLangAnchor(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        {allLang.map((lang) => {
+          const selected = lang.value === currentLang.value;
+          return (
+            <MenuItem key={lang.value} selected={selected} onClick={() => { onChangeLang(lang.value); closeMenus(); }}>
+              <ListItemIcon>{selected && <CheckIcon fontSize="small" />}</ListItemIcon>
+              {lang.label}
+            </MenuItem>
+          );
+        })}
       </Menu>
 
       {/* Đổi mật khẩu xong backend đã xoá cookie → về trang đăng nhập */}
