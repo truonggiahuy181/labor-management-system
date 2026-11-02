@@ -120,4 +120,16 @@ export class CreateEnterpriseDto {
   @IsString()
   @MaxLength(255)
   operatingAddress?: string;
+
+  @ApiPropertyOptional({ maxLength: 255, description: 'objectKey giấy phép kinh doanh' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  businessLicenseKey?: string;
+
+  @ApiPropertyOptional({ maxLength: 255, description: 'objectKey giấy tờ khác' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  otherDocumentKey?: string;
 }

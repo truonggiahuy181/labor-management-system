@@ -94,13 +94,24 @@ export class EnterpriseEntity extends BaseEntity {
   })
   representativeName: string | null;
 
+  @Column({ name: 'representative_phone', type: 'varchar', length: 20, nullable: true })
+  representativePhone: string | null;
+
   @Column({
-    name: 'representative_phone',
+    name: 'business_license_key',
     type: 'varchar',
-    length: 20,
+    length: 255,
     nullable: true,
   })
-  representativePhone: string | null;
+  businessLicenseKey: string | null;
+
+  @Column({
+    name: 'other_document_key',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  otherDocumentKey: string | null;
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;

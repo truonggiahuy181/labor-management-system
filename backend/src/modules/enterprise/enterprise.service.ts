@@ -208,7 +208,7 @@ export class EnterpriseService {
 
     // Đổi email: email mới chưa ai dùng, đổi cùng lúc email doanh nghiệp và
     // email tài khoản doanh nghiệp (tên đăng nhập = mã số thuế) để OTP / quên mật khẩu gửi đúng nơi
-    await this.assertEmailAvailable(newEmail);
+    await this.assertEmailAvailable(newEmail, id);
     updateData.email = newEmail;
     await this.dataSource.transaction(async (manager) => {
       await manager.update(EnterpriseEntity, id, updateData);
@@ -310,6 +310,37 @@ export class EnterpriseService {
     await this.enterpriseRepository.softDelete(id);
   }
 
+  async getMyEnterprise(userId: number): Promise<EnterpriseResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+    if (!user || !user.enterpriseId) {
+      throw new NotFoundException({
+        code: ErrorCode.ENTERPRISE_NOT_FOUND,
+        message: 'Tài khoản không thuộc doanh nghiệp nào.',
+      });
+    }
+    return this.getById(user.enterpriseId);
+  }
+
+  async updateMyEnterprise(
+    userId: number,
+    dto: UpdateEnterpriseDto,
+  ): Promise<EnterpriseResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+    if (!user || !user.enterpriseId) {
+      throw new NotFoundException({
+        code: ErrorCode.ENTERPRISE_NOT_FOUND,
+        message: 'Tài khoản không thuộc doanh nghiệp nào.',
+      });
+    }
+    const updatePayload = { ...dto };
+    delete (updatePayload as Record<string, unknown>).email;
+    return this.update(user.enterpriseId, updatePayload, userId);
+  }
+
   private async findEntityOrFail(id: number): Promise<EnterpriseEntity> {
     const enterprise = await this.enterpriseRepository.findOne({
       where: { id },
@@ -323,6 +354,7 @@ export class EnterpriseService {
     return enterprise;
   }
 
+<<<<<<< HEAD
   private toResponse(enterprise: EnterpriseEntity): EnterpriseResponse {
     const files = Object.fromEntries(
       Object.entries(enterprise.files ?? {}).map(([fileType, file]) => [
@@ -342,6 +374,9 @@ export class EnterpriseService {
   }
 
   private async assertTaxCodeAvailable(taxCode: string): Promise<void> {
+=======
+  async assertTaxCodeAvailable(taxCode: string): Promise<void> {
+>>>>>>> cae6c8b (feat: register-enterprise)
     const [enterprise, user] = await Promise.all([
       this.enterpriseRepository.findOne({
         where: { taxCode },
@@ -357,10 +392,18 @@ export class EnterpriseService {
     }
   }
 
-  private async assertEmailAvailable(email: string): Promise<void> {
+  async assertEmailAvailable(email: string, excludeEnterpriseId?: number): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.userService.findByEmail(normalizedEmail);
-    if (user) {
+    const [user, enterprise] = await Promise.all([
+      this.userService.findByEmail(normalizedEmail),
+      this.enterpriseRepository.findOne({
+        where: { email: normalizedEmail },
+        withDeleted: false,
+      }),
+    ]);
+    const enterpriseConflict =
+      enterprise && (!excludeEnterpriseId || enterprise.id !== excludeEnterpriseId);
+    if (user || enterpriseConflict) {
       throw new ConflictException({
         code: ErrorCode.EMAIL_EXISTS,
         message: 'Email đã được sử dụng.',

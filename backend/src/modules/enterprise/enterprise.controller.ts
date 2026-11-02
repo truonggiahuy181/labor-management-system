@@ -38,12 +38,40 @@ import type { MultipartFile } from '../file/file.types.js';
 
 @ApiTags('Enterprises – Quản lý doanh nghiệp')
 @ApiBearerAuth()
-@Roles(RoleCode.ADMIN)
 @Controller('enterprises')
 export class EnterpriseController {
   constructor(private readonly enterpriseService: EnterpriseService) {}
 
+  @Get('me')
+  @Roles(RoleCode.ENTERPRISE_USER, RoleCode.ADMIN)
+  @ApiOperation({ summary: 'Lấy thông tin doanh nghiệp của tài khoản đang đăng nhập' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy thông tin doanh nghiệp thành công.',
+  })
+  @ApiResponse({ status: 404, description: 'Tài khoản không thuộc doanh nghiệp nào.' })
+  getMyEnterprise(@CurrentUser() user: { id: number }) {
+    return this.enterpriseService.getMyEnterprise(user.id);
+  }
+
+  @Patch('me')
+  @Roles(RoleCode.ENTERPRISE_USER)
+  @ApiOperation({ summary: 'Cập nhật thông tin doanh nghiệp của tài khoản đang đăng nhập' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cập nhật doanh nghiệp thành công.',
+  })
+  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ.' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy doanh nghiệp.' })
+  updateMyEnterprise(
+    @CurrentUser() user: { id: number },
+    @Body() dto: UpdateEnterpriseDto,
+  ) {
+    return this.enterpriseService.updateMyEnterprise(user.id, dto);
+  }
+
   @Get()
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Lấy danh sách doanh nghiệp' })
   @ApiResponse({
     status: 200,
@@ -54,6 +82,7 @@ export class EnterpriseController {
   }
 
   @Get(':id')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Lấy chi tiết doanh nghiệp theo ID' })
   @ApiParam({ name: 'id', example: 1 })
   @ApiResponse({ status: 200, description: 'Lấy doanh nghiệp thành công.' })
@@ -63,6 +92,7 @@ export class EnterpriseController {
   }
 
   @Post()
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
@@ -88,6 +118,7 @@ export class EnterpriseController {
   }
 
   @Patch(':id')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({
     summary: 'Cập nhật doanh nghiệp',
     description:
@@ -164,6 +195,7 @@ export class EnterpriseController {
   }
 
   @Patch(':id/status')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Cập nhật trạng thái hoạt động của doanh nghiệp' })
   @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công.' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy doanh nghiệp.' })
@@ -176,6 +208,7 @@ export class EnterpriseController {
   }
 
   @Delete(':id')
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
