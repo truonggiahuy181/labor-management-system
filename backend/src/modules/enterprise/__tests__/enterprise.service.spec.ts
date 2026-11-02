@@ -41,6 +41,7 @@ const enterpriseEntity = (overrides: Record<string, unknown> = {}) => ({
   operatingProvinceId: null,
   operatingWardId: null,
   operatingAddress: null,
+  files: {},
   isActive: true,
   createdAt: new Date('2026-10-25T08:00:00.000Z'),
   updatedAt: new Date('2026-10-25T08:00:00.000Z'),
@@ -58,6 +59,7 @@ describe('EnterpriseService', () => {
   let industryService: Record<string, any>;
   let roleService: Record<string, any>;
   let locationService: { assertValidSelection: ReturnType<typeof vi.fn> };
+  let fileService: Record<string, any>;
 
   beforeEach(() => {
     repository = {
@@ -86,6 +88,14 @@ describe('EnterpriseService', () => {
     locationService = {
       assertValidSelection: vi.fn().mockResolvedValue(undefined),
     };
+    fileService = {
+      upload: vi.fn(),
+      deleteEnterpriseFile: vi.fn(),
+      normalizeOriginalFileName: vi.fn((originalName: string) => originalName),
+      getEnterpriseFileAccessUrl: vi.fn(
+        (objectKey: string) => `https://files.example.com/${objectKey}`,
+      ),
+    };
     transactionManager = {
       create: vi.fn((_: unknown, values: Record<string, unknown>) => values),
       save: vi.fn(async (entity: Record<string, unknown>) =>
@@ -109,6 +119,7 @@ describe('EnterpriseService', () => {
       userService as any,
       dataSource as any,
       locationService as any,
+      fileService as any,
     );
   });
 
@@ -373,6 +384,82 @@ describe('EnterpriseService', () => {
       updatedBy: 7,
     });
     expect(result.isActive).toBe(false);
+  });
+
+  it('uploads a public file and stores its metadata on the enterprise', async () => {
+    const existing = enterpriseEntity();
+    repository.findOne.mockImplementation(async () => existing);
+    repository.update.mockImplementation(
+      async (_id: number, values: Record<string, unknown>) => {
+        Object.assign(existing, values);
+      },
+    );
+    const file = {
+      originalname: 'license.pdf',
+      mimetype: 'application/pdf',
+      size: 12,
+      buffer: Buffer.from('%PDF-1.7 ok'),
+    };
+    fileService.upload.mockResolvedValue({
+      objectKey:
+        'enterprise-files/10/2026/10/550e8400-e29b-41d4-a716-446655440000.pdf',
+      originalName: file.originalname,
+      contentType: file.mimetype,
+      size: file.size,
+    });
+
+    const result = await service.uploadFile(10, 'businessLicense', file, 7);
+
+    expect(fileService.upload).toHaveBeenCalledWith(
+      file,
+      'enterprise-files',
+      10,
+    );
+    expect(repository.update).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({
+        files: {
+          businessLicense: expect.objectContaining({
+            originalName: 'license.pdf',
+          }),
+        },
+        updatedBy: 7,
+      }),
+    );
+    expect(result.files.businessLicense?.accessUrl).toContain(
+      'https://files.example.com/enterprise-files/10/',
+    );
+  });
+
+  it('removes a file reference from the enterprise', async () => {
+    const existing = enterpriseEntity({
+      files: {
+        businessLicense: {
+          objectKey:
+            'enterprise-files/10/2026/10/550e8400-e29b-41d4-a716-446655440000.pdf',
+          originalName: 'license.pdf',
+          contentType: 'application/pdf',
+          size: 12,
+        },
+      },
+    });
+    repository.findOne.mockImplementation(async () => existing);
+    repository.update.mockImplementation(
+      async (_id: number, values: Record<string, unknown>) => {
+        Object.assign(existing, values);
+      },
+    );
+
+    const result = await service.removeFile(10, 'businessLicense', 7);
+
+    expect(repository.update).toHaveBeenCalledWith(10, {
+      files: {},
+      updatedBy: 7,
+    });
+    expect(fileService.deleteEnterpriseFile).toHaveBeenCalledWith(
+      'enterprise-files/10/2026/10/550e8400-e29b-41d4-a716-446655440000.pdf',
+    );
+    expect(result.files.businessLicense).toBeUndefined();
   });
 
   it('rejects deleting an active enterprise', async () => {

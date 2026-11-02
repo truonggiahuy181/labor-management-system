@@ -11,9 +11,14 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -27,6 +32,9 @@ import { EnterpriseQueryDto } from './dto/enterprise-query.dto.js';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto.js';
 import { UpdateEnterpriseStatusDto } from './dto/update-enterprise-status.dto.js';
 import { EnterpriseService } from './enterprise.service.js';
+import { EnterpriseFileParamDto } from './dto/enterprise-file-param.dto.js';
+import { MAX_DOCUMENT_FILE_SIZE } from '../file/file.constants.js';
+import type { MultipartFile } from '../file/file.types.js';
 
 @ApiTags('Enterprises – Quản lý doanh nghiệp')
 @ApiBearerAuth()
@@ -104,6 +112,55 @@ export class EnterpriseController {
     @CurrentUser() user: { id: number },
   ) {
     return this.enterpriseService.update(id, dto, user?.id);
+  }
+
+  @Post(':id/files/:fileType')
+  @HttpCode(HttpStatus.CREATED)
+  @Header('Cache-Control', 'no-store')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_DOCUMENT_FILE_SIZE },
+    }),
+  )
+  @ApiOperation({ summary: 'Tải tệp public và gắn vào doanh nghiệp' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ảnh, PDF, Word hoặc Excel; tối đa 10 MB',
+        },
+      },
+    },
+  })
+  uploadFile(
+    @Param() params: EnterpriseFileParamDto,
+    @UploadedFile() file: MultipartFile | undefined,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.enterpriseService.uploadFile(
+      params.id,
+      params.fileType,
+      file,
+      user?.id,
+    );
+  }
+
+  @Delete(':id/files/:fileType')
+  @ApiOperation({ summary: 'Gỡ tệp khỏi doanh nghiệp' })
+  removeFile(
+    @Param() params: EnterpriseFileParamDto,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.enterpriseService.removeFile(
+      params.id,
+      params.fileType,
+      user?.id,
+    );
   }
 
   @Patch(':id/status')

@@ -20,7 +20,7 @@ import useAuth from '@/Hooks/useAuth';
 import useCatalogs, { type Option } from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
 import { ROLE } from '@/constants/roles';
-import { enterpriseApi, toBusinessInfo, type Enterprise } from '@/services/enterprise';
+import { enterpriseApi, toBusinessFiles, toBusinessInfo, type Enterprise } from '@/services/enterprise';
 import { adminUserApi, getErrorMessage, type Profile } from '@/services/user';
 
 // Ô lọc giữ chuỗi; '' = không lọc
@@ -285,7 +285,7 @@ export default function CompaniesPage() {
       <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="md" fullWidth scroll="paper">
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('enterprises.detailTitle')}</DialogTitle>
         <DialogContent dividers sx={{ bgcolor: 'grey.50' }}>
-          {viewing && <ConfirmStep info={toBusinessInfo(viewing)} catalog={catalogs.catalog} locations={catalogs.locations} />}
+          {viewing && <ConfirmStep info={toBusinessInfo(viewing)} files={toBusinessFiles(viewing)} catalog={catalogs.catalog} locations={catalogs.locations} />}
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 1.5 }}>
           <Button onClick={() => setViewing(null)}>{translate('businessRegister.close')}</Button>

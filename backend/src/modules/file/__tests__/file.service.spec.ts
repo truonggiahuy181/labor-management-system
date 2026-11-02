@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -84,6 +84,62 @@ describe('FileService', () => {
       "attachment; filename*=UTF-8''hop-dong.pdf",
     );
     expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('uploads enterprise files to the public bucket', async () => {
+    const buffer = Buffer.from('%PDF-1.7 test');
+    const file: MultipartFile = {
+      originalname: 'license.pdf',
+      mimetype: 'application/pdf',
+      size: buffer.length,
+      buffer,
+    };
+
+    const result = await service.upload(file, 'enterprise-files', 10);
+
+    expect(result.objectKey).toMatch(/^enterprise-files\/10\/.+\.pdf$/);
+    expect(result.accessUrl).toBe(
+      `https://images.example.com/${result.objectKey}`,
+    );
+    expect(result.accessUrlExpiresIn).toBeNull();
+    expect(send.mock.calls[0][0].input).toMatchObject({
+      Bucket: 'labor-public-images',
+      ContentDisposition: 'inline',
+    });
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('restores a Vietnamese filename decoded as Latin-1 by multipart', async () => {
+    const originalName = 'Giấy phép kinh doanh.pdf';
+    const multipartName = Buffer.from(originalName, 'utf8').toString('latin1');
+    const buffer = Buffer.from('%PDF-1.7 test');
+    const file: MultipartFile = {
+      originalname: multipartName,
+      mimetype: 'application/pdf',
+      size: buffer.length,
+      buffer,
+    };
+
+    const result = await service.upload(file, 'enterprise-files', 10);
+
+    expect(result.originalName).toBe(originalName);
+    expect(send.mock.calls[0][0].input.Metadata['original-name']).toBe(
+      Buffer.from(originalName).toString('base64'),
+    );
+  });
+
+  it('deletes an old enterprise file from the public bucket', async () => {
+    const objectKey =
+      'enterprise-files/10/2026/10/550e8400-e29b-41d4-a716-446655440000.pdf';
+
+    await service.deleteEnterpriseFile(objectKey);
+
+    const command = send.mock.calls[0][0];
+    expect(command).toBeInstanceOf(DeleteObjectCommand);
+    expect(command.input).toEqual({
+      Bucket: 'labor-public-images',
+      Key: objectKey,
+    });
   });
 
   it('từ chối ảnh giả mạo bằng phần mở rộng', async () => {

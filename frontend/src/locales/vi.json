@@ -270,6 +270,7 @@
     "deleteConfirmTitle": "Xoá doanh nghiệp",
     "deleteConfirm": "Xoá {{count}} doanh nghiệp đã chọn?",
     "deleteSuccess": "Đã xoá {{count}} doanh nghiệp",
-    "deleteHasAccount": "{{names}}: vẫn còn tài khoản đăng nhập, chưa xoá. Hãy xoá tài khoản ở trang Quản lý người dùng trước"
+    "deleteHasAccount": "{{names}}: vẫn còn tài khoản đăng nhập, chưa xoá. Hãy xoá tài khoản ở trang Quản lý người dùng trước",
+    "fileUploadFailed": "Thông tin doanh nghiệp đã được lưu nhưng có file đính kèm tải lên thất bại"
   }
 }

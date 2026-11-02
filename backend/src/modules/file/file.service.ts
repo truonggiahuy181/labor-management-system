@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -26,6 +27,7 @@ import {
   IMAGE_UPLOAD_FOLDERS,
   MAX_DOCUMENT_FILE_SIZE,
   MAX_IMAGE_FILE_SIZE,
+  PUBLIC_UPLOAD_FOLDERS,
   STORAGE_OBJECT_KEY_PATTERN,
 } from './file.constants.js';
 import type { FileUploadFolder } from './file.constants.js';
@@ -93,15 +95,16 @@ export class FileService {
   ): Promise<UploadedFileResponse> {
     this.validateFolder(folder);
     this.assertStorageConfigured(folder);
-    this.validateFile(file, folder);
+    const normalizedFile = this.normalizeFileName(file);
+    this.validateFile(normalizedFile, folder);
 
-    const extension = extname(file.originalname).toLowerCase();
+    const extension = extname(normalizedFile.originalname).toLowerCase();
     const objectKey = this.buildObjectKey(folder, ownerId, extension);
-    const isPublicImage = IMAGE_UPLOAD_FOLDERS.includes(folder);
-    const accessUrl = isPublicImage
+    const isPublicFile = PUBLIC_UPLOAD_FOLDERS.includes(folder);
+    const accessUrl = isPublicFile
       ? this.buildPublicUrl(objectKey)
       : await this.signObject(objectKey);
-    const bucket = isPublicImage ? this.publicBucket : this.privateBucket;
+    const bucket = isPublicFile ? this.publicBucket : this.privateBucket;
 
     let result: PutObjectCommandOutput;
     try {
@@ -109,14 +112,16 @@ export class FileService {
         new PutObjectCommand({
           Bucket: bucket,
           Key: objectKey,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-          ContentLength: file.size,
-          ContentDisposition: IMAGE_UPLOAD_FOLDERS.includes(folder)
+          Body: normalizedFile.buffer,
+          ContentType: normalizedFile.mimetype,
+          ContentLength: normalizedFile.size,
+          ContentDisposition: isPublicFile
             ? 'inline'
-            : `attachment; filename*=UTF-8''${encodeURIComponent(file.originalname)}`,
+            : `attachment; filename*=UTF-8''${encodeURIComponent(normalizedFile.originalname)}`,
           Metadata: {
-            'original-name': Buffer.from(file.originalname).toString('base64'),
+            'original-name': Buffer.from(normalizedFile.originalname).toString(
+              'base64',
+            ),
             'uploaded-by': String(ownerId),
           },
         }),
@@ -129,15 +134,15 @@ export class FileService {
     return {
       objectKey,
       folder,
-      originalName: file.originalname,
-      contentType: file.mimetype,
-      size: file.size,
+      originalName: normalizedFile.originalname,
+      contentType: normalizedFile.mimetype,
+      size: normalizedFile.size,
       etag:
         'ETag' in result && typeof result.ETag === 'string'
           ? result.ETag
           : null,
       accessUrl,
-      accessUrlExpiresIn: isPublicImage ? null : this.accessUrlExpiresIn,
+      accessUrlExpiresIn: isPublicFile ? null : this.accessUrlExpiresIn,
       uploadedAt: new Date(),
     };
   }
@@ -162,10 +167,10 @@ export class FileService {
 
     return {
       objectKey,
-      accessUrl: IMAGE_UPLOAD_FOLDERS.includes(folder)
+      accessUrl: PUBLIC_UPLOAD_FOLDERS.includes(folder)
         ? this.buildPublicUrl(objectKey)
         : await this.signObject(objectKey),
-      accessUrlExpiresIn: IMAGE_UPLOAD_FOLDERS.includes(folder)
+      accessUrlExpiresIn: PUBLIC_UPLOAD_FOLDERS.includes(folder)
         ? null
         : this.accessUrlExpiresIn,
     };
@@ -191,6 +196,45 @@ export class FileService {
     }
     this.assertStorageConfigured(ownership.folder);
     return this.buildPublicUrl(objectKey);
+  }
+
+  getEnterpriseFileAccessUrl(objectKey: string): string {
+    const ownership = this.getObjectKeyOwnership(objectKey);
+    if (ownership.folder !== 'enterprise-files') {
+      throw new BadRequestException({
+        code: ErrorCode.INVALID_FILE,
+        message: 'objectKey không phải là tệp của doanh nghiệp.',
+      });
+    }
+    this.assertStorageConfigured(ownership.folder);
+    return this.buildPublicUrl(objectKey);
+  }
+
+  async deleteEnterpriseFile(objectKey: string): Promise<void> {
+    const ownership = this.getObjectKeyOwnership(objectKey);
+    if (ownership.folder !== 'enterprise-files') return;
+
+    try {
+      await this.r2Client.send(
+        new DeleteObjectCommand({
+          Bucket: this.publicBucket,
+          Key: objectKey,
+        }),
+      );
+    } catch (error: unknown) {
+      this.logStorageError('Không thể dọn tệp doanh nghiệp cũ trên R2', error);
+    }
+  }
+
+  normalizeOriginalFileName(originalName: string): string {
+    if (
+      [...originalName].some((character) => character.charCodeAt(0) > 255)
+    ) {
+      return originalName;
+    }
+
+    const decodedName = Buffer.from(originalName, 'latin1').toString('utf8');
+    return decodedName.includes('\uFFFD') ? originalName : decodedName;
   }
 
   private validateFolder(folder: string): asserts folder is FileUploadFolder {
@@ -238,14 +282,18 @@ export class FileService {
     const extension = extname(file.originalname).toLowerCase();
     const allowedExtensions = IMAGE_UPLOAD_FOLDERS.includes(folder)
       ? IMAGE_EXTENSIONS
-      : DOCUMENT_EXTENSIONS;
+      : folder === 'enterprise-files'
+        ? [...IMAGE_EXTENSIONS, ...DOCUMENT_EXTENSIONS]
+        : DOCUMENT_EXTENSIONS;
 
     if (!(allowedExtensions as readonly string[]).includes(extension)) {
       throw new BadRequestException({
         code: ErrorCode.INVALID_FILE,
         message: IMAGE_UPLOAD_FOLDERS.includes(folder)
           ? 'Chỉ chấp nhận ảnh jpg, jpeg, png, gif hoặc webp.'
-          : 'Chỉ chấp nhận tài liệu pdf, doc, docx, xls hoặc xlsx.',
+          : folder === 'enterprise-files'
+            ? 'Chỉ chấp nhận ảnh, PDF, Word hoặc Excel.'
+            : 'Chỉ chấp nhận tài liệu pdf, doc, docx, xls hoặc xlsx.',
       });
     }
 
@@ -258,6 +306,19 @@ export class FileService {
         message: 'Nội dung tệp không khớp với định dạng khai báo.',
       });
     }
+  }
+
+  private normalizeFileName(
+    file: MultipartFile | undefined,
+  ): MultipartFile | undefined {
+    if (!file) return undefined;
+
+    // Multer/Busboy có thể đọc filename UTF-8 như Latin-1, ví dụ
+    // "Giấy phép.pdf" thành "Giáº¥y phÃ©p.pdf".
+    return {
+      ...file,
+      originalname: this.normalizeOriginalFileName(file.originalname),
+    };
   }
 
   private hasValidFileSignature(extension: string, buffer: Buffer): boolean {
@@ -356,8 +417,8 @@ export class FileService {
   }
 
   private assertStorageConfigured(folder: FileUploadFolder): void {
-    const isPublicImage = IMAGE_UPLOAD_FOLDERS.includes(folder);
-    const hasFolderConfiguration = isPublicImage
+    const isPublicFile = PUBLIC_UPLOAD_FOLDERS.includes(folder);
+    const hasFolderConfiguration = isPublicFile
       ? Boolean(this.publicBucket && this.publicBaseUrl)
       : Boolean(this.privateBucket);
     if (!this.isClientConfigured || !hasFolderConfiguration) {

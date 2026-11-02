@@ -25,9 +25,19 @@ export interface BusinessInfo {
   businessLocation: string;
 }
 
+export interface BusinessFileInfo {
+  objectKey: string;
+  originalName: string;
+  contentType: string;
+  size: number;
+  accessUrl: string;
+}
+
+export type BusinessFileValue = File | BusinessFileInfo | null;
+
 export interface BusinessFiles {
-  businessLicense: File | null;  // Giấy phép kinh doanh
-  otherDocument: File | null;    // Giấy tờ khác
+  businessLicense: BusinessFileValue;
+  otherDocument: BusinessFileValue;
 }
 
 export interface RegisteredAccount { username: string; tempPassword: string; companyName: string; email: string }

@@ -18,7 +18,14 @@ import { EMPTY_BUSINESS_INFO, EMPTY_BUSINESS_FILES } from '@/Components/Business
 import useCatalogs from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
 import type { BusinessFiles, BusinessInfo, RegisteredAccount } from '@/services/business';
-import { enterpriseApi, toBusinessInfo, toEnterpriseBody, type Enterprise } from '@/services/enterprise';
+import {
+  enterpriseApi,
+  toBusinessFiles,
+  toBusinessInfo,
+  toEnterpriseBody,
+  type Enterprise,
+  type EnterpriseFileType,
+} from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 import { PROFILE_CARD_SX } from '@/Components/UserProfile/options';
 
@@ -36,7 +43,9 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
     defaultValues: enterprise ? toBusinessInfo(enterprise) : EMPTY_BUSINESS_INFO,
     mode: 'onTouched',
   });
-  const [files, setFiles] = useState<BusinessFiles>(EMPTY_BUSINESS_FILES);
+  const [files, setFiles] = useState<BusinessFiles>(
+    enterprise ? toBusinessFiles(enterprise) : EMPTY_BUSINESS_FILES,
+  );
   const [step, setStep] = useState<0 | 1>(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,37 +54,77 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
   // cacheComponents giữ trang đã rời (ẩn đi chứ không huỷ) → rời trang thì đưa form về bước 1, dữ liệu ban đầu
   useEffect(() => () => {
     form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_BUSINESS_INFO);
-    setFiles(EMPTY_BUSINESS_FILES);
+    setFiles(enterprise ? toBusinessFiles(enterprise) : EMPTY_BUSINESS_FILES);
     setStep(0);
     setError('');
   }, [enterprise, form]);
 
   const backToList = () => router.push(COMPANIES_PATH);
 
-  // Backend chưa lưu file đính kèm (BACKEND_CHANGES.md) nên không bắt buộc Giấy phép kinh doanh
+  // Luồng quản trị cho phép bổ sung file sau nên không bắt buộc Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
     () => { setError(''); setStep(1); window.scrollTo({ top: 0 }); },
     () => setError(translate('common.missingInfo')),
   );
+
+  const syncEnterpriseFiles = async (enterpriseId: number) => {
+    const previousFiles = enterprise
+      ? toBusinessFiles(enterprise)
+      : EMPTY_BUSINESS_FILES;
+    const fileTypes: EnterpriseFileType[] = [
+      'businessLicense',
+      'otherDocument',
+    ];
+
+    for (const fileType of fileTypes) {
+      const selectedFile = files[fileType];
+      if (selectedFile instanceof File) {
+        await enterpriseApi.uploadFile(enterpriseId, fileType, selectedFile);
+      } else if (!selectedFile && previousFiles[fileType]) {
+        await enterpriseApi.removeFile(enterpriseId, fileType);
+      }
+    }
+  };
 
   const submit = async () => {
     const info = form.getValues();
     setError('');
     setBusy(true);
     try {
+      let enterpriseId: number;
+      let createdAccount: RegisteredAccount | null = null;
+
       if (enterprise) {
-        await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
-        enqueueSnackbar(translate('enterprises.updateSuccess'), { variant: 'success' });
-        backToList();
+        const updated = await enterpriseApi.update(
+          enterprise.id,
+          toEnterpriseBody(info, true),
+        );
+        enterpriseId = updated.id;
       } else {
         const { enterprise: created, initialAccess } = await enterpriseApi.create(toEnterpriseBody(info));
-        enqueueSnackbar(translate('enterprises.createSuccess'), { variant: 'success' });
-        // Đóng popup tài khoản thì mới quay về danh sách
-        setAccount({
+        enterpriseId = created.id;
+        createdAccount = {
           username: initialAccess.username, tempPassword: initialAccess.temporaryPassword,
           companyName: created.enterpriseName, email: created.email,
-        });
+        };
       }
+
+      try {
+        await syncEnterpriseFiles(enterpriseId);
+      } catch (fileError) {
+        enqueueSnackbar(
+          getErrorMessage(fileError, translate('enterprises.fileUploadFailed')),
+          { variant: 'warning' },
+        );
+      }
+
+      enqueueSnackbar(
+        translate(enterprise ? 'enterprises.updateSuccess' : 'enterprises.createSuccess'),
+        { variant: 'success' },
+      );
+
+      if (enterprise) backToList();
+      else setAccount(createdAccount);
     } catch (err) {
       setError(getErrorMessage(err, translate('common.unknownError')));
     } finally {

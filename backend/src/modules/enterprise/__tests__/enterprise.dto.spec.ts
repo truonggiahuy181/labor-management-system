@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreateEnterpriseDto } from '../dto/create-enterprise.dto.js';
 import { UpdateEnterpriseDto } from '../dto/update-enterprise.dto.js';
+import { EnterpriseFileParamDto } from '../dto/enterprise-file-param.dto.js';
 
 const createDto = (
   overrides: Partial<CreateEnterpriseDto> = {},
@@ -108,5 +109,29 @@ describe('UpdateEnterpriseDto', () => {
     expect(await validate$('not-an-email')).toEqual([
       expect.objectContaining({ property: 'email' }),
     ]);
+  });
+});
+
+describe('EnterpriseFileParamDto', () => {
+  it.each(['businessLicense', 'otherDocument'])(
+    'accepts the supported file type %s',
+    async (fileType) => {
+      const dto = plainToInstance(EnterpriseFileParamDto, {
+        id: '10',
+        fileType,
+      });
+
+      await expect(validate(dto)).resolves.toHaveLength(0);
+      expect(dto.id).toBe(10);
+    },
+  );
+
+  it('rejects unsupported file types', async () => {
+    const dto = plainToInstance(EnterpriseFileParamDto, {
+      id: '10',
+      fileType: 'avatar',
+    });
+
+    expect(await validate(dto)).not.toHaveLength(0);
   });
 });

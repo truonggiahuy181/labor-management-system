@@ -20,6 +20,9 @@ import { IndustryService } from '../industry/industry.service.js';
 import { RoleService } from '../role/role.service.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
 import { LocationService } from '../location/location.service.js';
+import { FileService } from '../file/file.service.js';
+import type { MultipartFile } from '../file/file.types.js';
+import type { EnterpriseFileType } from './dto/enterprise-file-param.dto.js';
 
 const INITIAL_ENTERPRISE_PASSWORD = '12345678';
 
@@ -44,6 +47,7 @@ export class EnterpriseService {
     private readonly userService: UserService,
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
+    private readonly fileService: FileService,
   ) {}
 
   async getAll(query: EnterpriseQueryDto = {}): Promise<EnterpriseResponse[]> {
@@ -77,11 +81,11 @@ export class EnterpriseService {
       where,
       order: { id: 'DESC' },
     });
-    return EnterpriseMapper.toResponseList(enterprises);
+    return enterprises.map((enterprise) => this.toResponse(enterprise));
   }
 
   async getById(id: number): Promise<EnterpriseResponse> {
-    return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+    return this.toResponse(await this.findEntityOrFail(id));
   }
 
   async create(
@@ -120,6 +124,7 @@ export class EnterpriseService {
           operatingProvinceId: dto.operatingProvinceId ?? null,
           operatingWardId: dto.operatingWardId ?? null,
           operatingAddress: dto.operatingAddress ?? null,
+          files: {},
           isActive: true,
           createdBy: creatorId ?? null,
           updatedBy: creatorId ?? null,
@@ -144,7 +149,7 @@ export class EnterpriseService {
       return newEnterprise;
     });
     return {
-      enterprise: EnterpriseMapper.toResponse(enterprise),
+      enterprise: this.toResponse(enterprise),
       initialAccess: {
         username: dto.taxCode,
         temporaryPassword: INITIAL_ENTERPRISE_PASSWORD,
@@ -198,7 +203,7 @@ export class EnterpriseService {
     if (newEmail === undefined || newEmail === enterprise.email) {
       delete updateData.email;
       await this.enterpriseRepository.update(id, updateData);
-      return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+      return this.toResponse(await this.findEntityOrFail(id));
     }
 
     // Đổi email: email mới chưa ai dùng, đổi cùng lúc email doanh nghiệp và
@@ -213,7 +218,7 @@ export class EnterpriseService {
         { email: newEmail, updatedBy: updaterId ?? null },
       );
     });
-    return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+    return this.toResponse(await this.findEntityOrFail(id));
   }
 
   async updateStatus(
@@ -226,7 +231,61 @@ export class EnterpriseService {
       isActive,
       updatedBy: updaterId ?? null,
     });
-    return EnterpriseMapper.toResponse(await this.findEntityOrFail(id));
+    return this.toResponse(await this.findEntityOrFail(id));
+  }
+
+  async uploadFile(
+    id: number,
+    fileType: EnterpriseFileType,
+    file: MultipartFile | undefined,
+    updaterId?: number,
+  ): Promise<EnterpriseResponse> {
+    const enterprise = await this.findEntityOrFail(id);
+    const previousFile = enterprise.files?.[fileType];
+    const uploaded = await this.fileService.upload(
+      file,
+      'enterprise-files',
+      id,
+    );
+
+    await this.enterpriseRepository.update(id, {
+      files: {
+        ...enterprise.files,
+        [fileType]: {
+          objectKey: uploaded.objectKey,
+          originalName: uploaded.originalName,
+          contentType: uploaded.contentType,
+          size: uploaded.size,
+        },
+      },
+      updatedBy: updaterId ?? null,
+    });
+    if (previousFile) {
+      await this.fileService.deleteEnterpriseFile(previousFile.objectKey);
+    }
+
+    return this.toResponse(await this.findEntityOrFail(id));
+  }
+
+  async removeFile(
+    id: number,
+    fileType: EnterpriseFileType,
+    updaterId?: number,
+  ): Promise<EnterpriseResponse> {
+    const enterprise = await this.findEntityOrFail(id);
+    const removedFile = enterprise.files?.[fileType];
+    const files = { ...enterprise.files };
+    delete files[fileType];
+
+    await this.enterpriseRepository.update(id, {
+      files,
+      updatedBy: updaterId ?? null,
+    });
+    if (removedFile) {
+      await this.fileService.deleteEnterpriseFile(removedFile.objectKey);
+    }
+
+    return this.toResponse(await this.findEntityOrFail(id));
   }
 
   async remove(id: number): Promise<void> {
@@ -262,6 +321,24 @@ export class EnterpriseService {
       });
     }
     return enterprise;
+  }
+
+  private toResponse(enterprise: EnterpriseEntity): EnterpriseResponse {
+    const files = Object.fromEntries(
+      Object.entries(enterprise.files ?? {}).map(([fileType, file]) => [
+        fileType,
+        {
+          ...file,
+          originalName: this.fileService.normalizeOriginalFileName(
+            file.originalName,
+          ),
+          accessUrl: this.fileService.getEnterpriseFileAccessUrl(
+            file.objectKey,
+          ),
+        },
+      ]),
+    );
+    return EnterpriseMapper.toResponse(enterprise, files);
   }
 
   private async assertTaxCodeAvailable(taxCode: string): Promise<void> {
