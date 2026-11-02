@@ -9,6 +9,7 @@ import { IndustryModule } from '../industry/industry.module.js';
 import { RoleModule } from '../role/role.module.js';
 import { UserEntity } from '../user/user.entity.js';
 import { LocationModule } from '../location/location.module.js';
+import { FileModule } from '../file/file.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { LocationModule } from '../location/location.module.js';
     IndustryModule,
     RoleModule,
     LocationModule,
+    FileModule,
   ],
   controllers: [EnterpriseController],
   providers: [EnterpriseService],

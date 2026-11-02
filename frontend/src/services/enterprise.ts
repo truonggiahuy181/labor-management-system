@@ -1,7 +1,7 @@
 // src/services/enterprise.ts
 // Quản lý doanh nghiệp (chỉ Quản trị viên) – khớp EnterpriseController / CreateEnterpriseDto của backend.
 import api from './api';
-import type { BusinessInfo } from './business';
+import type { BusinessFileInfo, BusinessFiles, BusinessInfo } from './business';
 import type { BackendResponse } from './user';
 
 export interface Enterprise {
@@ -22,13 +22,16 @@ export interface Enterprise {
   operatingProvinceId: string | null;
   operatingWardId: string | null;
   operatingAddress: string | null;
+  files: Partial<Record<keyof BusinessFiles, BusinessFileInfo>>;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 // Body tạo / sửa: các trường tuỳ chọn để trống thì không gửi
-export type EnterpriseBody = Omit<Enterprise, 'id' | 'isActive' | 'createdAt' | 'updatedAt'>;
+export type EnterpriseBody = Omit<Enterprise, 'id' | 'files' | 'isActive' | 'createdAt' | 'updatedAt'>;
+
+export type EnterpriseFileType = keyof BusinessFiles;
 
 export interface BusinessType { id: number; typeCode: string; typeName: string; isActive: boolean }
 export interface Industry { id: number; industryCode: string; industryName: string; level: number; parentId: number | null }
@@ -47,9 +50,15 @@ export const enterpriseApi = {
     api.post<BackendResponse<CreatedEnterprise>>('/enterprises', body).then((r) => r.data.data),
   update: (id: number, body: Partial<EnterpriseBody>) =>
     api.patch<BackendResponse<Enterprise>>(`/enterprises/${id}`, body).then((r) => r.data.data),
+  uploadFile: (id: number, fileType: EnterpriseFileType, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<BackendResponse<Enterprise>>(`/enterprises/${id}/files/${fileType}`, form).then((r) => r.data.data);
+  },
+  removeFile: (id: number, fileType: EnterpriseFileType) =>
+    api.delete<BackendResponse<Enterprise>>(`/enterprises/${id}/files/${fileType}`).then((r) => r.data.data),
   updateStatus: (id: number, isActive: boolean) =>
     api.patch<BackendResponse<Enterprise>>(`/enterprises/${id}/status`, { isActive }).then((r) => r.data.data),
-  // Backend CHƯA có route này (xem BACKEND_CHANGES.md) – gọi sẽ nhận 404 cho tới khi được bổ sung
   remove: (id: number) => api.delete(`/enterprises/${id}`).then(() => undefined),
 };
 
@@ -62,6 +71,11 @@ export const toBusinessInfo = (e: Enterprise): BusinessInfo => ({
   foreignName: e.foreignName ?? '', email: e.email, officePhone: e.phoneNumber ?? '',
   leaderName: e.representativeName ?? '', leaderPhone: e.representativePhone ?? '',
   operatingProvince: e.operatingProvinceId ?? '', operatingWard: e.operatingWardId ?? '', businessLocation: e.operatingAddress ?? '',
+});
+
+export const toBusinessFiles = (e: Enterprise): BusinessFiles => ({
+  businessLicense: e.files?.businessLicense ?? null,
+  otherDocument: e.files?.otherDocument ?? null,
 });
 
 // Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) và email không gửi

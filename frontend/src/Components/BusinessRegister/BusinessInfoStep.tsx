@@ -11,13 +11,13 @@ import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
-import type { BusinessFiles, BusinessInfo } from '@/services/business';
+import type { BusinessFiles, BusinessFileValue, BusinessInfo } from '@/services/business';
 import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^0\d{9}$/;
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
-const ACCEPT = '.pdf,.jpg,.jpeg,.png';
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx';
 
 type FieldDef = {
   name: keyof BusinessInfo;
@@ -202,7 +202,15 @@ export function FilesTable({ files, onChange }: { files: BusinessFiles; onChange
     { key: 'otherDocument', label: t('otherDocument') },
   ];
 
-  const view = (file: File | null) => file && window.open(URL.createObjectURL(file), '_blank');
+  const fileName = (file: BusinessFileValue) =>
+    file instanceof File ? file.name : file?.originalName ?? '';
+
+  const view = (file: BusinessFileValue) => {
+    if (!file) return;
+    const url = file instanceof File ? URL.createObjectURL(file) : file.accessUrl;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    if (file instanceof File) window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
 
   return (
     <Table size="small">
@@ -217,7 +225,7 @@ export function FilesTable({ files, onChange }: { files: BusinessFiles; onChange
         {rows.map(({ key, label }) => (
           <TableRow key={key}>
             <TableCell>{label}</TableCell>
-            <TableCell>{files[key]?.name ?? ''}</TableCell>
+            <TableCell>{fileName(files[key])}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
               <Tooltip title={t('view')}>
                 <span><IconButton size="small" disabled={!files[key]} onClick={() => view(files[key])}><VisibilityOutlined fontSize="small" /></IconButton></span>

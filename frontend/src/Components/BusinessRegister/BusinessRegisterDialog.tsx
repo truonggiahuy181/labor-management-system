@@ -20,7 +20,7 @@ import useLocations from '@/Hooks/useLocations';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
 import {
-  enterpriseApi, toBusinessInfo, toEnterpriseBody, type Enterprise,
+  enterpriseApi, toBusinessFiles, toBusinessInfo, toEnterpriseBody, type Enterprise, type EnterpriseFileType,
 } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 import type { CatalogOptions } from './options';
@@ -68,7 +68,14 @@ export default function BusinessRegisterDialog({
 
   // Mở để sửa → điền sẵn dữ liệu doanh nghiệp (form.reset không phải setState của React)
   useEffect(() => {
-    if (open) form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_INFO);
+    if (open) {
+      form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_INFO);
+      const timer = window.setTimeout(
+        () => setFiles(enterprise ? toBusinessFiles(enterprise) : EMPTY_FILES),
+        0,
+      );
+      return () => window.clearTimeout(timer);
+    }
   }, [open, enterprise, form]);
 
   const reset = () => {
@@ -87,7 +94,7 @@ export default function BusinessRegisterDialog({
   // Bước 1 → gửi OTP. Bắt buộc có Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
     async ({ email, taxCode }) => {
-      // Quản trị viên: backend chưa lưu file đính kèm (BACKEND_CHANGES.md) nên không bắt buộc GPKD
+      // Luồng quản trị cho phép bổ sung file sau; luồng tự đăng ký vẫn bắt buộc GPKD.
       if (isAdmin) { setError(''); return setStep(1); }
       if (!files.businessLicense) return setError(t('licenseRequired'));
       setError('');
@@ -111,22 +118,50 @@ export default function BusinessRegisterDialog({
     setStep(1);
   };
 
+  const syncEnterpriseFiles = async (enterpriseId: number) => {
+    const previousFiles = enterprise ? toBusinessFiles(enterprise) : EMPTY_FILES;
+    const fileTypes: EnterpriseFileType[] = ['businessLicense', 'otherDocument'];
+    for (const fileType of fileTypes) {
+      const selectedFile = files[fileType];
+      if (selectedFile instanceof File) {
+        await enterpriseApi.uploadFile(enterpriseId, fileType, selectedFile);
+      } else if (!selectedFile && previousFiles[fileType]) {
+        await enterpriseApi.removeFile(enterpriseId, fileType);
+      }
+    }
+  };
+
   const submitAdmin = async () => {
     const info = form.getValues();
     setError('');
     setBusy(true);
     try {
+      let enterpriseId: number;
       if (enterprise) {
-        await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
-        enqueueSnackbar(translate('enterprises.updateSuccess'), { variant: 'success' });
+        const updated = await enterpriseApi.update(enterprise.id, toEnterpriseBody(info, true));
+        enterpriseId = updated.id;
       } else {
         const { enterprise: created, initialAccess } = await enterpriseApi.create(toEnterpriseBody(info));
-        enqueueSnackbar(translate('enterprises.createSuccess'), { variant: 'success' });
+        enterpriseId = created.id;
         setAccount({
           username: initialAccess.username, tempPassword: initialAccess.temporaryPassword,
           companyName: created.enterpriseName, email: created.email,
         });
       }
+
+      try {
+        await syncEnterpriseFiles(enterpriseId);
+      } catch (fileError) {
+        enqueueSnackbar(
+          getErrorMessage(fileError, translate('enterprises.fileUploadFailed')),
+          { variant: 'warning' },
+        );
+      }
+
+      enqueueSnackbar(
+        translate(enterprise ? 'enterprises.updateSuccess' : 'enterprises.createSuccess'),
+        { variant: 'success' },
+      );
       onCreated?.();
       close();
     } catch (err) {

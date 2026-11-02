@@ -1,4 +1,16 @@
-import { EnterpriseEntity } from './enterprise.entity.js';
+import {
+  EnterpriseEntity,
+  type EnterpriseFiles,
+  type EnterpriseStoredFile,
+} from './enterprise.entity.js';
+
+export interface EnterpriseFileResponse extends EnterpriseStoredFile {
+  accessUrl: string;
+}
+
+export type EnterpriseFilesResponse = Partial<
+  Record<keyof EnterpriseFiles, EnterpriseFileResponse>
+>;
 
 export interface EnterpriseResponse {
   id: number;
@@ -18,13 +30,17 @@ export interface EnterpriseResponse {
   operatingProvinceId: string | null;
   operatingWardId: string | null;
   operatingAddress: string | null;
+  files: EnterpriseFilesResponse;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export class EnterpriseMapper {
-  static toResponse(entity: EnterpriseEntity): EnterpriseResponse {
+  static toResponse(
+    entity: EnterpriseEntity,
+    files: EnterpriseFilesResponse = {},
+  ): EnterpriseResponse {
     return {
       id: entity.id,
       enterpriseName: entity.enterpriseName,
@@ -43,13 +59,19 @@ export class EnterpriseMapper {
       operatingProvinceId: entity.operatingProvinceId,
       operatingWardId: entity.operatingWardId,
       operatingAddress: entity.operatingAddress,
+      files,
       isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
   }
 
-  static toResponseList(entities: EnterpriseEntity[]): EnterpriseResponse[] {
-    return entities.map((entity) => this.toResponse(entity));
+  static toResponseList(
+    entities: EnterpriseEntity[],
+    filesByEnterprise: EnterpriseFilesResponse[] = [],
+  ): EnterpriseResponse[] {
+    return entities.map((entity, index) =>
+      this.toResponse(entity, filesByEnterprise[index]),
+    );
   }
 }

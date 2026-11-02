@@ -3,6 +3,18 @@ import { BaseEntity } from '../../commons/bases/base.entity.js';
 import { BusinessTypeEntity } from '../business-type/business-type.entity.js';
 import { IndustryEntity } from '../industry/industry.entity.js';
 
+export interface EnterpriseStoredFile {
+  objectKey: string;
+  originalName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface EnterpriseFiles {
+  businessLicense?: EnterpriseStoredFile;
+  otherDocument?: EnterpriseStoredFile;
+}
+
 @Index('uq_enterprises_tax_code', ['taxCode'], { unique: true })
 @Entity('enterprises')
 export class EnterpriseEntity extends BaseEntity {
@@ -92,4 +104,7 @@ export class EnterpriseEntity extends BaseEntity {
 
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ name: 'files', type: 'jsonb', default: () => "'{}'::jsonb" })
+  files: EnterpriseFiles;
 }
