@@ -14,7 +14,7 @@ import ChevronRight from '@mui/icons-material/ChevronRight';
 import Check from '@mui/icons-material/Check';
 import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
-import useLocations from '@/Hooks/useLocations';
+import useCatalogs from '@/Hooks/useCatalogs';
 import { getErrorCode } from '@/services/auth';
 import { businessApi, RegisteredAccount, type BusinessFiles, type BusinessInfo } from '@/services/business';
 import { EMPTY_BUSINESS_FILES, EMPTY_BUSINESS_INFO } from './options';
@@ -30,7 +30,8 @@ export default function BusinessRegisterForm() {
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
-  const locations = useLocations();
+  // Danh mục thật từ API: backend nhận businessTypeId / industryId dạng số
+  const { catalog, locations } = useCatalogs();
 
   const form = useForm<BusinessInfo>({ defaultValues: EMPTY_BUSINESS_INFO, mode: 'onTouched' });
   const [files, setFiles] = useState<BusinessFiles>(EMPTY_BUSINESS_FILES);
@@ -67,23 +68,38 @@ export default function BusinessRegisterForm() {
     window.scrollTo({ top: 0 });
   };
 
+  // Alert nằm đầu trang, nút "Tiếp tục" ở cuối → cuộn lên để người dùng thấy lỗi
+  const showError = (message: string) => {
+    setError(message);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Trùng MST / email (409 từ backend): báo ngay dưới ô tương ứng và focus vào ô đó
+  const FIELD_OF_ERROR: Record<string, 'taxCode' | 'email'> = { TAX_CODE_EXISTS: 'taxCode', EMAIL_EXISTS: 'email' };
+  const showSendOtpError = (code?: string) => {
+    const field = code ? FIELD_OF_ERROR[code] : undefined;
+    if (!field) return showError(translateError(code));
+    setError('');
+    form.setError(field, { message: translateError(code) }, { shouldFocus: true });
+  };
+
   // Bước 1 → gửi OTP. Bắt buộc có Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
     async ({ email, taxCode }) => {
-      if (!files.businessLicense) return setError(t('licenseRequired'));
+      if (!files.businessLicense) return showError(t('licenseRequired'));
       setError('');
       setBusy(true);
       try {
         const res = await businessApi.sendOtp({ email, taxCode });
-        if (!res.success) return setError(translateError(res.code));
+        if (!res.success) return showSendOtpError(res.code);
         setOtpOpen(true);
       } catch (err) {
-        setError(translateError(getErrorCode(err)));
+        showSendOtpError(getErrorCode(err));
       } finally {
         setBusy(false);
       }
     },
-    () => setError(translate('common.missingInfo')),
+    () => showError(translate('common.missingInfo')),
   );
 
   const onVerified = (token: string) => {
@@ -97,12 +113,12 @@ export default function BusinessRegisterForm() {
     setBusy(true);
     try {
       const res = await businessApi.register({ ...form.getValues(), ...files, verifyToken });
-      if (!res.success) return setError(translateError(res.code));
+      if (!res.success) return showError(translateError(res.code));
       setAccount(res.data);
       enqueueSnackbar(t('success'), { variant: 'success' });
       reset();
     } catch (err) {
-      setError(translateError(getErrorCode(err)));
+      showError(translateError(getErrorCode(err)));
     } finally {
       setBusy(false);
     }
@@ -119,8 +135,8 @@ export default function BusinessRegisterForm() {
 
       <Box>
         {step === 0
-          ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} locations={locations} />
-          : <ConfirmStep info={form.getValues()} files={files} locations={locations} />}
+          ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalog} locations={locations} />
+          : <ConfirmStep info={form.getValues()} files={files} catalog={catalog} locations={locations} />}
       </Box>
 
       <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>

@@ -62,13 +62,15 @@
     "OTP_RESEND_TOO_SOON": "Please wait 60 seconds before requesting a new code",
     "VERIFY_TOKEN_INVALID": "Email verification has expired, please verify again",
     "LICENSE_REQUIRED": "Please upload the business license",
-    "INVALID_FILE_TYPE": "Only PDF, JPG or PNG files are accepted",
+    "INVALID_FILE": "Invalid file. Registration documents must be PDF, Word or Excel",
+    "INVALID_FILE_TYPE": "Invalid file. Registration documents must be PDF, Word or Excel",
     "FILE_TOO_LARGE": "The file exceeds the 10MB limit",
     "PASSWORD_MISMATCH": "Passwords do not match",
     "SAME_PASSWORD": "The new password must differ from the current one",
     "VALIDATION_ERROR": "Invalid information, please check again",
     "UNAUTHORIZED": "Please log in to continue",
-    "FORBIDDEN": "You do not have permission to do this"
+    "FORBIDDEN": "You do not have permission to do this",
+    "FILE_STORAGE_UNAVAILABLE": "File storage is temporarily unavailable, please try again later"
   },
   "forgotPassword": {
     "title": "Forgot password",
@@ -148,6 +150,8 @@
     "companySection": "New business",
     "contactSection": "Contact information",
     "filesSection": "Attachments",
+    "filesHintDocument": "(PDF, Word, Excel – max 10MB per file)",
+    "filesHintEnterprise": "(PDF, Word, Excel, images – max 10MB per file)",
     "profileSection": "Application details",
     "companyName": "Business name",
     "taxCode": "Tax code",

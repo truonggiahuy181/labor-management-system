@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-const AUTH_PAGES = ['/login', '/signup', '/forgot-password'];
+const AUTH_PAGES = ['/login', '/signup', '/forgot-password', '/register'];
 const NO_REFRESH_URLS = ['/auth/login', '/auth/refresh', '/auth/logout'];
 
 // Chuyển về /login, trừ khi đang ở sẵn trang đăng nhập / đăng ký / quên mật khẩu

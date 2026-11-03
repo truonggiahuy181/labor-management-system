@@ -62,13 +62,15 @@
     "OTP_RESEND_TOO_SOON": "Vui lòng đợi 60 giây trước khi gửi lại mã",
     "VERIFY_TOKEN_INVALID": "Phiên xác thực email đã hết hạn, vui lòng xác thực lại",
     "LICENSE_REQUIRED": "Vui lòng tải lên Giấy phép kinh doanh",
-    "INVALID_FILE_TYPE": "Chỉ chấp nhận file PDF, JPG hoặc PNG",
+    "INVALID_FILE": "File không hợp lệ. Hồ sơ đăng ký chỉ nhận PDF, Word hoặc Excel",
+    "INVALID_FILE_TYPE": "File không hợp lệ. Hồ sơ đăng ký chỉ nhận PDF, Word hoặc Excel",
     "FILE_TOO_LARGE": "File vượt quá dung lượng cho phép (10MB)",
     "PASSWORD_MISMATCH": "Mật khẩu xác nhận không khớp",
     "SAME_PASSWORD": "Mật khẩu mới không được trùng mật khẩu hiện tại",
     "VALIDATION_ERROR": "Thông tin không hợp lệ, vui lòng kiểm tra lại",
     "UNAUTHORIZED": "Bạn cần đăng nhập để thực hiện thao tác này",
-    "FORBIDDEN": "Bạn không có quyền thực hiện thao tác này"
+    "FORBIDDEN": "Bạn không có quyền thực hiện thao tác này",
+    "FILE_STORAGE_UNAVAILABLE": "Hệ thống lưu trữ tệp đang tạm thời không khả dụng, vui lòng thử lại sau"
   },
   "forgotPassword": {
     "title": "Quên mật khẩu",
@@ -150,6 +152,8 @@
     "companySection": "Thêm mới doanh nghiệp",
     "contactSection": "Thông tin liên hệ",
     "filesSection": "File đính kèm",
+    "filesHintDocument": "(PDF, Word, Excel – tối đa 10MB mỗi file)",
+    "filesHintEnterprise": "(PDF, Word, Excel, ảnh – tối đa 10MB mỗi file)",
     "profileSection": "Thông tin về hồ sơ",
     "companyName": "Tên doanh nghiệp",
     "taxCode": "Mã số thuế",

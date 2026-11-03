@@ -9,16 +9,24 @@ import {
 import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
+import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
+import { getErrorCode } from '@/services/auth';
 import type { BusinessFiles, BusinessFileValue, BusinessInfo } from '@/services/business';
+import { fileAccessUrl } from '@/services/enterprise';
 import { notBlank, stripSpaces } from '@/services/text';
 import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^0\d{9}$/;
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
-const ACCEPT = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx';
+// Khớp backend file.constants.ts: đăng ký công khai (thư mục documents) chỉ nhận tài liệu,
+// admin tải lên enterprise-files nhận cả ảnh lẫn tài liệu
+export const DOCUMENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx';
+export const ENTERPRISE_FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx';
+// Backend MAX_DOCUMENT_FILE_SIZE, áp dụng cho cả documents và enterprise-files
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 type FieldDef = {
   name: keyof BusinessInfo;
@@ -44,9 +52,10 @@ type Props = {
   catalog?: CatalogOptions;
   locations: LocationCatalog;
   isEdit?: boolean;     // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
+  accept?: string;      // đuôi file cho phép, mặc định theo luồng đăng ký công khai
 };
 
-export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false }: Props) {
+export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false, accept = DOCUMENT_ACCEPT }: Props) {
   const { translate } = useLocales();
   const { control, watch, setValue } = form;
   const t = (key: string) => translate(`businessRegister.${key}`);
@@ -189,26 +198,30 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
         <Box sx={grid}>{contactFields.map(renderField)}</Box>
       </Section>
 
-      <Section title={t('filesSection')}>
-        <FilesTable files={files} onChange={onFilesChange} />
+      <Section title={t('filesSection')} hint={t(accept === DOCUMENT_ACCEPT ? 'filesHintDocument' : 'filesHintEnterprise')}>
+        <FilesTable files={files} onChange={onFilesChange} accept={accept} />
       </Section>
     </Box>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>{title}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 1, mb: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{title}</Typography>
+        {hint && <Typography variant="caption" color="text.secondary">{hint}</Typography>}
+      </Box>
       {children}
     </Paper>
   );
 }
 
 /** Bảng file đính kèm: xem / tải lên / xoá cho từng loại giấy tờ */
-export function FilesTable({ files, onChange }: { files: BusinessFiles; onChange?: (f: BusinessFiles) => void }) {
-  const { translate } = useLocales();
+export function FilesTable({ files, onChange, accept = DOCUMENT_ACCEPT }: { files: BusinessFiles; onChange?: (f: BusinessFiles) => void; accept?: string }) {
+  const { translate, translateError } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
+  const { enqueueSnackbar } = useSnackbar();
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
   const rows: { key: keyof BusinessFiles; label: string }[] = [
     { key: 'businessLicense', label: t('businessLicense') },
@@ -218,11 +231,28 @@ export function FilesTable({ files, onChange }: { files: BusinessFiles; onChange
   const fileName = (file: BusinessFileValue) =>
     file instanceof File ? file.name : file?.originalName ?? '';
 
-  const view = (file: BusinessFileValue) => {
+  const view = async (file: BusinessFileValue) => {
     if (!file) return;
-    const url = file instanceof File ? URL.createObjectURL(file) : file.accessUrl;
-    window.open(url, '_blank', 'noopener,noreferrer');
-    if (file instanceof File) window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    if (file instanceof File) {
+      const url = URL.createObjectURL(file);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    }
+    if (file.accessUrl) {
+      window.open(file.accessUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // File đăng ký phải lấy URL qua API: mở tab ngay trong lúc click (tránh bị chặn popup) rồi mới gán URL
+    const tab = window.open('', '_blank');
+    if (tab) tab.opener = null;
+    try {
+      const url = await fileAccessUrl(file);
+      if (tab) tab.location.href = url;
+    } catch (err) {
+      tab?.close();
+      enqueueSnackbar(translateError(getErrorCode(err)), { variant: 'error' });
+    }
   };
 
   return (
@@ -254,11 +284,17 @@ export function FilesTable({ files, onChange }: { files: BusinessFiles; onChange
                   <input
                     hidden
                     type="file"
-                    accept={ACCEPT}
+                    accept={accept}
                     ref={(el) => { inputs.current[key] = el; }}
                     onChange={(e) => {
-                      onChange({ ...files, [key]: e.target.files?.[0] ?? null });
+                      const file = e.target.files?.[0] ?? null;
                       e.target.value = '';   // chọn lại cùng file vẫn kích hoạt onChange
+                      // Chặn ngay khi chọn, không đợi tới lúc gửi hồ sơ mới bị backend từ chối
+                      if (file && file.size > MAX_FILE_SIZE) {
+                        enqueueSnackbar(translateError('FILE_TOO_LARGE'), { variant: 'error' });
+                        return;
+                      }
+                      onChange({ ...files, [key]: file });
                     }}
                   />
                 </>
