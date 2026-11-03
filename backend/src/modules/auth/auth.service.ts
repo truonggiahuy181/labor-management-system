@@ -130,6 +130,7 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email,
         roleId: user.roleId,
+        enterpriseId: user.enterpriseId ?? null,
         avatarObjectKey: user.avatarObjectKey,
         avatarUrl,
         isActive: user.isActive,
@@ -567,11 +568,14 @@ export class AuthService {
       });
     }
 
-    if (this.enterpriseRepository && user.enterpriseId) {
+    if (this.enterpriseRepository) {
       const existingEnterprise = await this.enterpriseRepository.findOne({
         where: { email: normalizedNewEmail },
       });
-      if (existingEnterprise && existingEnterprise.id !== user.enterpriseId) {
+      if (
+        existingEnterprise &&
+        (!user.enterpriseId || existingEnterprise.id !== user.enterpriseId)
+      ) {
         throw new ConflictException({
           code: ErrorCode.EMAIL_EXISTS,
           message: 'Email này đã được sử dụng bởi doanh nghiệp khác.',
@@ -1110,17 +1114,24 @@ export class AuthService {
   }
 
   /**
-   * Email xác thực đăng ký doanh nghiệp mới – gửi OTP
-   */
+ * Email xác thực đăng ký doanh nghiệp – gửi OTP
+ */
   private async sendRegisterEnterpriseOtpEmail(
     email: string,
     otp: string,
   ): Promise<void> {
     const transporter = this.getMailTransporter();
+
     const appName = this.configService.get<string>(
       'APP_NAME',
       'Hệ thống Quản lý Lao động',
     );
+
+    const logoUrl = this.configService.get<string>(
+      'MAIL_LOGO_URL',
+      'cid:vna-group-logo',
+    );
+
     const expiryText = `${OTP_EXPIRY_MINUTES} phút`;
 
     try {
@@ -1134,46 +1145,107 @@ export class AuthService {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Xác thực đăng ký tài khoản</title>
+  <title>Xác thực đăng ký tài khoản doanh nghiệp</title>
 </head>
+
 <body style="margin:0;padding:0;background-color:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#111111;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#ffffff;">
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="width:100%;background-color:#ffffff;"
+  >
     <tr>
-      <td align="center" style="padding:20px 0;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:700px;background-color:#ffffff;border:1px solid #e5e7eb;padding:24px;">
+      <td align="center" style="padding:0;">
+
+        <table
+          role="presentation"
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="width:100%;max-width:700px;background-color:#ffffff;border:1px solid #e5e7eb;"
+        >
+          <!-- LOGO -->
           <tr>
-            <td>
-              <h2 style="margin:0 0 16px;color:#1a3291;font-size:22px;font-weight:700;">
+            <td align="center" style="padding:12px 12px 0;">
+              <img
+                src="${logoUrl}"
+                alt="${appName}"
+                height="48"
+                style="display:block;width:auto;height:48px;max-width:180px;object-fit:contain;border:0;"
+              />
+            </td>
+          </tr>
+
+          <!-- NỘI DUNG EMAIL -->
+          <tr>
+            <td style="padding:12px 13px 22px;">
+
+              <h1
+                style="margin:0 0 28px;color:#111111;font-size:26px;line-height:1.35;font-weight:700;"
+              >
                 Xác thực đăng ký tài khoản doanh nghiệp
-              </h2>
-              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">
-                Quý doanh nghiệp đang thực hiện đăng ký tài khoản trên hệ thống <strong>${appName}</strong>.
+              </h1>
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Quý doanh nghiệp đang thực hiện đăng ký tài khoản trên hệ thống
+                <strong>${appName}</strong>.
+                Dưới đây là mã OTP để xác minh địa chỉ email của bạn:
+                <strong style="font-size:17px;letter-spacing:3px;">${otp}</strong>
               </p>
-              <p style="margin:0 0 12px;font-size:15px;line-height:1.5;">
-                Mã OTP xác thực email của bạn là:
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Lưu ý quan trọng: Mã OTP có hiệu lực trong
+                <strong>${expiryText}</strong>.
               </p>
-              <div style="background-color:#f0f4ff;padding:16px;text-align:center;border-radius:8px;margin:20px 0;">
-                <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:#1a3291;">${otp}</span>
-              </div>
-              <p style="margin:0 0 8px;font-size:14px;color:#555;">
-                Mã OTP có hiệu lực trong <strong>${expiryText}</strong>.
+
+              <p
+                style="margin:0 0 7px;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Không chia sẻ mã này với bất kỳ ai, kể cả nhân viên hỗ trợ.
               </p>
-              <p style="margin:0;font-size:14px;color:#555;">
-                Nếu không phải bạn thực hiện yêu cầu này, vui lòng bỏ qua email.
+
+              <p
+                style="margin:0;color:#222222;font-size:16px;line-height:1.5;"
+              >
+                Nếu bạn không yêu cầu đăng ký tài khoản doanh nghiệp,
+                vui lòng bỏ qua email này.
               </p>
+
             </td>
           </tr>
         </table>
+
       </td>
     </tr>
   </table>
 </body>
 </html>
-        `,
+      `,
+        attachments: [
+          {
+            filename: 'vna-group-logo.png',
+            path: join(
+              process.cwd(),
+              'assets',
+              'vna-group-logo.png',
+            ),
+            cid: 'vna-group-logo',
+            contentType: 'image/png',
+            contentDisposition: 'inline',
+          },
+        ],
       });
     } catch (err) {
       console.warn(
-        `[Mail] Không thể gửi email tới ${email}. Mã OTP đăng ký là: ${otp}`,
+        `[Mail] Không thể gửi email xác thực đăng ký doanh nghiệp tới ${email}.`,
         err,
       );
     }

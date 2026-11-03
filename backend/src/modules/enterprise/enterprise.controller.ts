@@ -32,7 +32,10 @@ import { EnterpriseQueryDto } from './dto/enterprise-query.dto.js';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto.js';
 import { UpdateEnterpriseStatusDto } from './dto/update-enterprise-status.dto.js';
 import { EnterpriseService } from './enterprise.service.js';
-import { EnterpriseFileParamDto } from './dto/enterprise-file-param.dto.js';
+import {
+  EnterpriseFileParamDto,
+  MyEnterpriseFileParamDto,
+} from './dto/enterprise-file-param.dto.js';
 import { MAX_DOCUMENT_FILE_SIZE } from '../file/file.constants.js';
 import type { MultipartFile } from '../file/file.types.js';
 
@@ -68,6 +71,55 @@ export class EnterpriseController {
     @Body() dto: UpdateEnterpriseDto,
   ) {
     return this.enterpriseService.updateMyEnterprise(user.id, dto);
+  }
+
+  @Post('me/files/:fileType')
+  @Roles(RoleCode.ENTERPRISE_USER)
+  @HttpCode(HttpStatus.CREATED)
+  @Header('Cache-Control', 'no-store')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_DOCUMENT_FILE_SIZE },
+    }),
+  )
+  @ApiOperation({ summary: 'Tải tệp public và gắn vào doanh nghiệp đang đăng nhập' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ảnh, PDF, Word hoặc Excel; tối đa 10 MB',
+        },
+      },
+    },
+  })
+  uploadMyEnterpriseFile(
+    @Param() params: MyEnterpriseFileParamDto,
+    @UploadedFile() file: MultipartFile | undefined,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.enterpriseService.uploadMyEnterpriseFile(
+      user.id,
+      params.fileType,
+      file,
+    );
+  }
+
+  @Delete('me/files/:fileType')
+  @Roles(RoleCode.ENTERPRISE_USER)
+  @ApiOperation({ summary: 'Gỡ tệp khỏi doanh nghiệp đang đăng nhập' })
+  removeMyEnterpriseFile(
+    @Param() params: MyEnterpriseFileParamDto,
+    @CurrentUser() user: { id: number },
+  ) {
+    return this.enterpriseService.removeMyEnterpriseFile(
+      user.id,
+      params.fileType,
+    );
   }
 
   @Get()
@@ -146,6 +198,7 @@ export class EnterpriseController {
   }
 
   @Post(':id/files/:fileType')
+  @Roles(RoleCode.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @Header('Cache-Control', 'no-store')
   @UseInterceptors(
@@ -182,6 +235,7 @@ export class EnterpriseController {
   }
 
   @Delete(':id/files/:fileType')
+  @Roles(RoleCode.ADMIN)
   @ApiOperation({ summary: 'Gỡ tệp khỏi doanh nghiệp' })
   removeFile(
     @Param() params: EnterpriseFileParamDto,
