@@ -74,7 +74,7 @@ export class FileController {
   @Get('access-url')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Lấy URL public của ảnh hoặc URL tạm thời của tài liệu R2',
+    summary: 'Lấy URL public của tệp trên R2',
   })
   @ApiResponse({ status: 200, description: 'Tạo presigned URL thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền truy cập tệp.' })
@@ -122,9 +122,9 @@ export class FileController {
   @Get('public-access-url')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Lấy URL xem trước tài liệu công khai khi đăng ký doanh nghiệp',
+    summary: 'Lấy URL public của tài liệu khi đăng ký doanh nghiệp',
   })
-  @ApiResponse({ status: 200, description: 'Tạo presigned URL thành công.' })
+  @ApiResponse({ status: 200, description: 'Lấy URL public thành công.' })
   @ApiResponse({ status: 403, description: 'Không có quyền truy cập tệp.' })
   getPublicAccessUrl(@Query() query: FileAccessQueryDto) {
     return this.fileService.getPublicDocumentAccessUrl(query.objectKey);

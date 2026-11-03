@@ -90,20 +90,18 @@ npm test
 
 ## 6. Lưu trữ ảnh và tài liệu trên Cloudflare R2
 
-Hiện tại có thể dùng bucket R2 sẵn có làm bucket public cho `avatars/logos` và bật
-Public Development URL hoặc custom domain. Khi cần lưu `documents`, tạo thêm bucket
-private và cấp cho API token quyền `Object Read & Write` trên bucket đó.
+Hiện tại dùng bucket R2 sẵn có làm bucket public cho ảnh và tài liệu, đồng thời bật
+Public Development URL hoặc custom domain. API token cần quyền `Object Read & Write`
+trên bucket này.
 
 Khai báo Account ID, bucket và S3-compatible credentials trong `.env`:
 
 ```dotenv
 R2_ACCOUNT_ID=your-cloudflare-account-id
 R2_BUCKET=your-existing-public-image-bucket
-R2_PRIVATE_BUCKET=
 R2_PUBLIC_BASE_URL=https://your-public-bucket-domain.example.com
 R2_ACCESS_KEY_ID=your-r2-access-key-id
 R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
-R2_PRESIGNED_URL_TTL=900
 ```
 
 Không commit credentials. Backend dùng AWS SDK v3 qua S3-compatible endpoint
@@ -112,16 +110,12 @@ file lưu trữ.
 
 - `POST /api/v1/files`: nhận `multipart/form-data` gồm `file` và `folder`.
 - `POST /api/v1/users/me/avatar`: upload và tự gắn avatar vào tài khoản hiện tại.
-- `GET /api/v1/files/access-url?objectKey=...`: trả URL public cho ảnh hoặc URL có thời hạn cho tài liệu.
+- `GET /api/v1/files/access-url?objectKey=...`: trả URL public của tệp.
 - `avatars`, `logos`: jpg/jpeg/png/gif/webp, tối đa 5 MB.
 - `documents`: pdf/doc/docx/xls/xlsx, tối đa 10 MB.
 
-Nếu `R2_PRIVATE_BUCKET` để trống, upload `documents` trả `503` để tránh vô tình lưu
-tài liệu vào bucket public. Khi cần dùng tài liệu, tạo bucket private rồi điền biến này.
-
-Luôn lưu `objectKey` vào dữ liệu nghiệp vụ. `avatarUrl` và URL logo là URL public cố định;
-presigned URL của `documents` không được lưu vì sẽ hết hạn. `documents` chỉ chủ sở hữu
-hoặc `ADMIN` được truy cập.
+Luôn lưu `objectKey` vào dữ liệu nghiệp vụ. URL trả về được dựng từ
+`R2_PUBLIC_BASE_URL` và không hết hạn. Không đưa access key hoặc secret key sang frontend.
 
 ---
 

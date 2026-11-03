@@ -20,6 +20,7 @@ export const IMAGE_UPLOAD_FOLDERS: readonly FileUploadFolder[] = [
 
 export const PUBLIC_UPLOAD_FOLDERS: readonly FileUploadFolder[] = [
   ...IMAGE_UPLOAD_FOLDERS,
+  'documents',
   'enterprise-files',
 ];
 
@@ -44,8 +45,4 @@ export const DOCUMENT_EXTENSIONS = [
 ] as const;
 
 export const STORAGE_OBJECT_KEY_PATTERN =
-<<<<<<< HEAD
-  /^(avatars|logos|documents|enterprise-files)\/([1-9]\d*)\/(\d{4})\/(0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx)$/;
-=======
-  /^(avatars|logos|documents)\/(\d+)\/(\d{4})\/(0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx)$/;
->>>>>>> cae6c8b (feat: register-enterprise)
+  /^(avatars|logos|documents|enterprise-files)\/(\d+)\/(\d{4})\/(0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|xls|xlsx)$/;
