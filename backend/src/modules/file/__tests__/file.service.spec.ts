@@ -1,22 +1,16 @@
 import {
   BadRequestException,
-  ForbiddenException,
   PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoleCode } from '../../../commons/constants/role-codes.js';
 import { MAX_IMAGE_FILE_SIZE } from '../file.constants.js';
 import { FileService } from '../file.service.js';
 import type { MultipartFile } from '../file.types.js';
-
-vi.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: vi.fn(),
-}));
 
 const PNG_SIGNATURE = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
@@ -28,10 +22,6 @@ describe('FileService', () => {
 
   beforeEach(() => {
     send = vi.fn().mockResolvedValue({ ETag: '"etag-value"' });
-    vi.mocked(getSignedUrl).mockReset();
-    vi.mocked(getSignedUrl).mockResolvedValue(
-      'https://account.r2.cloudflarestorage.com/signed',
-    );
     service = createService(send);
   });
 
@@ -78,11 +68,14 @@ describe('FileService', () => {
     const result = await service.upload(file, 'documents', 8);
 
     expect(result.objectKey).toMatch(/^documents\/8\/.+\.pdf$/);
-    expect(send.mock.calls[0][0].input.Bucket).toBe('labor-private-files');
-    expect(result.accessUrlExpiresIn).toBe(900);
-    expect(send.mock.calls[0][0].input.ContentDisposition).toBe(
-      "attachment; filename*=UTF-8''hop-dong.pdf",
+    expect(send.mock.calls[0][0].input).toMatchObject({
+      Bucket: 'labor-public-images',
+      ContentDisposition: 'inline',
+    });
+    expect(result.accessUrl).toBe(
+      `https://images.example.com/${result.objectKey}`,
     );
+    expect(result.accessUrlExpiresIn).toBeNull();
     expect(send).toHaveBeenCalledOnce();
   });
 
@@ -106,7 +99,6 @@ describe('FileService', () => {
       Bucket: 'labor-public-images',
       ContentDisposition: 'inline',
     });
-    expect(getSignedUrl).not.toHaveBeenCalled();
   });
 
   it('restores a Vietnamese filename decoded as Latin-1 by multipart', async () => {
@@ -195,8 +187,10 @@ describe('FileService', () => {
     });
 
     expect(result.objectKey).toBe(objectKey);
-    expect(result.accessUrlExpiresIn).toBe(900);
-    expect(getSignedUrl).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      accessUrl: `https://images.example.com/${objectKey}`,
+      accessUrlExpiresIn: null,
+    });
   });
 
   it('cho phép ADMIN truy cập file của người dùng khác', async () => {
@@ -225,10 +219,9 @@ describe('FileService', () => {
       accessUrl: `https://images.example.com/${objectKey}`,
       accessUrlExpiresIn: null,
     });
-    expect(getSignedUrl).not.toHaveBeenCalled();
   });
 
-  it('chặn người dùng truy cập file không thuộc sở hữu', async () => {
+  it('cho phép truy cập tài liệu public không phụ thuộc chủ sở hữu', async () => {
     const objectKey =
       'documents/12/2026/10/550e8400-e29b-41d4-a716-446655440000.pdf';
 
@@ -237,7 +230,11 @@ describe('FileService', () => {
         id: 13,
         roleCode: RoleCode.ENTERPRISE_USER,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).resolves.toMatchObject({
+      objectKey,
+      accessUrl: `https://images.example.com/${objectKey}`,
+      accessUrlExpiresIn: null,
+    });
   });
 
   it('trả 503 khi R2 upload lỗi', async () => {
@@ -265,11 +262,9 @@ function createService(
   const values: Record<string, string> = {
     R2_ACCOUNT_ID: 'cloudflare-account-id',
     R2_BUCKET: 'labor-public-images',
-    R2_PRIVATE_BUCKET: 'labor-private-files',
     R2_PUBLIC_BASE_URL: 'https://images.example.com',
     R2_ACCESS_KEY_ID: 'r2-access-key',
     R2_SECRET_ACCESS_KEY: 'r2-secret-key',
-    R2_PRESIGNED_URL_TTL: '900',
     ...overrides,
   };
   const configService = {

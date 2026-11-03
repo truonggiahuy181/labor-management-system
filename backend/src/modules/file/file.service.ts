@@ -10,16 +10,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
-  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import type { PutObjectCommandOutput } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
-import { RoleCode } from '../../commons/constants/role-codes.js';
 import {
   DOCUMENT_EXTENSIONS,
   FILE_UPLOAD_FOLDERS,
@@ -59,11 +56,9 @@ const CONTENT_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
 @Injectable()
 export class FileService {
   private readonly logger = new Logger(FileService.name);
-  private readonly privateBucket: string;
   private readonly publicBucket: string;
   private readonly publicBaseUrl: string;
   private readonly isClientConfigured: boolean;
-  private readonly accessUrlExpiresIn: number;
 
   constructor(
     @Inject(R2_CLIENT) private readonly r2Client: S3Client,
@@ -77,15 +72,12 @@ export class FileService {
       this.configService.get<string>('R2_SECRET_ACCESS_KEY')?.trim() || '';
     this.publicBucket =
       this.configService.get<string>('R2_BUCKET')?.trim() || '';
-    this.privateBucket =
-      this.configService.get<string>('R2_PRIVATE_BUCKET')?.trim() || '';
     this.publicBaseUrl = (
       this.configService.get<string>('R2_PUBLIC_BASE_URL')?.trim() || ''
     ).replace(/\/+$/, '');
     this.isClientConfigured = Boolean(
       accountId && accessKeyId && secretAccessKey,
     );
-    this.accessUrlExpiresIn = this.readAccessUrlTtl();
   }
 
   async upload(
@@ -100,11 +92,8 @@ export class FileService {
 
     const extension = extname(normalizedFile.originalname).toLowerCase();
     const objectKey = this.buildObjectKey(folder, ownerId, extension);
-    const isPublicFile = PUBLIC_UPLOAD_FOLDERS.includes(folder);
-    const accessUrl = isPublicFile
-      ? this.buildPublicUrl(objectKey)
-      : await this.signObject(objectKey);
-    const bucket = isPublicFile ? this.publicBucket : this.privateBucket;
+    const accessUrl = this.buildPublicUrl(objectKey);
+    const bucket = this.publicBucket;
 
     let result: PutObjectCommandOutput;
     try {
@@ -115,9 +104,7 @@ export class FileService {
           Body: normalizedFile.buffer,
           ContentType: normalizedFile.mimetype,
           ContentLength: normalizedFile.size,
-          ContentDisposition: isPublicFile
-            ? 'inline'
-            : `attachment; filename*=UTF-8''${encodeURIComponent(normalizedFile.originalname)}`,
+          ContentDisposition: 'inline',
           Metadata: {
             'original-name': Buffer.from(normalizedFile.originalname).toString(
               'base64',
@@ -142,38 +129,22 @@ export class FileService {
           ? result.ETag
           : null,
       accessUrl,
-      accessUrlExpiresIn: isPublicFile ? null : this.accessUrlExpiresIn,
+      accessUrlExpiresIn: null,
       uploadedAt: new Date(),
     };
   }
 
   async getAccessUrl(
     objectKey: string,
-    user: AuthenticatedFileUser,
+    _user: AuthenticatedFileUser,
   ): Promise<FileAccessResponse> {
-    const { folder, ownerId } = this.getObjectKeyOwnership(objectKey);
+    const { folder } = this.getObjectKeyOwnership(objectKey);
     this.assertStorageConfigured(folder);
-
-    if (
-      folder === 'documents' &&
-      user.roleCode !== RoleCode.ADMIN &&
-      user.id !== ownerId &&
-      ownerId !== 0
-    ) {
-      throw new ForbiddenException({
-        code: ErrorCode.FORBIDDEN,
-        message: 'Bạn không có quyền truy cập tệp này.',
-      });
-    }
 
     return {
       objectKey,
-      accessUrl: PUBLIC_UPLOAD_FOLDERS.includes(folder)
-        ? this.buildPublicUrl(objectKey)
-        : await this.signObject(objectKey),
-      accessUrlExpiresIn: PUBLIC_UPLOAD_FOLDERS.includes(folder)
-        ? null
-        : this.accessUrlExpiresIn,
+      accessUrl: this.buildPublicUrl(objectKey),
+      accessUrlExpiresIn: null,
     };
   }
 
@@ -192,8 +163,8 @@ export class FileService {
 
     return {
       objectKey,
-      accessUrl: await this.signObject(objectKey),
-      accessUrlExpiresIn: this.accessUrlExpiresIn,
+      accessUrl: this.buildPublicUrl(objectKey),
+      accessUrlExpiresIn: null,
     };
   }
 
@@ -421,43 +392,19 @@ export class FileService {
     };
   }
 
-  private async signObject(objectKey: string): Promise<string> {
-    try {
-      return await getSignedUrl(
-        this.r2Client,
-        new GetObjectCommand({
-          Bucket: this.privateBucket,
-          Key: objectKey,
-        }),
-        { expiresIn: this.accessUrlExpiresIn },
-      );
-    } catch (error: unknown) {
-      this.logStorageError('Không thể ký R2 access URL', error);
-      throw this.storageUnavailable();
-    }
-  }
-
   private assertStorageConfigured(folder: FileUploadFolder): void {
-    const isPublicFile = PUBLIC_UPLOAD_FOLDERS.includes(folder);
-    const hasFolderConfiguration = isPublicFile
-      ? Boolean(this.publicBucket && this.publicBaseUrl)
-      : Boolean(this.privateBucket);
-    if (!this.isClientConfigured || !hasFolderConfiguration) {
+    if (
+      !PUBLIC_UPLOAD_FOLDERS.includes(folder) ||
+      !this.isClientConfigured ||
+      !this.publicBucket ||
+      !this.publicBaseUrl
+    ) {
       throw this.storageUnavailable();
     }
   }
 
   private buildPublicUrl(objectKey: string): string {
     return `${this.publicBaseUrl}/${objectKey}`;
-  }
-
-  private readAccessUrlTtl(): number {
-    const rawValue = this.configService.get<string>(
-      'R2_PRESIGNED_URL_TTL',
-      '900',
-    );
-    const ttl = Number(rawValue);
-    return Number.isInteger(ttl) && ttl >= 60 && ttl <= 3600 ? ttl : 900;
   }
 
   private storageUnavailable(): ServiceUnavailableException {

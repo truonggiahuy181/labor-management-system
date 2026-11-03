@@ -30,12 +30,9 @@ export interface EnterpriseResponse {
   operatingProvinceId: string | null;
   operatingWardId: string | null;
   operatingAddress: string | null;
-<<<<<<< HEAD
   files: EnterpriseFilesResponse;
-=======
   businessLicenseKey?: string | null;
   otherDocumentKey?: string | null;
->>>>>>> cae6c8b (feat: register-enterprise)
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -64,12 +61,9 @@ export class EnterpriseMapper {
       operatingProvinceId: entity.operatingProvinceId,
       operatingWardId: entity.operatingWardId,
       operatingAddress: entity.operatingAddress,
-<<<<<<< HEAD
       files,
-=======
       businessLicenseKey: entity.businessLicenseKey ?? null,
       otherDocumentKey: entity.otherDocumentKey ?? null,
->>>>>>> cae6c8b (feat: register-enterprise)
       isActive: entity.isActive,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
