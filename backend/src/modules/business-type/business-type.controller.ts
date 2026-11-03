@@ -25,6 +25,7 @@ import { BusinessTypeQueryDto } from './dto/business-type-query.dto.js';
 import { CreateBusinessTypeDto } from './dto/create-business-type.dto.js';
 import { UpdateBusinessTypeDto } from './dto/update-business-type.dto.js';
 import { UpdateBusinessTypeStatusDto } from './dto/update-business-type-status.dto.js';
+import { Public } from '../../commons/decorators/public.decorator.js';
 import { Roles } from '../../commons/decorators/roles.decorator.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
 
@@ -34,6 +35,7 @@ import { RoleCode } from '../../commons/constants/role-codes.js';
 export class BusinessTypeController {
   constructor(private readonly businessTypeService: BusinessTypeService) {}
 
+  @Public()
   @Get()
   @ApiOperation({
     summary: 'Lấy danh sách loại hình kinh doanh đang hoạt động',

@@ -25,6 +25,7 @@ import { IndustryQueryDto } from './dto/industry-query.dto.js';
 import { UpdateIndustryDto } from './dto/update-industry.dto.js';
 import { UpdateIndustryStatusDto } from './dto/update-industry-status.dto.js';
 import { IndustryService } from './industry.service.js';
+import { Public } from '../../commons/decorators/public.decorator.js';
 import { Roles } from '../../commons/decorators/roles.decorator.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
 
@@ -34,6 +35,7 @@ import { RoleCode } from '../../commons/constants/role-codes.js';
 export class IndustryController {
   constructor(private readonly industryService: IndustryService) {}
 
+  @Public()
   @Get()
   @ApiOperation({
     summary: 'Lấy danh sách ngành nghề đang hoạt động',
