@@ -23,6 +23,9 @@ export interface Enterprise {
   operatingWardId: string | null;
   operatingAddress: string | null;
   files: Partial<Record<keyof BusinessFiles, BusinessFileInfo>>;
+  // File doanh nghiệp tự tải lên khi đăng ký (POST /files/public-document), chỉ có objectKey
+  businessLicenseKey?: string | null;
+  otherDocumentKey?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -73,10 +76,38 @@ export const toBusinessInfo = (e: Enterprise): BusinessInfo => ({
   operatingProvince: e.operatingProvinceId ?? '', operatingWard: e.operatingWardId ?? '', businessLocation: e.operatingAddress ?? '',
 });
 
+// Backend lưu file ở 2 nơi: `files` (admin tải lên, đủ tên gốc + accessUrl) và businessLicenseKey / otherDocumentKey
+// (tải lên lúc đăng ký, chỉ có objectKey). Ưu tiên `files`, thiếu thì lấy file đăng ký.
+const REGISTRATION_KEY = { businessLicense: 'businessLicenseKey', otherDocument: 'otherDocumentKey' } as const;
+
+const fromRegistrationKey = (objectKey?: string | null): BusinessFileInfo | null =>
+  objectKey
+    ? { objectKey, originalName: objectKey.split('/').pop() ?? objectKey, contentType: '', size: 0, accessUrl: '' }
+    : null;
+
 export const toBusinessFiles = (e: Enterprise): BusinessFiles => ({
-  businessLicense: e.files?.businessLicense ?? null,
-  otherDocument: e.files?.otherDocument ?? null,
+  businessLicense: e.files?.businessLicense ?? fromRegistrationKey(e.businessLicenseKey),
+  otherDocument: e.files?.otherDocument ?? fromRegistrationKey(e.otherDocumentKey),
 });
+
+// File đăng ký bị xoá / thay khi sửa: DELETE /enterprises/:id/files chỉ xoá trong `files`,
+// nên phải gửi key = null trong body cập nhật thì file cũ mới không hiện lại
+export const clearedRegistrationKeys = (e: Enterprise, files: BusinessFiles) => {
+  const body: Partial<Record<(typeof REGISTRATION_KEY)[EnterpriseFileType], null>> = {};
+  (Object.keys(REGISTRATION_KEY) as EnterpriseFileType[]).forEach((type) => {
+    const key = REGISTRATION_KEY[type];
+    const current = files[type];
+    const unchanged = current && !(current instanceof File) && current.objectKey === e[key];
+    if (!e.files?.[type] && e[key] && !unchanged) body[key] = null;
+  });
+  return body;
+};
+
+// File đăng ký chưa có accessUrl sẵn → hỏi endpoint công khai
+export const fileAccessUrl = async (file: BusinessFileInfo) =>
+  file.accessUrl ||
+  api.get<BackendResponse<{ accessUrl: string }>>('/files/public-access-url', { params: { objectKey: file.objectKey } })
+    .then((r) => r.data.data.accessUrl);
 
 // Cập nhật: ô trống gửi null để xoá giá trị cũ; mã số thuế (= tên đăng nhập) không gửi
 // vì UpdateEnterpriseDto của backend không cho đổi mã số thuế; email được đồng bộ sang tài khoản doanh nghiệp.

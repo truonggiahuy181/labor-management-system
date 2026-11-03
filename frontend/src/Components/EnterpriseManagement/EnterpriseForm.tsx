@@ -11,7 +11,7 @@ import { Alert, Box, Button, Card, Stack, Step, StepLabel, Stepper, Typography }
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import Check from '@mui/icons-material/Check';
 import { useSnackbar } from 'notistack';
-import BusinessInfoStep from '@/Components/BusinessRegister/BusinessInfoStep';
+import BusinessInfoStep, { ENTERPRISE_FILE_ACCEPT } from '@/Components/BusinessRegister/BusinessInfoStep';
 import ConfirmStep from '@/Components/BusinessRegister/ConfirmStep';
 import CreatedAccountDialog from '@/Components/BusinessRegister/CreatedAccountDialog';
 import { EMPTY_BUSINESS_INFO, EMPTY_BUSINESS_FILES } from '@/Components/BusinessRegister/options';
@@ -19,6 +19,7 @@ import useCatalogs from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
 import type { BusinessFiles, BusinessInfo, RegisteredAccount } from '@/services/business';
 import {
+  clearedRegistrationKeys,
   enterpriseApi,
   toBusinessFiles,
   toBusinessInfo,
@@ -97,7 +98,7 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
       if (enterprise) {
         const updated = await enterpriseApi.update(
           enterprise.id,
-          toEnterpriseBody(info, true),
+          { ...toEnterpriseBody(info, true), ...clearedRegistrationKeys(enterprise, files) },
         );
         enterpriseId = updated.id;
       } else {
@@ -163,7 +164,7 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
         {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
         {step === 0
           ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalogs.catalog}
-              locations={catalogs.locations} isEdit={isEdit} />
+              locations={catalogs.locations} isEdit={isEdit} accept={ENTERPRISE_FILE_ACCEPT} />
           : <ConfirmStep info={form.getValues()} files={files} catalog={catalogs.catalog} locations={catalogs.locations} />}
       </Card>
 
