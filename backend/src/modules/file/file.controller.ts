@@ -106,7 +106,7 @@ export class FileController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Tài liệu tối đa 10 MB (.pdf, .doc, .docx, .xls, .xlsx)',
+          description: 'Ảnh, PDF, Word hoặc Excel; tối đa 10 MB',
         },
       },
     },
@@ -115,7 +115,7 @@ export class FileController {
   @ApiResponse({ status: 400, description: 'Tệp không hợp lệ.' })
   @ApiResponse({ status: 413, description: 'Tệp vượt quá giới hạn.' })
   uploadPublicDocument(@UploadedFile() file: MultipartFile | undefined) {
-    return this.fileService.upload(file, 'documents', 0);
+    return this.fileService.upload(file, 'enterprise-files', 0);
   }
 
   @Public()

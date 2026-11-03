@@ -20,3 +20,9 @@ export class EnterpriseFileParamDto {
   @IsIn(ENTERPRISE_FILE_TYPES)
   fileType: EnterpriseFileType;
 }
+
+export class MyEnterpriseFileParamDto {
+  @ApiProperty({ enum: ENTERPRISE_FILE_TYPES })
+  @IsIn(ENTERPRISE_FILE_TYPES)
+  fileType: EnterpriseFileType;
+}

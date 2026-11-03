@@ -59,6 +59,15 @@ export class FileService {
   private readonly publicBucket: string;
   private readonly publicBaseUrl: string;
   private readonly isClientConfigured: boolean;
+  private readonly uploadedMetadata = new Map<
+    string,
+    {
+      objectKey: string;
+      originalName: string;
+      contentType: string;
+      size: number;
+    }
+  >();
 
   constructor(
     @Inject(R2_CLIENT) private readonly r2Client: S3Client,
@@ -118,6 +127,17 @@ export class FileService {
       throw this.storageUnavailable();
     }
 
+    if (this.uploadedMetadata.size >= 1000) {
+      const oldestKey = this.uploadedMetadata.keys().next().value;
+      if (oldestKey) this.uploadedMetadata.delete(oldestKey);
+    }
+    this.uploadedMetadata.set(objectKey, {
+      objectKey,
+      originalName: normalizedFile.originalname,
+      contentType: normalizedFile.mimetype,
+      size: normalizedFile.size,
+    });
+
     return {
       objectKey,
       folder,
@@ -154,7 +174,10 @@ export class FileService {
     const { folder, ownerId } = this.getObjectKeyOwnership(objectKey);
     this.assertStorageConfigured(folder);
 
-    if (folder !== 'documents' || ownerId !== 0) {
+    if (
+      (folder !== 'enterprise-files' && folder !== 'documents') ||
+      ownerId !== 0
+    ) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'Bạn không có quyền truy cập tệp này.',
@@ -192,7 +215,10 @@ export class FileService {
 
   getEnterpriseFileAccessUrl(objectKey: string): string {
     const ownership = this.getObjectKeyOwnership(objectKey);
-    if (ownership.folder !== 'enterprise-files') {
+    if (
+      ownership.folder !== 'enterprise-files' &&
+      !(ownership.folder === 'documents' && ownership.ownerId === 0)
+    ) {
       throw new BadRequestException({
         code: ErrorCode.INVALID_FILE,
         message: 'objectKey không phải là tệp của doanh nghiệp.',
@@ -202,9 +228,45 @@ export class FileService {
     return this.buildPublicUrl(objectKey);
   }
 
+  resolveEnterpriseStoredFile(objectKey: string): {
+    objectKey: string;
+    originalName: string;
+    contentType: string;
+    size: number;
+  } {
+    const ownership = this.getObjectKeyOwnership(objectKey);
+    if (
+      ownership.folder !== 'enterprise-files' &&
+      !(ownership.folder === 'documents' && ownership.ownerId === 0)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.INVALID_FILE,
+        message: 'objectKey không phải là tệp của doanh nghiệp.',
+      });
+    }
+    const cached = this.uploadedMetadata.get(objectKey);
+    if (cached) {
+      return { ...cached };
+    }
+    const extension = extname(objectKey).toLowerCase();
+    const contentType =
+      CONTENT_TYPES_BY_EXTENSION[extension]?.[0] ?? 'application/octet-stream';
+    return {
+      objectKey,
+      originalName: objectKey.split('/').pop() ?? objectKey,
+      contentType,
+      size: 0,
+    };
+  }
+
   async deleteEnterpriseFile(objectKey: string): Promise<void> {
     const ownership = this.getObjectKeyOwnership(objectKey);
-    if (ownership.folder !== 'enterprise-files') return;
+    if (
+      ownership.folder !== 'enterprise-files' &&
+      !(ownership.folder === 'documents' && ownership.ownerId === 0)
+    ) {
+      return;
+    }
 
     try {
       await this.r2Client.send(
@@ -213,6 +275,7 @@ export class FileService {
           Key: objectKey,
         }),
       );
+      this.uploadedMetadata.delete(objectKey);
     } catch (error: unknown) {
       this.logStorageError('Không thể dọn tệp doanh nghiệp cũ trên R2', error);
     }

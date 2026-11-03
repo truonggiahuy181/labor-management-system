@@ -13,7 +13,11 @@ import { UserService } from '../user/user.service.js';
 import { CreateEnterpriseDto } from './dto/create-enterprise.dto.js';
 import { EnterpriseQueryDto } from './dto/enterprise-query.dto.js';
 import { UpdateEnterpriseDto } from './dto/update-enterprise.dto.js';
-import { EnterpriseEntity } from './enterprise.entity.js';
+import {
+  EnterpriseEntity,
+  type EnterpriseFiles,
+  type EnterpriseStoredFile,
+} from './enterprise.entity.js';
 import { EnterpriseMapper, EnterpriseResponse } from './enterprise.mapper.js';
 import { BusinessTypeService } from '../business-type/business-type.service.js';
 import { IndustryService } from '../industry/industry.service.js';
@@ -48,7 +52,7 @@ export class EnterpriseService {
     private readonly dataSource: DataSource,
     private readonly locationService: LocationService,
     private readonly fileService: FileService,
-  ) { }
+  ) {}
 
   async getAll(query: EnterpriseQueryDto = {}): Promise<EnterpriseResponse[]> {
     const baseWhere: FindOptionsWhere<EnterpriseEntity> = {};
@@ -69,13 +73,13 @@ export class EnterpriseService {
     const where:
       | FindOptionsWhere<EnterpriseEntity>
       | FindOptionsWhere<EnterpriseEntity>[] = search
-        ? [
+      ? [
           { ...baseWhere, enterpriseName: ILike(`%${search}%`) },
           { ...baseWhere, taxCode: ILike(`%${search}%`) },
           { ...baseWhere, email: ILike(`%${search}%`) },
           { ...baseWhere, representativeName: ILike(`%${search}%`) },
         ]
-        : baseWhere;
+      : baseWhere;
 
     const enterprises = await this.enterpriseRepository.find({
       where,
@@ -111,6 +115,7 @@ export class EnterpriseService {
     );
 
     const passwordHash = await argon2.hash(INITIAL_ENTERPRISE_PASSWORD);
+    const initialFiles = this.buildInitialFiles(dto);
 
     const enterprise = await this.dataSource.transaction(async (manager) => {
       const newEnterprise = await manager.save(
@@ -124,7 +129,7 @@ export class EnterpriseService {
           operatingProvinceId: dto.operatingProvinceId ?? null,
           operatingWardId: dto.operatingWardId ?? null,
           operatingAddress: dto.operatingAddress ?? null,
-          files: {},
+          files: initialFiles,
           isActive: true,
           createdBy: creatorId ?? null,
           updatedBy: creatorId ?? null,
@@ -166,8 +171,8 @@ export class EnterpriseService {
 
     if (dto.provinceId !== undefined || dto.wardId !== undefined) {
       await this.locationService.assertValidSelection(
-        dto.provinceId ?? enterprise.provinceId,
-        dto.wardId ?? enterprise.wardId,
+        dto.provinceId !== undefined ? dto.provinceId : enterprise.provinceId,
+        dto.wardId !== undefined ? dto.wardId : enterprise.wardId,
       );
     }
     if (
@@ -175,8 +180,12 @@ export class EnterpriseService {
       dto.operatingWardId !== undefined
     ) {
       await this.locationService.assertValidSelection(
-        dto.operatingProvinceId ?? enterprise.operatingProvinceId,
-        dto.operatingWardId ?? enterprise.operatingWardId,
+        dto.operatingProvinceId !== undefined
+          ? dto.operatingProvinceId
+          : enterprise.operatingProvinceId,
+        dto.operatingWardId !== undefined
+          ? dto.operatingWardId
+          : enterprise.operatingWardId,
       );
     }
     if (dto.businessTypeId !== undefined) {
@@ -241,6 +250,9 @@ export class EnterpriseService {
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
     const enterprise = await this.findEntityOrFail(id);
+    const legacyKeyField =
+      fileType === 'businessLicense' ? 'businessLicenseKey' : 'otherDocumentKey';
+    const legacyObjectKey = enterprise[legacyKeyField];
     const previousFile = enterprise.files?.[fileType];
     const uploaded = await this.fileService.upload(
       file,
@@ -248,7 +260,7 @@ export class EnterpriseService {
       id,
     );
 
-    await this.enterpriseRepository.update(id, {
+    const updatePayload: Partial<EnterpriseEntity> = {
       files: {
         ...enterprise.files,
         [fileType]: {
@@ -259,9 +271,16 @@ export class EnterpriseService {
         },
       },
       updatedBy: updaterId ?? null,
-    });
+    };
+    if (legacyObjectKey) {
+      updatePayload[legacyKeyField] = null;
+    }
+
+    await this.enterpriseRepository.update(id, updatePayload);
     if (previousFile) {
       await this.fileService.deleteEnterpriseFile(previousFile.objectKey);
+    } else if (legacyObjectKey) {
+      await this.fileService.deleteEnterpriseFile(legacyObjectKey);
     }
 
     return this.toResponse(await this.findEntityOrFail(id));
@@ -273,16 +292,26 @@ export class EnterpriseService {
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
     const enterprise = await this.findEntityOrFail(id);
+    const legacyKeyField =
+      fileType === 'businessLicense' ? 'businessLicenseKey' : 'otherDocumentKey';
+    const legacyObjectKey = enterprise[legacyKeyField];
     const removedFile = enterprise.files?.[fileType];
     const files = { ...enterprise.files };
     delete files[fileType];
 
-    await this.enterpriseRepository.update(id, {
+    const updatePayload: Partial<EnterpriseEntity> = {
       files,
       updatedBy: updaterId ?? null,
-    });
+    };
+    if (legacyObjectKey) {
+      updatePayload[legacyKeyField] = null;
+    }
+
+    await this.enterpriseRepository.update(id, updatePayload);
     if (removedFile) {
       await this.fileService.deleteEnterpriseFile(removedFile.objectKey);
+    } else if (legacyObjectKey) {
+      await this.fileService.deleteEnterpriseFile(legacyObjectKey);
     }
 
     return this.toResponse(await this.findEntityOrFail(id));
@@ -311,22 +340,39 @@ export class EnterpriseService {
   }
 
   async getMyEnterprise(userId: number): Promise<EnterpriseResponse> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-    if (!user || !user.enterpriseId) {
-      throw new NotFoundException({
-        code: ErrorCode.ENTERPRISE_NOT_FOUND,
-        message: 'Tài khoản không thuộc doanh nghiệp nào.',
-      });
-    }
-    return this.getById(user.enterpriseId);
+    const enterpriseId = await this.findUserEnterpriseIdOrFail(userId);
+    return this.getById(enterpriseId);
   }
 
   async updateMyEnterprise(
     userId: number,
     dto: UpdateEnterpriseDto,
   ): Promise<EnterpriseResponse> {
+    const enterpriseId = await this.findUserEnterpriseIdOrFail(userId);
+    // Doanh nghiệp tự đổi email bắt buộc phải qua luồng xác thực OTP (/auth/request-email-change)
+    const updatePayload = { ...dto };
+    delete (updatePayload as Record<string, unknown>).email;
+    return this.update(enterpriseId, updatePayload, userId);
+  }
+
+  async uploadMyEnterpriseFile(
+    userId: number,
+    fileType: EnterpriseFileType,
+    file: MultipartFile | undefined,
+  ): Promise<EnterpriseResponse> {
+    const enterpriseId = await this.findUserEnterpriseIdOrFail(userId);
+    return this.uploadFile(enterpriseId, fileType, file, userId);
+  }
+
+  async removeMyEnterpriseFile(
+    userId: number,
+    fileType: EnterpriseFileType,
+  ): Promise<EnterpriseResponse> {
+    const enterpriseId = await this.findUserEnterpriseIdOrFail(userId);
+    return this.removeFile(enterpriseId, fileType, userId);
+  }
+
+  private async findUserEnterpriseIdOrFail(userId: number): Promise<number> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });
@@ -336,9 +382,7 @@ export class EnterpriseService {
         message: 'Tài khoản không thuộc doanh nghiệp nào.',
       });
     }
-    const updatePayload = { ...dto };
-    delete (updatePayload as Record<string, unknown>).email;
-    return this.update(user.enterpriseId, updatePayload, userId);
+    return user.enterpriseId;
   }
 
   private async findEntityOrFail(id: number): Promise<EnterpriseEntity> {
@@ -354,21 +398,74 @@ export class EnterpriseService {
     return enterprise;
   }
 
+  private buildInitialFiles(dto: CreateEnterpriseDto): EnterpriseFiles {
+    const files: EnterpriseFiles = {};
+    if (dto.businessLicenseKey) {
+      files.businessLicense = this.resolveStoredFile(dto.businessLicenseKey);
+    }
+    if (dto.otherDocumentKey) {
+      files.otherDocument = this.resolveStoredFile(dto.otherDocumentKey);
+    }
+    return files;
+  }
+
+  private resolveStoredFile(objectKey: string): EnterpriseStoredFile {
+    if (typeof this.fileService.resolveEnterpriseStoredFile === 'function') {
+      return this.fileService.resolveEnterpriseStoredFile(objectKey);
+    }
+    return {
+      objectKey,
+      originalName: objectKey.split('/').pop() ?? objectKey,
+      contentType: 'application/octet-stream',
+      size: 0,
+    };
+  }
+
+  private tryResolveStoredFile(objectKey: string): EnterpriseStoredFile | null {
+    try {
+      return this.resolveStoredFile(objectKey);
+    } catch {
+      return null;
+    }
+  }
 
   private toResponse(enterprise: EnterpriseEntity): EnterpriseResponse {
+    const mergedFiles: EnterpriseFiles = { ...(enterprise.files ?? {}) };
+    if (!mergedFiles.businessLicense && enterprise.businessLicenseKey) {
+      const resolved = this.tryResolveStoredFile(enterprise.businessLicenseKey);
+      if (resolved) {
+        mergedFiles.businessLicense = resolved;
+      }
+    }
+    if (!mergedFiles.otherDocument && enterprise.otherDocumentKey) {
+      const resolved = this.tryResolveStoredFile(enterprise.otherDocumentKey);
+      if (resolved) {
+        mergedFiles.otherDocument = resolved;
+      }
+    }
+
     const files = Object.fromEntries(
-      Object.entries(enterprise.files ?? {}).map(([fileType, file]) => [
-        fileType,
-        {
-          ...file,
-          originalName: this.fileService.normalizeOriginalFileName(
-            file.originalName,
-          ),
-          accessUrl: this.fileService.getEnterpriseFileAccessUrl(
-            file.objectKey,
-          ),
-        },
-      ]),
+      Object.entries(mergedFiles).flatMap(([fileType, file]) => {
+        if (!file) return [];
+        try {
+          return [
+            [
+              fileType,
+              {
+                ...file,
+                originalName: this.fileService.normalizeOriginalFileName(
+                  file.originalName,
+                ),
+                accessUrl: this.fileService.getEnterpriseFileAccessUrl(
+                  file.objectKey,
+                ),
+              },
+            ],
+          ];
+        } catch {
+          return [];
+        }
+      }),
     );
     return EnterpriseMapper.toResponse(enterprise, files);
   }
@@ -389,7 +486,10 @@ export class EnterpriseService {
     }
   }
 
-  async assertEmailAvailable(email: string, excludeEnterpriseId?: number): Promise<void> {
+  async assertEmailAvailable(
+    email: string,
+    excludeEnterpriseId?: number,
+  ): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
     const [user, enterprise] = await Promise.all([
       this.userService.findByEmail(normalizedEmail),
@@ -399,7 +499,8 @@ export class EnterpriseService {
       }),
     ]);
     const enterpriseConflict =
-      enterprise && (!excludeEnterpriseId || enterprise.id !== excludeEnterpriseId);
+      enterprise &&
+      (!excludeEnterpriseId || enterprise.id !== excludeEnterpriseId);
     if (user || enterpriseConflict) {
       throw new ConflictException({
         code: ErrorCode.EMAIL_EXISTS,
