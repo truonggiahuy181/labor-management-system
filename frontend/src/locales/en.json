@@ -131,7 +131,8 @@
     "province": "Province / city",
     "ward": "Ward / commune",
     "address": "Address",
-    "loadFailed": "Could not load account information"
+    "loadFailed": "Could not load account information",
+    "enterpriseLoadFailed": "Could not load the business attachments"
   },
   "changeEmail": {
     "title": "CHANGE EMAIL",

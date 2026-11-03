@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Link, MenuItem, Stack, TextField } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import { FilesTable } from '@/Components/BusinessRegister/BusinessInfoStep';
 import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
 import AvatarCard from '@/Components/UserProfile/AvatarCard';
 import FormTextField from '@/Components/UserProfile/FormTextField';
@@ -12,6 +13,8 @@ import ProfileLayout from '@/Components/UserProfile/ProfileLayout';
 import ProfileSections from '@/Components/UserProfile/ProfileSections';
 import useLocales from '@/Hooks/useLocales';
 import useLocations from '@/Hooks/useLocations';
+import type { BusinessFiles } from '@/services/business';
+import { enterpriseApi, toBusinessFiles } from '@/services/enterprise';
 import { getErrorMessage, userApi, type Profile, type ProfileUpdate } from '@/services/user';
 import { GENDERS, type Option } from '@/Components/UserProfile/options';
 import { ROLE } from '@/constants/roles'
@@ -47,6 +50,8 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [enterpriseFiles, setEnterpriseFiles] = useState<BusinessFiles | null>(null);
+  const isEnterprise = profile?.roleId === ROLE.ENTERPRISE;
   const locations = useLocations();
   const { ensureWards } = locations;
   const { control, handleSubmit, reset, setValue, formState: { isSubmitting, isDirty } } = useForm<Form>({ defaultValues: EMPTY });
@@ -63,6 +68,14 @@ export default function AccountPage() {
       .then((p) => { setProfile(p); reset(toForm(p)); })
       .catch((err) => enqueueSnackbar(getErrorMessage(err, translate('account.loadFailed')), { variant: 'error' }));
   }, [reset, enqueueSnackbar, translate]);
+
+  // Tài khoản doanh nghiệp: xem file đính kèm của doanh nghiệp (GET /enterprises/me), chỉ đọc
+  useEffect(() => {
+    if (!isEnterprise) return;
+    enterpriseApi.me()
+      .then((e) => setEnterpriseFiles(toBusinessFiles(e)))
+      .catch((err) => enqueueSnackbar(getErrorMessage(err, translate('account.enterpriseLoadFailed')), { variant: 'error' }));
+  }, [isEnterprise, enqueueSnackbar, translate]);
 
   const onSubmit = async (values: Form) => {
     try {
@@ -163,7 +176,8 @@ export default function AccountPage() {
             options={currentWards} searchable
             disabled={!selectedProvince || locations.isLoadingWards(selectedProvince) || currentWards.length === 0}
             translateLabels={false} />}
-          address={field('address', 'account.address')} />
+          address={field('address', 'account.address')}
+          files={isEnterprise && enterpriseFiles && <FilesTable files={enterpriseFiles} />} />
       }>
       <ChangeEmailDialog open={emailOpen} currentEmail={profile?.email ?? ''} onClose={() => setEmailOpen(false)}
         onChanged={(email) => setProfile((p) => (p ? { ...p, email } : p))} />
