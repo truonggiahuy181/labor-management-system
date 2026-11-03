@@ -131,7 +131,8 @@
     "province": "Tỉnh/ thành phố",
     "ward": "Phường xã",
     "address": "Địa chỉ",
-    "loadFailed": "Không tải được thông tin tài khoản"
+    "loadFailed": "Không tải được thông tin tài khoản",
+    "enterpriseLoadFailed": "Không tải được file đính kèm của doanh nghiệp"
   },
   "changeEmail": {
     "title": "THAY ĐỔI EMAIL",

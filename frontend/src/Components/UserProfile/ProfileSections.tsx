@@ -1,16 +1,18 @@
 // src/Components/UserProfile/ProfileSections.tsx
 // Cột phải: "Thông tin cá nhân" (lưới 2 cột, mỗi trang tự truyền các ô) + "Thông tin liên hệ" (Tỉnh, Phường, Địa chỉ)
+// + "File đính kèm" (chỉ khi truyền files, vd. tài khoản doanh nghiệp)
 'use client';
 import type { ReactNode } from 'react';
 import { Card, Divider, Grid, Typography } from '@mui/material';
 import useLocales from '@/Hooks/useLocales';
 import { PROFILE_CARD_SX } from './options';
 
-export default function ProfileSections({ personal, province, ward, address }: {
+export default function ProfileSections({ personal, province, ward, address, files }: {
   personal: ReactNode[];
   province: ReactNode;
   ward: ReactNode;
   address: ReactNode;
+  files?: ReactNode;
 }) {
   const { translate } = useLocales();
   return (
@@ -28,6 +30,14 @@ export default function ProfileSections({ personal, province, ward, address }: {
         <Grid size={{ xs: 12, md: 6 }}>{ward}</Grid>
         <Grid size={12}>{address}</Grid>
       </Grid>
+
+      {files && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          <Typography sx={{ fontWeight: 700, mb: 2 }}>{translate('businessRegister.filesSection')}</Typography>
+          {files}
+        </>
+      )}
     </Card>
   );
 }

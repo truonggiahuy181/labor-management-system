@@ -49,6 +49,8 @@ export interface CreatedEnterprise {
 export const enterpriseApi = {
   list: () => api.get<BackendResponse<Enterprise[]>>('/enterprises').then((r) => r.data.data ?? []),
   get: (id: number) => api.get<BackendResponse<Enterprise>>(`/enterprises/${id}`).then((r) => r.data.data),
+  // Doanh nghiệp của tài khoản đang đăng nhập (vai trò Doanh nghiệp)
+  me: () => api.get<BackendResponse<Enterprise>>('/enterprises/me').then((r) => r.data.data),
   create: (body: Partial<EnterpriseBody>) =>
     api.post<BackendResponse<CreatedEnterprise>>('/enterprises', body).then((r) => r.data.data),
   update: (id: number, body: Partial<EnterpriseBody>) =>
