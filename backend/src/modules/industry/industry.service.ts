@@ -131,7 +131,38 @@ export class IndustryService {
     id: number,
     isActive: boolean,
   ): Promise<IndustryResponseDto> {
-    await this.findEntityOrFail(id);
+    const industry = await this.findEntityOrFail(id);
+    if (industry.isActive === isActive) {
+      return this.toResponse(industry);
+    }
+
+    if (isActive) {
+      await this.validateParent(industry.level, industry.parentId, id);
+    } else {
+      const [isUsed, hasActiveChildren] = await Promise.all([
+        this.enterpriseRepository.exists({
+          where: { industryId: id },
+        }),
+        this.industryRepository.exists({
+          where: { parentId: id, isActive: true },
+        }),
+      ]);
+      if (isUsed) {
+        throw new ConflictException({
+          code: ErrorCode.INDUSTRY_IN_USE,
+          message:
+            'Không thể ngừng sử dụng ngành nghề đang được doanh nghiệp sử dụng.',
+        });
+      }
+      if (hasActiveChildren) {
+        throw new ConflictException({
+          code: ErrorCode.INDUSTRY_HAS_CHILDREN,
+          message:
+            'Không thể ngừng sử dụng ngành nghề đang có ngành con hoạt động.',
+        });
+      }
+    }
+
     await this.industryRepository.update(id, { isActive });
     return this.toResponse(await this.findEntityOrFail(id));
   }

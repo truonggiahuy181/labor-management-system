@@ -172,11 +172,25 @@ describe('BusinessTypeService', () => {
     repository.update.mockImplementation(async (_id, values) => {
       Object.assign(businessType, values);
     });
+    enterpriseRepository.exists.mockResolvedValue(false);
 
     const result = await service.updateStatus(1, false);
 
+    expect(enterpriseRepository.exists).toHaveBeenCalledWith({
+      where: { businessTypeId: 1 },
+    });
     expect(repository.update).toHaveBeenCalledWith(1, { isActive: false });
     expect(result.isActive).toBe(false);
+  });
+
+  it('rejects deactivating a business type used by an enterprise', async () => {
+    repository.findOne.mockResolvedValue({ id: 1, isActive: true });
+    enterpriseRepository.exists.mockResolvedValue(true);
+
+    await expect(service.updateStatus(1, false)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an active business type', async () => {

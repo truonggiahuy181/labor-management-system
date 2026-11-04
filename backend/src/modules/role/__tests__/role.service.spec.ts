@@ -162,8 +162,21 @@ describe('RoleService', () => {
 
     const result = await service.updateStatus(2, false);
 
+    expect(userRepository.exists).toHaveBeenCalledWith({
+      where: { roleId: 2 },
+    });
     expect(repository.update).toHaveBeenCalledWith(2, { isActive: false });
     expect(result.isActive).toBe(false);
+  });
+
+  it('rejects deactivating a role assigned to a user', async () => {
+    repository.findOne.mockResolvedValue({ id: 2, isActive: true });
+    userRepository.exists.mockResolvedValue(true);
+
+    await expect(service.updateStatus(2, false)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an active role', async () => {
