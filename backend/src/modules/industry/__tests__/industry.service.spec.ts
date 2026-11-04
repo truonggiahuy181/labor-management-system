@@ -204,11 +204,56 @@ describe('IndustryService', () => {
     repository.findOne
       .mockResolvedValueOnce(industry)
       .mockResolvedValueOnce({ ...industry, isActive: false });
+    enterpriseRepository.exists.mockResolvedValue(false);
+    repository.exists.mockResolvedValue(false);
 
     await expect(service.updateStatus(1, false)).resolves.toMatchObject({
       isActive: false,
     });
+    expect(enterpriseRepository.exists).toHaveBeenCalledWith({
+      where: { industryId: 1 },
+    });
+    expect(repository.exists).toHaveBeenCalledWith({
+      where: { parentId: 1, isActive: true },
+    });
     expect(repository.update).toHaveBeenCalledWith(1, { isActive: false });
+  });
+
+  it('rejects deactivating an industry used by an enterprise', async () => {
+    repository.findOne.mockResolvedValue(industry);
+    enterpriseRepository.exists.mockResolvedValue(true);
+    repository.exists.mockResolvedValue(false);
+
+    await expect(service.updateStatus(1, false)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects deactivating an industry with active children', async () => {
+    repository.findOne.mockResolvedValue({
+      ...industry,
+      level: 2,
+      parentId: null,
+    });
+    enterpriseRepository.exists.mockResolvedValue(false);
+    repository.exists.mockResolvedValue(true);
+
+    await expect(service.updateStatus(1, false)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects reactivating an industry whose parent is inactive', async () => {
+    repository.findOne
+      .mockResolvedValueOnce({ ...industry, isActive: false })
+      .mockResolvedValueOnce(null);
+
+    await expect(service.updateStatus(1, true)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an active industry', async () => {

@@ -92,7 +92,24 @@ export class BusinessTypeService {
     id: number,
     isActive: boolean,
   ): Promise<BusinessTypeResponseDto> {
-    await this.findEntityOrFail(id);
+    const businessType = await this.findEntityOrFail(id);
+    if (businessType.isActive === isActive) {
+      return businessType;
+    }
+
+    if (!isActive) {
+      const isUsed = await this.enterpriseRepository.exists({
+        where: { businessTypeId: id },
+      });
+      if (isUsed) {
+        throw new ConflictException({
+          code: ErrorCode.BUSINESS_TYPE_IN_USE,
+          message:
+            'Không thể ngừng sử dụng loại hình kinh doanh đang được doanh nghiệp sử dụng.',
+        });
+      }
+    }
+
     await this.businessTypeRepository.update(id, { isActive });
     return this.findEntityOrFail(id);
   }

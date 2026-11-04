@@ -72,7 +72,24 @@ export class RoleService {
   }
 
   async updateStatus(id: number, isActive: boolean): Promise<RoleResponseDto> {
-    await this.findEntityOrFail(id);
+    const role = await this.findEntityOrFail(id);
+    if (role.isActive === isActive) {
+      return role;
+    }
+
+    if (!isActive) {
+      const isUsed = await this.userRepository.exists({
+        where: { roleId: id },
+      });
+      if (isUsed) {
+        throw new ConflictException({
+          code: ErrorCode.ROLE_IN_USE,
+          message:
+            'Không thể ngừng sử dụng vai trò đang được người dùng sử dụng.',
+        });
+      }
+    }
+
     await this.roleRepository.update(id, { isActive });
     return this.findEntityOrFail(id);
   }
