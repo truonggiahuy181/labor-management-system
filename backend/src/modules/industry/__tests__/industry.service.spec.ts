@@ -135,7 +135,6 @@ describe('IndustryService', () => {
       service.create({
         industryCode: ' abc_1 ',
         industryName: ' Ngành mẫu ',
-        level: 1,
       }),
     ).resolves.toEqual({
       id: 2,
@@ -154,21 +153,41 @@ describe('IndustryService', () => {
       service.create({
         industryCode: '6201',
         industryName: 'Tên khác',
-        level: 1,
       }),
     ).rejects.toThrow(ConflictException);
   });
 
-  it('rejects a child whose parent is at the wrong level', async () => {
+  it('derives a child level from its active parent chain', async () => {
     repository.findOne
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ...industry, id: 5, level: 1 });
+      .mockResolvedValueOnce({ ...industry, id: 5, level: 3, parentId: 4 })
+      .mockResolvedValueOnce({ ...industry, id: 4, level: 2, parentId: 3 })
+      .mockResolvedValueOnce({ ...industry, id: 3, level: 1, parentId: null });
+    repository.save.mockImplementation(async (value) => ({ id: 6, ...value }));
 
     await expect(
       service.create({
         industryCode: 'CHILD',
         industryName: 'Ngành con',
-        level: 3,
+        parentId: 5,
+      }),
+    ).resolves.toMatchObject({
+      id: 6,
+      industryCode: 'CHILD',
+      level: 4,
+      parentId: 5,
+    });
+  });
+
+  it('rejects creating a child below level four', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...industry, id: 5, level: 4 });
+
+    await expect(
+      service.create({
+        industryCode: 'CHILD',
+        industryName: 'Ngành con',
         parentId: 5,
       }),
     ).rejects.toThrow(BadRequestException);
@@ -191,13 +210,62 @@ describe('IndustryService', () => {
     });
   });
 
-  it('rejects changing the level of an industry with children', async () => {
-    repository.findOne.mockResolvedValue({ ...industry, level: 2 });
+  it('rejects changing the parent of an industry with children', async () => {
+    repository.findOne
+      .mockResolvedValueOnce({ ...industry, level: 2, parentId: 10 })
+      .mockResolvedValueOnce({ ...industry, id: 20, level: 1, parentId: null });
     repository.exists.mockResolvedValue(true);
+    enterpriseRepository.exists.mockResolvedValue(false);
 
-    await expect(service.update(1, { level: 3 })).rejects.toThrow(
+    await expect(service.update(1, { parentId: 20 })).rejects.toThrow(
       ConflictException,
     );
+  });
+
+  it('rejects changing the parent of an industry used by an enterprise', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(industry)
+      .mockResolvedValueOnce({ ...industry, id: 20, level: 3, parentId: 30 })
+      .mockResolvedValueOnce({ ...industry, id: 30, level: 2, parentId: 40 })
+      .mockResolvedValueOnce({ ...industry, id: 40, level: 1, parentId: null });
+    repository.exists.mockResolvedValue(false);
+    enterpriseRepository.exists.mockResolvedValue(true);
+
+    await expect(service.update(1, { parentId: 20 })).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it('rejects choosing itself as parent', async () => {
+    repository.findOne.mockResolvedValueOnce(industry);
+
+    await expect(service.update(1, { parentId: 1 })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('reparents an unused leaf and derives its level', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(industry)
+      .mockResolvedValueOnce({ ...industry, id: 20, level: 2, parentId: 30 })
+      .mockResolvedValueOnce({ ...industry, id: 30, level: 1, parentId: null })
+      .mockResolvedValueOnce({
+        ...industry,
+        level: 3,
+        parentId: 20,
+      });
+    repository.exists.mockResolvedValue(false);
+    enterpriseRepository.exists.mockResolvedValue(false);
+
+    await expect(service.update(1, { parentId: 20 })).resolves.toMatchObject({
+      level: 3,
+      parentId: 20,
+    });
+    expect(repository.update).toHaveBeenCalledWith(1, {
+      level: 3,
+      parentId: 20,
+    });
   });
 
   it('updates industry status', async () => {

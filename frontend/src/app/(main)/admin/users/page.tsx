@@ -125,8 +125,7 @@ export default function UsersPage() {
     const ids = selected.filter((id) => id !== Number(user?.id));
 
     const softDelete = async (id: number) => {
-      if (allRows.find((r) => r.id === id)?.isActive !== false) await adminUserApi.updateStatus(id, false);;
-        await adminUserApi.remove(id);
+      await adminUserApi.remove(id);
     };
 
     const results = await Promise.allSettled(ids.map(softDelete));

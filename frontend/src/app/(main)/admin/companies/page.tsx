@@ -121,7 +121,7 @@ export default function CompaniesPage() {
 
   const deleteSelected = async () => {
     // Backend chỉ xoá doanh nghiệp đã ngừng hoạt động và không còn tài khoản (chưa bị xoá):
-    // còn tài khoản thì bỏ qua và báo; không thì ngừng hoạt động (nếu cần) rồi DELETE /enterprises/:id (xoá mềm)
+    // còn tài khoản thì bỏ qua và báo; doanh nghiệp active sẽ bị API từ chối xoá.
     const hasAccount: string[] = [];
     const softDelete = async (id: number) => {
       const row = rows.find((r) => r.id === id);
@@ -129,7 +129,6 @@ export default function CompaniesPage() {
         hasAccount.push(row?.enterpriseName ?? String(id));
         return false;
       }
-      if (row?.isActive !== false) await enterpriseApi.updateStatus(id, false);
       await enterpriseApi.remove(id);
       return true;
     };

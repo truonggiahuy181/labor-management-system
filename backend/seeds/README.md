@@ -8,7 +8,9 @@ Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ 
 
 - Danh mục vai trò: `ADMIN`, `ENTERPRISE_USER`.
 - 5 loại hình doanh nghiệp.
-- 24 ngành nghề cấp 4 thuộc nhiều lĩnh vực.
+- Cây ngành nghề kinh doanh đủ cấp 1-4 cho các ngành doanh nghiệp mẫu sử dụng.
+  Trong đó `6209` là ngành active chưa được sử dụng; `6312` và nhánh
+  `T → 97 → 970 → 9700` inactive để kiểm thử quy tắc trạng thái.
 - Mặc định 30 doanh nghiệp có tên riêng, loại hình và ngành nghề phù hợp, gồm cả trạng thái hoạt động và ngừng hoạt động.
 - Một tài khoản cho mỗi doanh nghiệp mẫu, đủ dữ liệu để kiểm thử nhiều trang với `pageSize=10`.
 - Một tài khoản quản trị mẫu.

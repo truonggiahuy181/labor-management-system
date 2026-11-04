@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { DataSource, EntityManager } from 'typeorm';
+import { buildIndustrySeedRows } from '../catalogs/industry-catalog.js';
 
 interface LocationPair {
   province_code: string;
@@ -30,7 +31,7 @@ interface CompanyProfile {
   enterpriseName: string;
   foreignName: string;
   businessTypeCode: (typeof BUSINESS_TYPES)[number][0];
-  industryCode: (typeof INDUSTRIES)[number][0];
+  industryCode: string;
 }
 
 const DEFAULT_PAGINATION_RECORDS = 30;
@@ -43,39 +44,6 @@ const BUSINESS_TYPES = [
   ['CTCP', 'Công ty cổ phần'],
   ['DNTN', 'Doanh nghiệp tư nhân'],
   ['HD', 'Công ty hợp danh'],
-] as const;
-
-const INDUSTRIES = [
-  ['6201', 'Lập trình máy vi tính'],
-  ['6202', 'Tư vấn máy vi tính và quản trị hệ thống máy vi tính'],
-  ['6311', 'Xử lý dữ liệu, cho thuê và các hoạt động liên quan'],
-  ['7020', 'Hoạt động tư vấn quản lý'],
-  ['4690', 'Bán buôn tổng hợp'],
-  ['4101', 'Xây dựng nhà để ở'],
-  ['5610', 'Nhà hàng và các dịch vụ ăn uống phục vụ lưu động'],
-  ['4933', 'Vận tải hàng hóa bằng đường bộ'],
-  [
-    '6810',
-    'Kinh doanh bất động sản, quyền sử dụng đất thuộc chủ sở hữu, chủ sử dụng hoặc đi thuê',
-  ],
-  ['1079', 'Sản xuất thực phẩm khác chưa được phân vào đâu'],
-  [
-    '4772',
-    'Bán lẻ thuốc, dụng cụ y tế, mỹ phẩm và vật phẩm vệ sinh trong các cửa hàng chuyên doanh',
-  ],
-  ['8559', 'Giáo dục khác chưa được phân vào đâu'],
-  ['7912', 'Điều hành tua du lịch'],
-  ['7410', 'Hoạt động thiết kế chuyên dụng'],
-  ['6910', 'Hoạt động pháp luật'],
-  ['3100', 'Sản xuất giường, tủ, bàn, ghế'],
-  ['0118', 'Trồng rau, đậu các loại và trồng hoa'],
-  ['7310', 'Quảng cáo'],
-  ['2592', 'Gia công cơ khí; xử lý và tráng phủ kim loại'],
-  ['7110', 'Hoạt động kiến trúc và tư vấn kỹ thuật có liên quan'],
-  ['2023', 'Sản xuất mỹ phẩm, xà phòng, chất tẩy rửa, làm bóng'],
-  ['3511', 'Sản xuất điện'],
-  ['2610', 'Sản xuất linh kiện điện tử'],
-  ['8699', 'Hoạt động y tế khác chưa được phân vào đâu'],
 ] as const;
 
 const REPRESENTATIVE_NAMES = [
@@ -745,34 +713,46 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
       ],
     );
 
-    await manager.query(
-      `
-        INSERT INTO industries (
-          industry_code,
-          industry_name,
-          level,
-          parent_id,
-          is_active,
-          deleted_at
-        )
-        SELECT industry_code, industry_name, 4, NULL, TRUE, NULL
-        FROM jsonb_to_recordset($1::jsonb)
-          AS seed(industry_code VARCHAR(50), industry_name VARCHAR(255))
-        ON CONFLICT (industry_code) DO UPDATE
-        SET industry_name = EXCLUDED.industry_name,
-            level = 4,
-            is_active = TRUE,
-            deleted_at = NULL
-      `,
-      [
-        JSON.stringify(
-          INDUSTRIES.map(([industryCode, industryName]) => ({
-            industry_code: industryCode,
-            industry_name: industryName,
-          })),
-        ),
-      ],
-    );
+    const industryRows = buildIndustrySeedRows();
+    for (let level = 1; level <= 4; level += 1) {
+      const rowsAtLevel = industryRows.filter((row) => row.level === level);
+      await manager.query(
+        `
+          INSERT INTO industries (
+            industry_code,
+            industry_name,
+            level,
+            parent_id,
+            is_active,
+            deleted_at
+          )
+          SELECT
+            seed.industry_code,
+            seed.industry_name,
+            seed.level,
+            parent.id,
+            seed.is_active,
+            NULL
+          FROM jsonb_to_recordset($1::jsonb)
+            AS seed(
+              industry_code VARCHAR(50),
+              industry_name VARCHAR(255),
+              parent_code VARCHAR(50),
+              level INT,
+              is_active BOOLEAN
+            )
+          LEFT JOIN industries AS parent
+            ON parent.industry_code = seed.parent_code
+            AND parent.deleted_at IS NULL
+          ON CONFLICT (industry_code) DO UPDATE
+          SET industry_name = EXCLUDED.industry_name,
+              level = EXCLUDED.level,
+              parent_id = EXCLUDED.parent_id,
+              deleted_at = NULL
+        `,
+        [JSON.stringify(rowsAtLevel)],
+      );
+    }
   }
 
   private async seedReportPeriods(manager: EntityManager): Promise<void> {

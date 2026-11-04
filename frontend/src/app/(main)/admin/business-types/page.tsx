@@ -83,7 +83,6 @@ export default function BusinessTypesPage() {
       const row = rows.find((item) => item.id === id);
       if (!row) continue;
       try {
-        if (row.isActive) await businessTypeApi.updateStatus(id, false);
         await businessTypeApi.remove(id);
         success += 1;
       } catch (error) {
@@ -191,7 +190,7 @@ export default function BusinessTypesPage() {
 
       <Dialog open={confirmDelete} onClose={deleting ? undefined : () => setConfirmDelete(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('catalogManagement.deleteBusinessTypesTitle')}</DialogTitle>
-        <DialogContent>{translate('catalogManagement.deleteConfirm', { count: selected.length })}</DialogContent>
+        <DialogContent>{translate('catalogManagement.deleteBusinessTypesConfirm', { count: selected.length })}</DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmDelete(false)} disabled={deleting}>{translate('common.cancel')}</Button>
           <Button variant="contained" color="error" onClick={deleteSelected} disabled={deleting}>{translate('users.delete')}</Button>
