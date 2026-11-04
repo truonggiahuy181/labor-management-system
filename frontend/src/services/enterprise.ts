@@ -160,9 +160,9 @@ export const businessTypeApi = {
 export const industryApi = {
   list: (params: IndustryFilters = {}) =>
     api.get<BackendResponse<Industry[]>>('/industries', { params }).then((r) => r.data.data ?? []),
-  create: (body: Pick<Industry, 'industryCode' | 'industryName' | 'level' | 'parentId'>) =>
+  create: (body: Pick<Industry, 'industryCode' | 'industryName' | 'parentId'>) =>
     api.post<BackendResponse<Industry>>('/industries', body).then((r) => r.data.data),
-  update: (id: number, body: Partial<Pick<Industry, 'industryName' | 'level' | 'parentId'>>) =>
+  update: (id: number, body: Partial<Pick<Industry, 'industryName' | 'parentId'>>) =>
     api.patch<BackendResponse<Industry>>(`/industries/${id}`, body).then((r) => r.data.data),
   updateStatus: (id: number, isActive: boolean) =>
     api.patch<BackendResponse<Industry>>(`/industries/${id}/status`, { isActive }).then((r) => r.data.data),

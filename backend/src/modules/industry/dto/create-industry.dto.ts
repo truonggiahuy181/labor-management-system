@@ -5,7 +5,6 @@ import {
   IsOptional,
   IsString,
   Matches,
-  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -31,13 +30,6 @@ export class CreateIndustryDto {
   @IsNotEmpty()
   @MaxLength(255)
   industryName: string;
-
-  @ApiProperty({ example: 4, minimum: 1, maximum: 4 })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(4)
-  level: number;
 
   @ApiPropertyOptional({ example: 10, nullable: true })
   @IsOptional()

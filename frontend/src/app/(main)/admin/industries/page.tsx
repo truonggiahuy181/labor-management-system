@@ -86,7 +86,6 @@ export default function IndustriesPage() {
 
     for (const row of selectedRows) {
       try {
-        if (row.isActive) await industryApi.updateStatus(row.id, false);
         await industryApi.remove(row.id);
         success += 1;
       } catch (error) {
@@ -213,7 +212,7 @@ export default function IndustriesPage() {
 
       <Dialog open={confirmDelete} onClose={deleting ? undefined : () => setConfirmDelete(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('catalogManagement.deleteIndustriesTitle')}</DialogTitle>
-        <DialogContent>{translate('catalogManagement.deleteConfirm', { count: selected.length })}</DialogContent>
+        <DialogContent>{translate('catalogManagement.deleteIndustriesConfirm', { count: selected.length })}</DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmDelete(false)} disabled={deleting}>{translate('common.cancel')}</Button>
           <Button variant="contained" color="error" onClick={deleteSelected} disabled={deleting}>{translate('users.delete')}</Button>

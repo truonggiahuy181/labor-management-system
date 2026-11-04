@@ -77,13 +77,48 @@ describe('SampleDataSeedService', () => {
     const injuryFactorInsert = manager.query.mock.calls.find(([sql]) =>
       sql.includes('INSERT INTO injury_factors'),
     );
+    const industryInserts = manager.query.mock.calls.filter(([sql]) =>
+      sql.includes('INSERT INTO industries'),
+    );
     const enterpriseRows = JSON.parse(enterpriseInsert?.[1]?.[0] as string);
     const reportPeriodRows = JSON.parse(reportPeriodInsert?.[1]?.[0] as string);
     const injuryFactorRows = JSON.parse(injuryFactorInsert?.[1]?.[0] as string);
+    const industryRows = industryInserts.flatMap(([, parameters]) =>
+      JSON.parse(parameters?.[0] as string),
+    );
 
     expect(enterpriseRows).toHaveLength(30);
     expect(reportPeriodRows).toHaveLength(12);
     expect(injuryFactorRows).toHaveLength(9);
+    expect(industryInserts).toHaveLength(4);
+    expect(industryRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          industry_code: 'J',
+          parent_code: null,
+          level: 1,
+          is_active: true,
+        }),
+        expect.objectContaining({
+          industry_code: '6201',
+          parent_code: '620',
+          level: 4,
+          is_active: true,
+        }),
+        expect.objectContaining({
+          industry_code: '6312',
+          parent_code: '631',
+          level: 4,
+          is_active: false,
+        }),
+        expect.objectContaining({
+          industry_code: '9700',
+          parent_code: '970',
+          level: 4,
+          is_active: false,
+        }),
+      ]),
+    );
     expect(enterpriseRows[0]).toMatchObject({
       tax_code: '0990000001',
       enterprise_name: 'Công ty TNHH Công nghệ Sao Việt',

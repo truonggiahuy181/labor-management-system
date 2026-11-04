@@ -1,13 +1,23 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField } from '@mui/material';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import { useSnackbar } from 'notistack';
-import useLocales from '@/Hooks/useLocales';
-import { industryApi, type Industry } from '@/services/enterprise';
-import { getErrorMessage } from '@/services/user';
+import { useEffect, useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Stack,
+  TextField,
+} from "@mui/material";
+import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import { useSnackbar } from "notistack";
+import useLocales from "@/Hooks/useLocales";
+import { industryApi, type Industry } from "@/services/enterprise";
+import { getErrorMessage } from "@/services/user";
+import IndustryParentTreeSelect from "./IndustryParentTreeSelect";
 
 type IndustryForm = {
   industryCode: string;
@@ -17,9 +27,9 @@ type IndustryForm = {
 };
 
 const toForm = (industry: Industry | null): IndustryForm => ({
-  industryCode: industry?.industryCode ?? '',
-  industryName: industry?.industryName ?? '',
-  parentId: industry?.parentId ? String(industry.parentId) : '',
+  industryCode: industry?.industryCode ?? "",
+  industryName: industry?.industryName ?? "",
+  parentId: industry?.parentId ? String(industry.parentId) : "",
   isActive: industry?.isActive ?? true,
 });
 
@@ -38,7 +48,13 @@ const descendantIds = (rows: Industry[], rootId: number) => {
   return descendants;
 };
 
-export default function IndustryFormDialog({ open, industry, rows, onClose, onSaved }: {
+export default function IndustryFormDialog({
+  open,
+  industry,
+  rows,
+  onClose,
+  onSaved,
+}: {
   open: boolean;
   industry: Industry | null;
   rows: Industry[];
@@ -48,7 +64,12 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
   const isEdit = !!industry;
-  const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm<IndustryForm>({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { isSubmitting },
+  } = useForm<IndustryForm>({
     defaultValues: toForm(null),
   });
 
@@ -57,28 +78,28 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
   }, [industry, open, reset]);
 
   const parentOptions = useMemo(() => {
-    const blocked = industry ? descendantIds(rows, industry.id) : new Set<number>();
-    return rows.filter((row) => (
-      row.level < 4
-      && row.id !== industry?.id
-      && !blocked.has(row.id)
-      && (row.isActive || row.id === industry?.parentId)
-    ));
+    const blocked = industry
+      ? descendantIds(rows, industry.id)
+      : new Set<number>();
+    return rows.filter(
+      (row) =>
+        row.level < 4 &&
+        row.id !== industry?.id &&
+        !blocked.has(row.id) &&
+        (row.isActive || row.id === industry?.parentId),
+    );
   }, [industry, rows]);
 
   const onSubmit = async (values: IndustryForm) => {
     const parentId = values.parentId ? Number(values.parentId) : null;
-    const parent = parentId ? rows.find((row) => row.id === parentId) : null;
-    const level = parent ? parent.level + 1 : 1;
 
     try {
       if (industry) {
-        const body: Partial<Pick<Industry, 'industryName' | 'level' | 'parentId'>> = {
+        const body: Partial<Pick<Industry, "industryName" | "parentId">> = {
           industryName: values.industryName.trim(),
         };
         if (parentId !== industry.parentId) {
           body.parentId = parentId;
-          body.level = level;
         }
         await industryApi.update(industry.id, body);
         if (values.isActive !== industry.isActive) {
@@ -88,39 +109,68 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
         const created = await industryApi.create({
           industryCode: values.industryCode.trim().toUpperCase(),
           industryName: values.industryName.trim(),
-          level,
           parentId,
         });
         if (!values.isActive) await industryApi.updateStatus(created.id, false);
       }
-      enqueueSnackbar(translate('common.saveSuccess'), { variant: 'success' });
+      enqueueSnackbar(translate("common.saveSuccess"), { variant: "success" });
       onSaved();
     } catch (error) {
-      enqueueSnackbar(getErrorMessage(error, translate('common.unknownError')), { variant: 'error' });
+      enqueueSnackbar(
+        getErrorMessage(error, translate("common.unknownError")),
+        { variant: "error" },
+      );
     }
   };
 
-  const required = translate('common.required');
+  const required = translate("common.required");
 
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="xs">
-      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'common.white', fontWeight: 700 }}>
-        {translate(isEdit ? 'catalogManagement.editIndustry' : 'catalogManagement.addIndustry')}
+    <Dialog
+      open={open}
+      onClose={isSubmitting ? undefined : onClose}
+      fullWidth
+      maxWidth="xs"
+    >
+      <DialogTitle
+        sx={{ bgcolor: "primary.main", color: "common.white", fontWeight: 700 }}
+      >
+        {translate(
+          isEdit
+            ? "catalogManagement.editIndustry"
+            : "catalogManagement.addIndustry",
+        )}
       </DialogTitle>
       <DialogContent>
-        <Stack component="form" id="industry-form" spacing={2} sx={{ pt: 2 }} onSubmit={handleSubmit(onSubmit)} noValidate>
+        <Stack
+          component="form"
+          id="industry-form"
+          spacing={2}
+          sx={{ pt: 2 }}
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+        >
           <Controller
             name="industryCode"
             control={control}
-            rules={isEdit ? {} : {
-              required,
-              pattern: { value: /^[A-Z0-9][A-Z0-9_-]*$/, message: translate('catalogManagement.invalidCode') },
-            }}
+            rules={
+              isEdit
+                ? {}
+                : {
+                    required,
+                    pattern: {
+                      value: /^[A-Z0-9][A-Z0-9_-]*$/,
+                      message: translate("catalogManagement.invalidCode"),
+                    },
+                  }
+            }
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
-                onChange={(event) => field.onChange(event.target.value.toUpperCase())}
-                label={translate('catalogManagement.industryCode')}
+                onChange={(event) =>
+                  field.onChange(event.target.value.toUpperCase())
+                }
+                label={translate("catalogManagement.industryCode")}
                 required
                 disabled={isEdit}
                 size="small"
@@ -137,7 +187,7 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
-                label={translate('catalogManagement.industryName')}
+                label={translate("catalogManagement.industryName")}
                 required
                 size="small"
                 error={!!fieldState.error}
@@ -150,14 +200,16 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
             name="parentId"
             control={control}
             render={({ field }) => (
-              <TextField {...field} select size="small" label={translate('catalogManagement.parentIndustry')}>
-                <MenuItem value="">{translate('catalogManagement.noParent')}</MenuItem>
-                {parentOptions.map((row) => (
-                  <MenuItem key={row.id} value={String(row.id)}>
-                    {`${'— '.repeat(row.level - 1)}${row.industryCode} - ${row.industryName}`}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <IndustryParentTreeSelect
+                value={field.value}
+                onChange={field.onChange}
+                options={parentOptions}
+                label={translate("catalogManagement.parentIndustry")}
+                noParentLabel={translate("catalogManagement.noParent")}
+                helperText={translate("catalogManagement.parentIndustryHint")}
+                expandLabel={translate("catalogManagement.expandIndustry")}
+                collapseLabel={translate("catalogManagement.collapseIndustry")}
+              />
             )}
           />
           <Controller
@@ -167,21 +219,35 @@ export default function IndustryFormDialog({ open, industry, rows, onClose, onSa
               <TextField
                 select
                 size="small"
-                label={translate('catalogManagement.status')}
+                label={translate("catalogManagement.status")}
                 value={String(field.value)}
-                onChange={(event) => field.onChange(event.target.value === 'true')}
+                onChange={(event) =>
+                  field.onChange(event.target.value === "true")
+                }
               >
-                <MenuItem value="true">{translate('catalogManagement.inUse')}</MenuItem>
-                <MenuItem value="false">{translate('catalogManagement.notInUse')}</MenuItem>
+                <MenuItem value="true">
+                  {translate("catalogManagement.inUse")}
+                </MenuItem>
+                <MenuItem value="false">
+                  {translate("catalogManagement.notInUse")}
+                </MenuItem>
               </TextField>
             )}
           />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={isSubmitting}>{translate('common.cancel')}</Button>
-        <Button type="submit" form="industry-form" variant="contained" startIcon={<SaveOutlinedIcon />} disabled={isSubmitting}>
-          {translate('common.save')}
+        <Button onClick={onClose} disabled={isSubmitting}>
+          {translate("common.cancel")}
+        </Button>
+        <Button
+          type="submit"
+          form="industry-form"
+          variant="contained"
+          startIcon={<SaveOutlinedIcon />}
+          disabled={isSubmitting}
+        >
+          {translate("common.save")}
         </Button>
       </DialogActions>
     </Dialog>

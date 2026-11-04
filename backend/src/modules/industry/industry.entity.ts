@@ -32,7 +32,7 @@ export class IndustryEntity {
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date | null;
 
-  @ManyToOne(() => IndustryEntity, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => IndustryEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({
     name: 'parent_id',
     foreignKeyConstraintName: 'fk_industries_parent',

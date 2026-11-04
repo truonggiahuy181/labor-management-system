@@ -69,12 +69,12 @@ export class IndustryService {
     await this.assertIndustryCodeAvailable(industryCode);
 
     const parentId = dto.parentId ?? null;
-    await this.validateParent(dto.level, parentId);
+    const level = await this.deriveLevelFromParent(parentId);
 
     const industry = this.industryRepository.create({
       industryCode,
       industryName: dto.industryName.trim(),
-      level: dto.level,
+      level,
       parentId,
       isActive: true,
     });
@@ -88,33 +88,42 @@ export class IndustryService {
   ): Promise<IndustryResponseDto> {
     const industry = await this.findEntityOrFail(id);
     const hasParentId = Object.prototype.hasOwnProperty.call(dto, 'parentId');
-    const nextLevel = dto.level ?? industry.level;
     const nextParentId = hasParentId
       ? (dto.parentId ?? null)
       : industry.parentId;
+    const nextLevel = hasParentId
+      ? await this.deriveLevelFromParent(nextParentId, id)
+      : industry.level;
+    const hierarchyChanged =
+      nextParentId !== industry.parentId || nextLevel !== industry.level;
 
-    if (dto.level !== undefined && dto.level !== industry.level) {
-      const hasChildren = await this.industryRepository.exists({
-        where: { parentId: id },
-      });
+    if (hierarchyChanged) {
+      const [hasChildren, isUsed] = await Promise.all([
+        this.industryRepository.exists({ where: { parentId: id } }),
+        this.enterpriseRepository.exists({ where: { industryId: id } }),
+      ]);
       if (hasChildren) {
         throw new ConflictException({
           code: ErrorCode.INDUSTRY_HAS_CHILDREN,
-          message: 'Không thể đổi cấp của ngành nghề đang có ngành con.',
+          message:
+            'Không thể thay đổi nhóm cha của ngành nghề đang có ngành con.',
         });
       }
-    }
-
-    if (dto.level !== undefined || hasParentId) {
-      await this.validateParent(nextLevel, nextParentId, id);
+      if (isUsed) {
+        throw new ConflictException({
+          code: ErrorCode.INDUSTRY_IN_USE,
+          message:
+            'Không thể thay đổi nhóm cha của ngành nghề đang được doanh nghiệp sử dụng.',
+        });
+      }
     }
 
     const updateData: Partial<IndustryEntity> = {};
     if (dto.industryName !== undefined) {
       updateData.industryName = dto.industryName.trim();
     }
-    if (dto.level !== undefined) {
-      updateData.level = dto.level;
+    if (nextLevel !== industry.level) {
+      updateData.level = nextLevel;
     }
     if (hasParentId) {
       updateData.parentId = nextParentId;
@@ -137,7 +146,7 @@ export class IndustryService {
     }
 
     if (isActive) {
-      await this.validateParent(industry.level, industry.parentId, id);
+      await this.validateStoredHierarchy(industry.level, industry.parentId, id);
     } else {
       const [isUsed, hasActiveChildren] = await Promise.all([
         this.enterpriseRepository.exists({
@@ -241,29 +250,90 @@ export class IndustryService {
     }
   }
 
-  private async validateParent(
-    level: number,
+  private async deriveLevelFromParent(
     parentId: number | null,
     currentId?: number,
-  ): Promise<void> {
-    if (level === 1) {
-      if (parentId !== null) {
-        this.throwInvalidParent('Ngành cấp 1 không được có ngành cha.');
-      }
-      return;
+  ): Promise<number> {
+    if (parentId === null) {
+      return 1;
     }
 
-    if (parentId === null || parentId === currentId) {
-      this.throwInvalidParent(`Ngành cấp ${level} phải có ngành cha hợp lệ.`);
+    if (parentId === currentId) {
+      this.throwInvalidParent(
+        'Ngành nghề không được chọn chính nó làm nhóm cha.',
+      );
     }
 
     const parent = await this.industryRepository.findOne({
       where: { id: parentId, isActive: true },
     });
-    if (!parent || parent.level !== level - 1) {
+    if (!parent) {
       this.throwInvalidParent(
-        `Ngành cha phải đang hoạt động và thuộc cấp ${level - 1}.`,
+        'Nhóm cha phải tồn tại, đang hoạt động và chưa bị xóa.',
       );
+    }
+    if (parent.level >= 4) {
+      this.throwInvalidParent('Ngành cấp 4 không thể có ngành con.');
+    }
+
+    await this.validateAncestorChain(parent, currentId);
+    return parent.level + 1;
+  }
+
+  private async validateStoredHierarchy(
+    level: number,
+    parentId: number | null,
+    currentId: number,
+  ): Promise<void> {
+    const derivedLevel = await this.deriveLevelFromParent(parentId, currentId);
+    if (level !== derivedLevel) {
+      throw new BadRequestException({
+        code: ErrorCode.INVALID_INDUSTRY_LEVEL,
+        message: `Cấp ngành phải là ${derivedLevel} theo nhóm cha đã chọn.`,
+      });
+    }
+  }
+
+  private async validateAncestorChain(
+    industry: IndustryEntity,
+    currentId?: number,
+  ): Promise<void> {
+    let current = industry;
+    const visitedIds = new Set<number>();
+    if (currentId !== undefined) {
+      visitedIds.add(currentId);
+    }
+
+    while (true) {
+      if (visitedIds.has(current.id)) {
+        this.throwInvalidParent(
+          'Nhóm cha không được là chính ngành nghề hoặc con cháu của nó.',
+        );
+      }
+      visitedIds.add(current.id);
+
+      if (current.level === 1) {
+        if (current.parentId !== null) {
+          this.throwInvalidParent('Ngành cấp 1 không được có nhóm cha.');
+        }
+        return;
+      }
+
+      if (current.parentId === null) {
+        this.throwInvalidParent(
+          `Ngành cấp ${current.level} phải có nhóm cha hợp lệ.`,
+        );
+      }
+
+      const parent = await this.industryRepository.findOne({
+        where: { id: current.parentId, isActive: true },
+      });
+      if (!parent || parent.level !== current.level - 1) {
+        this.throwInvalidParent(
+          `Nhóm cha phải đang hoạt động và thuộc cấp ${current.level - 1}.`,
+        );
+      }
+      current = parent;
     }
   }
 
