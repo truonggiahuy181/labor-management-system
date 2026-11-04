@@ -53,6 +53,16 @@ export const enterpriseApi = {
   get: (id: number) => api.get<BackendResponse<Enterprise>>(`/enterprises/${id}`).then((r) => r.data.data),
   // Doanh nghiệp của tài khoản đang đăng nhập (vai trò Doanh nghiệp)
   me: () => api.get<BackendResponse<Enterprise>>('/enterprises/me').then((r) => r.data.data),
+  // Backend bỏ qua email khi doanh nghiệp tự cập nhật (đổi email phải qua OTP)
+  updateMe: (body: Partial<EnterpriseBody>) =>
+    api.patch<BackendResponse<Enterprise>>('/enterprises/me', body).then((r) => r.data.data),
+  uploadMyFile: (fileType: EnterpriseFileType, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<BackendResponse<Enterprise>>(`/enterprises/me/files/${fileType}`, form).then((r) => r.data.data);
+  },
+  removeMyFile: (fileType: EnterpriseFileType) =>
+    api.delete<BackendResponse<Enterprise>>(`/enterprises/me/files/${fileType}`).then((r) => r.data.data),
   create: (body: Partial<EnterpriseBody>) =>
     api.post<BackendResponse<CreatedEnterprise>>('/enterprises', body).then((r) => r.data.data),
   update: (id: number, body: Partial<EnterpriseBody>) =>

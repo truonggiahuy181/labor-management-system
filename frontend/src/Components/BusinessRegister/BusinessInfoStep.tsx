@@ -14,6 +14,7 @@ import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
 import { getErrorCode } from '@/services/auth';
 import type { BusinessFiles, BusinessFileValue, BusinessInfo } from '@/services/business';
+import { getLocalToday, isNotFutureDate } from '@/services/date';
 import { fileAccessUrl } from '@/services/enterprise';
 import { notBlank, stripSpaces } from '@/services/text';
 import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
@@ -34,6 +35,7 @@ type FieldDef = {
   required?: boolean;
   disabled?: boolean;
   rules?: RegisterOptions<BusinessInfo, keyof BusinessInfo>;
+  validate?: Record<string, (value: string) => true | string>;   // gộp chung với kiểm tra ô bắt buộc
   options?: Option[];
   searchable?: boolean;
   type?: 'date';
@@ -52,10 +54,11 @@ type Props = {
   catalog?: CatalogOptions;
   locations: LocationCatalog;
   isEdit?: boolean;     // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
+  lockEmail?: boolean;  // doanh nghiệp tự cập nhật: email chỉ đổi qua OTP ở trang Thông tin tài khoản
   accept?: string;      // đuôi file cho phép, mặc định theo luồng đăng ký công khai
 };
 
-export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false, accept = DOCUMENT_ACCEPT }: Props) {
+export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false, lockEmail = false, accept = DOCUMENT_ACCEPT }: Props) {
   const { translate } = useLocales();
   const { control, watch, setValue } = form;
   const t = (key: string) => translate(`businessRegister.${key}`);
@@ -80,7 +83,10 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
     { name: 'taxCode', label: t('taxCode'), required: true, disabled: isEdit, noSpaces: true, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
     { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes, searchable: true },
     { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries, searchable: true },
-    { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
+    {
+      name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date',
+      validate: { notFuture: (v) => isNotFutureDate(v) || t('licenseDateFuture') },
+    },
     // Cố định Thành phố Hồ Chí Minh (EMPTY_BUSINESS_INFO.province), chỉ chọn Phường/Xã
     { name: 'province', label: t('province'), required: true, disabled: true, options: locations.provinceOptions, searchable: true },
     { name: 'ward', label: t('ward'), required: true, options: wards, searchable: true },
@@ -90,7 +96,7 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
   // Bố cục theo thiết kế: tên NN / email / SĐT – tỉnh / xã hoạt động – địa điểm / người đứng đầu / SĐT
   const contactFields: (FieldDef | null)[] = [
     { name: 'foreignName', label: t('foreignName') },
-    { name: 'email', label: t('email'), required: true, noSpaces: true, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
+    { name: 'email', label: t('email'), required: true, disabled: lockEmail, noSpaces: true, rules: { pattern: pattern(EMAIL_RE, 'invalidEmail') } },
     { name: 'officePhone', label: t('officePhone'), noSpaces: true, rules: { pattern: pattern(PHONE_RE, 'invalidPhone') } },
     { name: 'operatingProvince', label: t('operatingProvince'), options: locations.provinceOptions, searchable: true },
     { name: 'operatingWard', label: t('operatingWard'), options: operatingWards, searchable: true },
@@ -108,8 +114,11 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
         rules={{
           ...def.rules,
           required: def.required ? translate('common.required') : false,
-          // Ô chữ bắt buộc: chỉ gõ dấu cách cũng tính là bỏ trống
-          ...(def.required && !def.options && { validate: (v: string) => notBlank(v) || translate('common.required') }),
+          validate: {
+            ...def.validate,
+            // Ô chữ bắt buộc: chỉ gõ dấu cách cũng tính là bỏ trống
+            ...(def.required && !def.options && { notBlank: (v: string) => notBlank(v) || translate('common.required') }),
+          },
         }}
         render={({ field, fieldState }) => {
           const disabled = def.disabled || (!!def.options && def.options.length === 0);
@@ -176,7 +185,7 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
                 if (def.noSpaces && field.value !== stripSpaces(field.value)) field.onChange(stripSpaces(field.value));
                 field.onBlur();
               }}
-              slotProps={def.type === 'date' ? { inputLabel: { shrink: true } } : undefined}
+              slotProps={def.type === 'date' ? { inputLabel: { shrink: true }, htmlInput: { max: getLocalToday() } } : undefined}
             >
               {def.options?.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
             </TextField>

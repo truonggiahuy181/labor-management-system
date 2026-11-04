@@ -2,6 +2,7 @@
 // Trang thêm mới / cập nhật doanh nghiệp của Quản trị viên (2 bước: Thông tin → Xác nhận):
 //   enterprise = null → thêm mới (POST /enterprises), xong hiện tài khoản + mật khẩu tạm
 //   enterprise có giá trị → cập nhật (PATCH /enterprises/:id)
+//   self → doanh nghiệp tự cập nhật (PATCH /enterprises/me), lưu xong ở lại trang và gọi onSaved
 // Dùng chung các bước với luồng Đăng ký doanh nghiệp (Components/BusinessRegister)
 'use client';
 import { useEffect, useState } from 'react';
@@ -32,7 +33,11 @@ import { PROFILE_CARD_SX } from '@/Components/UserProfile/options';
 
 export const COMPANIES_PATH = '/admin/companies';
 
-export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise | null }) {
+export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
+  enterprise: Enterprise | null;
+  self?: boolean;
+  onSaved?: () => void;
+}) {
   const { translate } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
@@ -61,6 +66,13 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
   }, [enterprise, form]);
 
   const backToList = () => router.push(COMPANIES_PATH);
+  // Doanh nghiệp tự cập nhật không có trang danh sách → Huỷ là đưa form về dữ liệu đang lưu
+  const cancel = () => {
+    if (!self) return backToList();
+    form.reset(enterprise ? toBusinessInfo(enterprise) : EMPTY_BUSINESS_INFO);
+    setFiles(enterprise ? toBusinessFiles(enterprise) : EMPTY_BUSINESS_FILES);
+    setError('');
+  };
 
   // Luồng quản trị cho phép bổ sung file sau nên không bắt buộc Giấy phép kinh doanh.
   const goNext = form.handleSubmit(
@@ -80,9 +92,11 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
     for (const fileType of fileTypes) {
       const selectedFile = files[fileType];
       if (selectedFile instanceof File) {
-        await enterpriseApi.uploadFile(enterpriseId, fileType, selectedFile);
+        await (self
+          ? enterpriseApi.uploadMyFile(fileType, selectedFile)
+          : enterpriseApi.uploadFile(enterpriseId, fileType, selectedFile));
       } else if (!selectedFile && previousFiles[fileType]) {
-        await enterpriseApi.removeFile(enterpriseId, fileType);
+        await (self ? enterpriseApi.removeMyFile(fileType) : enterpriseApi.removeFile(enterpriseId, fileType));
       }
     }
   };
@@ -96,10 +110,8 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
       let createdAccount: RegisteredAccount | null = null;
 
       if (enterprise) {
-        const updated = await enterpriseApi.update(
-          enterprise.id,
-          { ...toEnterpriseBody(info, true), ...clearedRegistrationKeys(enterprise, files) },
-        );
+        const body = { ...toEnterpriseBody(info, true), ...clearedRegistrationKeys(enterprise, files) };
+        const updated = await (self ? enterpriseApi.updateMe(body) : enterpriseApi.update(enterprise.id, body));
         enterpriseId = updated.id;
       } else {
         const { enterprise: created, initialAccess } = await enterpriseApi.create(toEnterpriseBody(info));
@@ -124,7 +136,8 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
         { variant: 'success' },
       );
 
-      if (enterprise) backToList();
+      if (self) onSaved?.();
+      else if (enterprise) backToList();
       else setAccount(createdAccount);
     } catch (err) {
       setError(getErrorMessage(err, translate('common.unknownError')));
@@ -139,7 +152,7 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
       {/* Thanh tiêu đề: tên trang – các bước – nút thao tác */}
       <Card elevation={1} sx={{ ...PROFILE_CARD_SX, px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <Typography sx={{ flex: 1, fontWeight: 700, minWidth: 180 }}>
-          {translate(isEdit ? 'enterprises.editTitle' : 'enterprises.createTitle')}
+          {translate(self ? 'enterprises.detailTitle' : isEdit ? 'enterprises.editTitle' : 'enterprises.createTitle')}
         </Typography>
         <Stepper activeStep={step} sx={{ flex: 1, minWidth: 320, maxWidth: 420 }}>
           <Step><StepLabel>{t('stepInfo')}</StepLabel></Step>
@@ -148,7 +161,7 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
           {step === 0 ? (
             <>
-              <Button onClick={backToList}>{t('cancel')}</Button>
+              <Button onClick={cancel}>{t('cancel')}</Button>
               <Button variant="contained" startIcon={<ChevronRight />} onClick={goNext}>{t('next')}</Button>
             </>
           ) : (
@@ -164,7 +177,7 @@ export default function EnterpriseForm({ enterprise }: { enterprise: Enterprise 
         {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
         {step === 0
           ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalogs.catalog}
-              locations={catalogs.locations} isEdit={isEdit} accept={ENTERPRISE_FILE_ACCEPT} />
+              locations={catalogs.locations} isEdit={isEdit} lockEmail={self} accept={ENTERPRISE_FILE_ACCEPT} />
           : <ConfirmStep info={form.getValues()} files={files} catalog={catalogs.catalog} locations={catalogs.locations} />}
       </Card>
 

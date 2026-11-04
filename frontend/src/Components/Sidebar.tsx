@@ -43,7 +43,7 @@ const MENU: MenuGroup[] = [
     title: 'menu.groupSystem',
     roles: [ROLE.ENTERPRISE],
     items: [
-      { label: 'menu.companyInfo', href: '/account' },
+      { label: 'menu.companyInfo', href: '/company-info' },
     ],
   },
   {
