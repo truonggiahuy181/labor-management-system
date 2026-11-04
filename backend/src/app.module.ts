@@ -16,6 +16,7 @@ import { SeedModule } from './database/seeds/seed.module.js';
 import { createDatabaseOptions } from './database/database-options.js';
 import { FileModule } from './modules/file/file.module.js';
 import { LocationModule } from './modules/location/location.module.js';
+import { ReportPeriodModule } from './modules/report-period/report-period.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { LocationModule } from './modules/location/location.module.js';
     EnterpriseModule,
     FileModule,
     LocationModule,
+    ReportPeriodModule,
     SeedModule,
   ],
   controllers: [AppController],

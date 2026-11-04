@@ -312,6 +312,105 @@ const COMPANY_PROFILES: readonly CompanyProfile[] = [
   },
 ];
 
+const REPORT_PERIODS = [
+  {
+    reportName: 'Báo cáo tai nạn lao động',
+    reportYear: 2025,
+    reportPeriod: '6 tháng đầu năm',
+    startDate: '2025-01-01',
+    endDate: '2025-06-30',
+    isActive: false,
+  },
+  {
+    reportName: 'Báo cáo tai nạn lao động',
+    reportYear: 2025,
+    reportPeriod: 'Cả năm',
+    startDate: '2025-01-01',
+    endDate: '2025-12-31',
+    isActive: false,
+  },
+  {
+    reportName: 'Báo cáo tai nạn lao động',
+    reportYear: 2026,
+    reportPeriod: '6 tháng đầu năm',
+    startDate: '2026-01-01',
+    endDate: '2026-06-30',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo tai nạn lao động',
+    reportYear: 2026,
+    reportPeriod: 'Cả năm',
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo tình hình sử dụng lao động',
+    reportYear: 2025,
+    reportPeriod: '6 tháng cuối năm',
+    startDate: '2025-07-01',
+    endDate: '2025-12-31',
+    isActive: false,
+  },
+  {
+    reportName: 'Báo cáo tình hình sử dụng lao động',
+    reportYear: 2026,
+    reportPeriod: '6 tháng đầu năm',
+    startDate: '2026-01-01',
+    endDate: '2026-06-30',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo tình hình sử dụng lao động',
+    reportYear: 2026,
+    reportPeriod: '6 tháng cuối năm',
+    startDate: '2026-07-01',
+    endDate: '2026-12-31',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo công tác an toàn, vệ sinh lao động',
+    reportYear: 2025,
+    reportPeriod: 'Cả năm',
+    startDate: '2025-01-01',
+    endDate: '2025-12-31',
+    isActive: false,
+  },
+  {
+    reportName: 'Báo cáo công tác an toàn, vệ sinh lao động',
+    reportYear: 2026,
+    reportPeriod: 'Cả năm',
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo biến động lao động',
+    reportYear: 2026,
+    reportPeriod: '6 tháng đầu năm',
+    startDate: '2026-01-01',
+    endDate: '2026-06-30',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo biến động lao động',
+    reportYear: 2026,
+    reportPeriod: '6 tháng cuối năm',
+    startDate: '2026-07-01',
+    endDate: '2026-12-31',
+    isActive: true,
+  },
+  {
+    reportName: 'Báo cáo sử dụng lao động nước ngoài',
+    reportYear: 2026,
+    reportPeriod: 'Cả năm',
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    isActive: true,
+  },
+] as const;
+
 @Injectable()
 export class SampleDataSeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SampleDataSeedService.name);
@@ -372,6 +471,7 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
     passwordHash: string,
   ): Promise<{ enterpriseCount: number; enterpriseUserCount: number }> {
     await this.seedReferenceData(manager);
+    await this.seedReportPeriods(manager);
 
     const locations = await manager.query<LocationPair[]>(`
       SELECT DISTINCT ON (province.code)
@@ -653,6 +753,57 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           INDUSTRIES.map(([industryCode, industryName]) => ({
             industry_code: industryCode,
             industry_name: industryName,
+          })),
+        ),
+      ],
+    );
+  }
+
+  private async seedReportPeriods(manager: EntityManager): Promise<void> {
+    await manager.query(
+      `
+        INSERT INTO report_periods (
+          report_name,
+          report_year,
+          report_period,
+          start_date,
+          end_date,
+          is_active,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        )
+        SELECT
+          report_name,
+          report_year,
+          report_period,
+          start_date::date,
+          end_date::date,
+          is_active,
+          NULL,
+          NULL,
+          NOW(),
+          NOW()
+        FROM jsonb_to_recordset($1::jsonb) AS seed(
+          report_name VARCHAR(255),
+          report_year SMALLINT,
+          report_period VARCHAR(100),
+          start_date VARCHAR(10),
+          end_date VARCHAR(10),
+          is_active BOOLEAN
+        )
+        ON CONFLICT DO NOTHING
+      `,
+      [
+        JSON.stringify(
+          REPORT_PERIODS.map((reportPeriod) => ({
+            report_name: reportPeriod.reportName,
+            report_year: reportPeriod.reportYear,
+            report_period: reportPeriod.reportPeriod,
+            start_date: reportPeriod.startDate,
+            end_date: reportPeriod.endDate,
+            is_active: reportPeriod.isActive,
           })),
         ),
       ],
