@@ -71,9 +71,14 @@ describe('SampleDataSeedService', () => {
     const userInsert = manager.query.mock.calls.find(([sql]) =>
       sql.includes('INSERT INTO users'),
     );
+    const reportPeriodInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO report_periods'),
+    );
     const enterpriseRows = JSON.parse(enterpriseInsert?.[1]?.[0] as string);
+    const reportPeriodRows = JSON.parse(reportPeriodInsert?.[1]?.[0] as string);
 
     expect(enterpriseRows).toHaveLength(30);
+    expect(reportPeriodRows).toHaveLength(12);
     expect(enterpriseRows[0]).toMatchObject({
       tax_code: '0990000001',
       enterprise_name: 'Công ty TNHH Công nghệ Sao Việt',

@@ -12,6 +12,7 @@ Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ 
 - Mặc định 30 doanh nghiệp có tên riêng, loại hình và ngành nghề phù hợp, gồm cả trạng thái hoạt động và ngừng hoạt động.
 - Một tài khoản cho mỗi doanh nghiệp mẫu, đủ dữ liệu để kiểm thử nhiều trang với `pageSize=10`.
 - Một tài khoản quản trị mẫu.
+- 12 kỳ báo cáo thuộc nhiều loại, năm và trạng thái khác nhau.
 - Danh mục 34 tỉnh/thành và 3.321 phường/xã được migration `010_create_location_catalog` nạp sẵn; seed doanh nghiệp sử dụng trực tiếp các mã này.
 
 Số lượng doanh nghiệp/tài khoản có thể đổi bằng `SEED_PAGINATION_RECORDS` (tối đa 100).
