@@ -31,11 +31,11 @@ export default function AccountInfoDialog({ account, onClose, onLogin }: Props) 
   // [nhãn, giá trị, có nút sao chép, là mật khẩu]
   const rows: [string, string, boolean, boolean][] = account
     ? [
-        [t('companyName'), account.companyName, false, false],
-        [t('username'), account.username, true, false],
-        [t('tempPassword'), account.tempPassword, true, true],
-        [t('email'), account.email, false, false],
-      ]
+      [t('companyName'), account.companyName, false, false],
+      [t('username'), account.username, true, false],
+      [t('tempPassword'), account.tempPassword, true, true],
+      [t('email'), account.email, false, false],
+    ]
     : [];
 
   return (
@@ -71,7 +71,7 @@ export default function AccountInfoDialog({ account, onClose, onLogin }: Props) 
         </Box>
 
         <Alert severity="info" sx={{ mt: 2 }}>
-          {t('passwordSentTo')} <strong>{account?.email}</strong>. {t('changePasswordHint')}
+          {t('changePasswordHint')}
         </Alert>
       </DialogContent>
 
