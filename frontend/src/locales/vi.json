@@ -164,6 +164,7 @@
     "businessType": "Loại hình kinh doanh",
     "mainIndustry": "Ngành nghề kinh doanh chính",
     "licenseDate": "Ngày cấp GPKD",
+    "licenseDateFuture": "Ngày cấp GPKD không được lớn hơn ngày hiện tại",
     "province": "Tỉnh/Thành phố ĐKKD",
     "ward": "Phường/Xã ĐKKD",
     "address": "Địa chỉ",
@@ -278,7 +279,9 @@
     "deleteConfirm": "Xoá {{count}} doanh nghiệp đã chọn?",
     "deleteSuccess": "Đã xoá {{count}} doanh nghiệp",
     "deleteHasAccount": "{{names}}: vẫn còn tài khoản đăng nhập, chưa xoá. Hãy xoá tài khoản ở trang Quản lý người dùng trước",
-    "fileUploadFailed": "Thông tin doanh nghiệp đã được lưu nhưng có file đính kèm tải lên thất bại"
+    "fileUploadFailed": "Thông tin doanh nghiệp đã được lưu nhưng có file đính kèm tải lên thất bại",
+    "myLoadFailed": "Không tải được thông tin doanh nghiệp",
+    "enterpriseOnly": "Chỉ tài khoản doanh nghiệp mới xem được trang này"
   },
   "catalogManagement": {
     "businessTypeTitle": "Danh sách loại hình kinh doanh",
