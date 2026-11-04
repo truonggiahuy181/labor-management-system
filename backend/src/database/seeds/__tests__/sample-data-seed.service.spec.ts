@@ -1,0 +1,114 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SampleDataSeedService } from '../sample-data-seed.service.js';
+
+vi.mock('argon2', () => ({
+  hash: vi.fn().mockResolvedValue('hashed-enterprise-password'),
+}));
+
+describe('SampleDataSeedService', () => {
+  let manager: { query: ReturnType<typeof vi.fn> };
+  let dataSource: { transaction: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    manager = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('SELECT DISTINCT ON')) {
+          return [{ province_code: '01', ward_code: '00004' }];
+        }
+        if (sql.includes("role_code = 'ENTERPRISE_USER'")) {
+          return [{ id: 2 }];
+        }
+        if (sql.includes('COUNT(*)::text') && sql.includes('INNER JOIN')) {
+          return [{ count: '30' }];
+        }
+        if (sql.includes('COUNT(*)::text')) {
+          return [{ count: '30' }];
+        }
+        return [];
+      }),
+    };
+    dataSource = {
+      transaction: vi.fn(async (callback) => callback(manager)),
+    };
+  });
+
+  const createService = (overrides: Record<string, string> = {}) => {
+    const values: Record<string, string> = {
+      NODE_ENV: 'development',
+      SEED_SAMPLE_DATA: 'true',
+      SEED_PAGINATION_RECORDS: '30',
+      SEED_ENTERPRISE_PASSWORD: '12345678',
+      ...overrides,
+    };
+    const configService = {
+      get: vi.fn((key: string, defaultValue?: string) =>
+        values[key] === undefined ? defaultValue : values[key],
+      ),
+    };
+
+    return new SampleDataSeedService(dataSource as any, configService as any);
+  };
+
+  it('does not seed when sample data is disabled', async () => {
+    await createService({ SEED_SAMPLE_DATA: 'false' }).onApplicationBootstrap();
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not seed outside development', async () => {
+    await createService({ NODE_ENV: 'production' }).onApplicationBootstrap();
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('creates reference data and enough users and enterprises for pagination', async () => {
+    await createService().onApplicationBootstrap();
+
+    expect(dataSource.transaction).toHaveBeenCalledOnce();
+    const enterpriseInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO enterprises'),
+    );
+    const userInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO users'),
+    );
+    const enterpriseRows = JSON.parse(enterpriseInsert?.[1]?.[0] as string);
+
+    expect(enterpriseRows).toHaveLength(30);
+    expect(enterpriseRows[0]).toMatchObject({
+      tax_code: '0990000001',
+      enterprise_name: 'Công ty TNHH Công nghệ Sao Việt',
+      business_type_code: 'TNHH2',
+      industry_code: '6201',
+      province_code: '01',
+      ward_code: '00004',
+      is_active: true,
+    });
+    expect(enterpriseRows[7]).toMatchObject({
+      enterprise_name: 'Doanh nghiệp Tư nhân Nội thất Gia Bảo',
+      business_type_code: 'DNTN',
+      industry_code: '3100',
+    });
+    expect(enterpriseRows[26]).toMatchObject({
+      enterprise_name: 'Công ty Hợp danh Luật Minh Tâm',
+      business_type_code: 'HD',
+      industry_code: '6910',
+    });
+    expect(enterpriseRows[4].is_active).toBe(false);
+    expect(enterpriseInsert?.[0]).toContain('ON CONFLICT (tax_code) DO UPDATE');
+    expect(userInsert?.[1]).toEqual([
+      expect.any(String),
+      'hashed-enterprise-password',
+      2,
+    ]);
+  });
+
+  it('rejects an invalid pagination record count', async () => {
+    await expect(
+      createService({
+        SEED_PAGINATION_RECORDS: 'invalid',
+      }).onApplicationBootstrap(),
+    ).rejects.toThrow('SEED_PAGINATION_RECORDS must be a positive integer.');
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+});
