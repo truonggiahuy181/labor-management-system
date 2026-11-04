@@ -13,7 +13,7 @@ import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
 import { getErrorCode } from '@/services/auth';
-import type { BusinessFiles, BusinessFileValue, BusinessInfo } from '@/services/business';
+import { ensureUploadedPublicDocument, type BusinessFiles, type BusinessFileValue, type BusinessInfo } from '@/services/business';
 import { getLocalToday, isNotFutureDate } from '@/services/date';
 import { fileAccessUrl } from '@/services/enterprise';
 import { notBlank, stripSpaces } from '@/services/text';
@@ -243,9 +243,23 @@ export function FilesTable({ files, onChange, accept = DOCUMENT_ACCEPT }: { file
   const view = async (file: BusinessFileValue) => {
     if (!file) return;
     if (file instanceof File) {
-      const url = URL.createObjectURL(file);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      // File PDF và ảnh: trình duyệt mở trực tiếp bằng blob URL; Word/Excel: tải lên R2 để trình duyệt mở qua URL https giống trang Admin
+      if (file.type === 'application/pdf' || file.type.startsWith('image/') || /\.(pdf|jpe?g|png|gif|webp)$/i.test(file.name)) {
+        const url = URL.createObjectURL(file);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
+      const tab = window.open('', '_blank');
+      if (tab) tab.opener = null;
+      try {
+        const uploaded = await ensureUploadedPublicDocument(file);
+        const url = uploaded.accessUrl || (await fileAccessUrl(uploaded));
+        if (tab) tab.location.href = url;
+      } catch (err) {
+        tab?.close();
+        enqueueSnackbar(translateError(getErrorCode(err)), { variant: 'error' });
+      }
       return;
     }
     if (file.accessUrl) {

@@ -45,14 +45,32 @@ export interface RegisteredAccount { username: string; tempPassword: string; com
 
 export type RegisterBusinessBody = BusinessInfo & BusinessFiles & { verifyToken: string };
 
+// Lưu tạm kết quả tải file (POST /files/public-document) để vừa xem trước trên trình duyệt vừa tái sử dụng khi gửi hồ sơ
+const uploadedFileCache = new WeakMap<File, Promise<BusinessFileInfo>>();
+
+export const ensureUploadedPublicDocument = (file: File): Promise<BusinessFileInfo> => {
+  let pending = uploadedFileCache.get(file);
+  if (!pending) {
+    const form = new FormData();
+    form.append('file', file);
+    pending = api
+      .post<ApiResponse<BusinessFileInfo>>('/files/public-document', form)
+      .then((res) => res.data.data)
+      .catch((err) => {
+        uploadedFileCache.delete(file);
+        throw err;
+      });
+    uploadedFileCache.set(file, pending);
+  }
+  return pending;
+};
+
 // Chưa đăng nhập nên file đăng ký tải lên endpoint công khai trước, rồi gửi objectKey kèm hồ sơ
 const uploadPublicDocument = async (file: BusinessFileValue) => {
   if (!file) return undefined;
   if (!(file instanceof File)) return file.objectKey;
-  const form = new FormData();
-  form.append('file', file);
-  const res = await api.post<ApiResponse<{ objectKey: string }>>('/files/public-document', form);
-  return res.data.data.objectKey;
+  const uploaded = await ensureUploadedPublicDocument(file);
+  return uploaded.objectKey;
 };
 
 const realBusinessApi = {
