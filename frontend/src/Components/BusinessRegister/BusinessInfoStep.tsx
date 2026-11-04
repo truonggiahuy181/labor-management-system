@@ -78,8 +78,8 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
   const companyFields: FieldDef[] = [
     { name: 'companyName', label: t('companyName'), required: true },
     { name: 'taxCode', label: t('taxCode'), required: true, disabled: isEdit, noSpaces: true, rules: { pattern: pattern(TAX_CODE_RE, 'invalidTaxCode') } },
-    { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes },
-    { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries },
+    { name: 'businessType', label: t('businessType'), required: true, options: catalog.businessTypes, searchable: true },
+    { name: 'mainIndustry', label: t('mainIndustry'), required: true, options: catalog.industries, searchable: true },
     { name: 'licenseDate', label: t('licenseDate'), required: true, type: 'date' },
     // Cố định Thành phố Hồ Chí Minh (EMPTY_BUSINESS_INFO.province), chỉ chọn Phường/Xã
     { name: 'province', label: t('province'), required: true, disabled: true, options: locations.provinceOptions, searchable: true },
