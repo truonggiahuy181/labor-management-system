@@ -37,7 +37,9 @@ export type EnterpriseBody = Omit<Enterprise, 'id' | 'files' | 'isActive' | 'cre
 export type EnterpriseFileType = keyof BusinessFiles;
 
 export interface BusinessType { id: number; typeCode: string; typeName: string; isActive: boolean }
-export interface Industry { id: number; industryCode: string; industryName: string; level: number; parentId: number | null }
+export interface Industry { id: number; industryCode: string; industryName: string; level: number; parentId: number | null; isActive: boolean }
+export interface CatalogFilters { search?: string; isActive?: boolean; includeInactive?: boolean }
+export interface IndustryFilters extends CatalogFilters { level?: number; parentId?: number }
 
 // Backend tạo tài khoản doanh nghiệp với username = MST và mật khẩu cố định
 // (backend/src/modules/enterprise/enterprise.service.ts: argon2.hash('12345678')), API không trả mật khẩu về
@@ -133,7 +135,32 @@ export const toEnterpriseBody = (info: BusinessInfo, isEdit = false): Partial<En
   return body as Partial<EnterpriseBody>;
 };
 
+export const businessTypeApi = {
+  list: (params: CatalogFilters = {}) =>
+    api.get<BackendResponse<BusinessType[]>>('/business-types', { params }).then((r) => r.data.data ?? []),
+  create: (body: Pick<BusinessType, 'typeCode' | 'typeName'>) =>
+    api.post<BackendResponse<BusinessType>>('/business-types', body).then((r) => r.data.data),
+  update: (id: number, body: Pick<BusinessType, 'typeName'>) =>
+    api.patch<BackendResponse<BusinessType>>(`/business-types/${id}`, body).then((r) => r.data.data),
+  updateStatus: (id: number, isActive: boolean) =>
+    api.patch<BackendResponse<BusinessType>>(`/business-types/${id}/status`, { isActive }).then((r) => r.data.data),
+  remove: (id: number) => api.delete(`/business-types/${id}`).then(() => undefined),
+};
+
+export const industryApi = {
+  list: (params: IndustryFilters = {}) =>
+    api.get<BackendResponse<Industry[]>>('/industries', { params }).then((r) => r.data.data ?? []),
+  create: (body: Pick<Industry, 'industryCode' | 'industryName' | 'level' | 'parentId'>) =>
+    api.post<BackendResponse<Industry>>('/industries', body).then((r) => r.data.data),
+  update: (id: number, body: Partial<Pick<Industry, 'industryName' | 'level' | 'parentId'>>) =>
+    api.patch<BackendResponse<Industry>>(`/industries/${id}`, body).then((r) => r.data.data),
+  updateStatus: (id: number, isActive: boolean) =>
+    api.patch<BackendResponse<Industry>>(`/industries/${id}/status`, { isActive }).then((r) => r.data.data),
+  remove: (id: number) => api.delete(`/industries/${id}`).then(() => undefined),
+};
+
+// Các form doanh nghiệp chỉ được chọn danh mục đang hoạt động; ngành nghề chính phải là ngành cấp 4.
 export const catalogApi = {
-  businessTypes: () => api.get<BackendResponse<BusinessType[]>>('/business-types').then((r) => r.data.data ?? []),
-  industries: () => api.get<BackendResponse<Industry[]>>('/industries').then((r) => r.data.data ?? []),   // chỉ cấp 4
+  businessTypes: () => businessTypeApi.list(),
+  industries: () => industryApi.list({ level: 4 }),
 };

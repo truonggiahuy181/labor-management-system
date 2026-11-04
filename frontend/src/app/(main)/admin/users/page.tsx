@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem,
+  Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress,
   Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -13,7 +13,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import KeyIcon from '@mui/icons-material/Key';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useSnackbar } from 'notistack';
+import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
 import { USERS_PATH } from '@/Components/UserManagement/UserDetailForm';
 import { ROLE_OPTIONS, roleLabel } from '@/Components/UserManagement/roleOptions';
@@ -172,6 +174,18 @@ export default function UsersPage() {
     <Stack spacing={2} sx={{ height: 'calc(100vh - 48px)' }}>
       <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('users.title')}</Typography>
+        <Tooltip title={translate('common.resetFilters')}>
+          <span>
+            <IconButton
+              color="primary"
+              disabled={!Object.values(filters).some(Boolean)}
+              onClick={() => { setFilters(EMPTY_FILTERS); setPage(0); }}
+              aria-label={translate('common.resetFilters')}
+            >
+              <RestartAltIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
         {/* Import: chưa có API / thiết kế file mẫu */}
         <Button variant="outlined" startIcon={<FileUploadOutlinedIcon />} disabled>{translate('users.import')}</Button>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => router.push(`${USERS_PATH}/create`)}>{translate('users.add')}</Button>
@@ -201,23 +215,27 @@ export default function UsersPage() {
                   </TableCell>
                 ))}
                 <TableCell sx={{ ...filterCell, top: 37 }}>
-                  <TextField select fullWidth size="small" value={filters.roleId} onChange={(e) => setFilter('roleId', e.target.value)}
-                    slotProps={{ htmlInput: { 'aria-label': translate('users.role') } }}>
-                    <MenuItem value="">{translate('users.all')}</MenuItem>
-                    {ROLE_OPTIONS.map((o) => <MenuItem key={o.value} value={String(o.value)}>{translate(o.label)}</MenuItem>)}
-                  </TextField>
+                  <TableFilterAutocomplete
+                    value={filters.roleId}
+                    options={ROLE_OPTIONS.map((option) => ({ value: String(option.value), label: translate(option.label) }))}
+                    ariaLabel={translate('users.role')}
+                    onChange={(value) => setFilter('roleId', value)}
+                  />
                 </TableCell>
                 <TableCell sx={{ ...filterCell, top: 37 }}>
                   <TextField fullWidth size="small" value={filters.title} onChange={(e) => setFilter('title', e.target.value)}
                     slotProps={{ htmlInput: { 'aria-label': translate('users.jobTitle') } }} />
                 </TableCell>
                 <TableCell sx={{ ...filterCell, top: 37 }}>
-                  <TextField select fullWidth size="small" value={filters.isActive} onChange={(e) => setFilter('isActive', e.target.value)}
-                    slotProps={{ htmlInput: { 'aria-label': translate('users.status') } }}>
-                    <MenuItem value="">{translate('users.all')}</MenuItem>
-                    <MenuItem value="true">{translate('users.active')}</MenuItem>
-                    <MenuItem value="false">{translate('users.inactive')}</MenuItem>
-                  </TextField>
+                  <TableFilterAutocomplete
+                    value={filters.isActive}
+                    options={[
+                      { value: 'true', label: translate('users.active') },
+                      { value: 'false', label: translate('users.inactive') },
+                    ]}
+                    ariaLabel={translate('users.status')}
+                    onChange={(value) => setFilter('isActive', value)}
+                  />
                 </TableCell>
               </TableRow>
             </TableHead>

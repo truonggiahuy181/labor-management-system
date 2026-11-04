@@ -2,20 +2,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, MenuItem,
+  Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress,
   Paper, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/Edit';
-import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import KeyIcon from '@mui/icons-material/Key';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { useSnackbar } from 'notistack';
 import ConfirmStep from '@/Components/BusinessRegister/ConfirmStep';
 import { COMPANIES_PATH } from '@/Components/EnterpriseManagement/EnterpriseForm';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
+import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useCatalogs, { type Option } from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
@@ -163,11 +164,12 @@ export default function CompaniesPage() {
   );
   const selectFilter = (key: keyof Filters, label: string, options: Option[]) => (
     <TableCell sx={filterCell}>
-      <TextField select fullWidth size="small" value={filters[key]} onChange={(e) => setFilter(key, e.target.value)}
-        slotProps={{ htmlInput: { 'aria-label': label } }}>
-        <MenuItem value="">{translate('users.all')}</MenuItem>
-        {options.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
-      </TextField>
+      <TableFilterAutocomplete
+        value={filters[key]}
+        options={options}
+        ariaLabel={label}
+        onChange={(value) => setFilter(key, value)}
+      />
     </TableCell>
   );
 
@@ -189,8 +191,18 @@ export default function CompaniesPage() {
     <Stack spacing={2} sx={{ height: 'calc(100vh - 48px)' }}>
       <Card square elevation={1} sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography sx={{ flex: 1, fontWeight: 700 }}>{translate('enterprises.title')}</Typography>
-        {/* Thêm từ file: chưa có API / file mẫu */}
-        <Button variant="outlined" startIcon={<FileUploadOutlinedIcon />} disabled>{translate('enterprises.importFile')}</Button>
+        <Tooltip title={translate('common.resetFilters')}>
+          <span>
+            <IconButton
+              color="primary"
+              disabled={!Object.values(filters).some(Boolean)}
+              onClick={() => { setFilters(EMPTY_FILTERS); setPage(0); }}
+              aria-label={translate('common.resetFilters')}
+            >
+              <RestartAltIcon />
+            </IconButton>
+          </span>
+        </Tooltip>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => openForm(null)}>{translate('users.add')}</Button>
       </Card>
 
