@@ -17,6 +17,7 @@ import { createDatabaseOptions } from './database/database-options.js';
 import { FileModule } from './modules/file/file.module.js';
 import { LocationModule } from './modules/location/location.module.js';
 import { ReportPeriodModule } from './modules/report-period/report-period.module.js';
+import { InjuryFactorModule } from './modules/injury-factor/injury-factor.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ReportPeriodModule } from './modules/report-period/report-period.module
     FileModule,
     LocationModule,
     ReportPeriodModule,
+    InjuryFactorModule,
     SeedModule,
   ],
   controllers: [AppController],
