@@ -1,29 +1,43 @@
-# Seed data
+# Dữ liệu mẫu
 
-Các file trong thư mục này chỉ dùng cho môi trường development.
+Các seed trong dự án chỉ dùng cho môi trường development.
 
-Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo User mẫu lúc khởi động nếu username chưa tồn tại. Cấu hình mặc định nằm trong `.env.example`.
+Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ liệu mẫu lúc khởi động. Seed có thể chạy lại an toàn: các bản ghi có cùng mã hoặc username sẽ không bị nhân đôi.
 
-## User mẫu
+## Dữ liệu được tạo
+
+- Danh mục vai trò: `ADMIN`, `ENTERPRISE_USER`.
+- 5 loại hình doanh nghiệp.
+- 24 ngành nghề cấp 4 thuộc nhiều lĩnh vực.
+- Mặc định 30 doanh nghiệp có tên riêng, loại hình và ngành nghề phù hợp, gồm cả trạng thái hoạt động và ngừng hoạt động.
+- Một tài khoản cho mỗi doanh nghiệp mẫu, đủ dữ liệu để kiểm thử nhiều trang với `pageSize=10`.
+- Một tài khoản quản trị mẫu.
+- Danh mục 34 tỉnh/thành và 3.321 phường/xã được migration `010_create_location_catalog` nạp sẵn; seed doanh nghiệp sử dụng trực tiếp các mã này.
+
+Số lượng doanh nghiệp/tài khoản có thể đổi bằng `SEED_PAGINATION_RECORDS` (tối đa 100).
+
+## Tài khoản đăng nhập
+
+Tài khoản quản trị:
 
 - Username: `admin_demo`
 - Password: `Admin@123456`
-- Role được lấy từ database bằng `role_code = ADMIN`.
-- Seed có thể chạy lại an toàn; username đã tồn tại sẽ được bỏ qua.
 
-Chạy backend bình thường để tự động seed:
+Tài khoản doanh nghiệp:
+
+- Username: mã số thuế từ `0990000001` đến `0990000030`.
+- Password chung: `12345678`.
+
+Các giá trị trên có thể đổi qua biến môi trường trong `.env`.
+
+## Chạy seed
+
+Đảm bảo migration đã chạy, sau đó khởi động backend:
 
 ```powershell
 npm run start:dev
 ```
 
-Service tự động nằm tại `src/database/seeds/user-seed.service.ts`. Việc seed luôn bị bỏ qua nếu không phải môi trường development.
+Không sử dụng mật khẩu mẫu ở production. Seed luôn bị bỏ qua khi `NODE_ENV` khác `development`.
 
-Nếu cần chạy thủ công, dùng PostgreSQL trong Docker bằng PowerShell:
-
-```powershell
-Get-Content -Raw seeds/001_user_example.sql |
-  docker exec -i labor-postgres psql -U postgres -d quan_ly_lao_dong -v ON_ERROR_STOP=1
-```
-
-Không sử dụng mật khẩu mẫu này ở production.
+File `001_user_example.sql` chỉ được giữ lại cho trường hợp cần tạo riêng tài khoản admin bằng PostgreSQL CLI.
