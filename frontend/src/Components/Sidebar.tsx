@@ -34,6 +34,8 @@ const MENU: MenuGroup[] = [
     items: [
       { label: 'menu.users', href: '/admin/users' },
       { label: 'menu.companies', href: '/admin/companies' },
+      { label: 'menu.businessTypes', href: '/admin/business-types' },
+      { label: 'menu.industries', href: '/admin/industries' },
       { label: 'menu.reportPeriods', href: '/admin/report-periods' },
     ],
   },
