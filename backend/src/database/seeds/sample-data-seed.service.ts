@@ -411,6 +411,21 @@ const REPORT_PERIODS = [
   },
 ] as const;
 
+const INJURY_FACTORS = [
+  ['Mã 1', 'Điện'],
+  ['Mã 2', 'Phóng xạ'],
+  ['Mã 3', 'Thiết bị áp lực'],
+  ['Mã 4', 'Thiết bị nâng'],
+  [
+    'Mã 5',
+    'Bộ phận truyền động, chuyển động của máy, thiết bị gây cán, cuốn, đè, kẹp, cắt, va đập',
+  ],
+  ['Mã 6', 'Vật văng bắn'],
+  ['Mã 7', 'Vật rơi, đổ, sập'],
+  ['Mã 8', 'Sập đổ công trình, giàn giáo'],
+  ['Mã 9', 'Sập lò, sập đất đá'],
+] as const;
+
 @Injectable()
 export class SampleDataSeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SampleDataSeedService.name);
@@ -472,6 +487,7 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
   ): Promise<{ enterpriseCount: number; enterpriseUserCount: number }> {
     await this.seedReferenceData(manager);
     await this.seedReportPeriods(manager);
+    await this.seedInjuryFactors(manager);
 
     const locations = await manager.query<LocationPair[]>(`
       SELECT DISTINCT ON (province.code)
@@ -804,6 +820,38 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
             start_date: reportPeriod.startDate,
             end_date: reportPeriod.endDate,
             is_active: reportPeriod.isActive,
+          })),
+        ),
+      ],
+    );
+  }
+
+  private async seedInjuryFactors(manager: EntityManager): Promise<void> {
+    await manager.query(
+      `
+        INSERT INTO injury_factors (
+          factor_code,
+          factor_name,
+          is_active,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        )
+        SELECT factor_code, factor_name, TRUE, NULL, NULL, NOW(), NOW()
+        FROM jsonb_to_recordset($1::jsonb)
+          AS seed(factor_code VARCHAR(50), factor_name VARCHAR(255))
+        ON CONFLICT (factor_code) DO UPDATE
+        SET factor_name = EXCLUDED.factor_name,
+            is_active = TRUE,
+            deleted_at = NULL,
+            updated_at = NOW()
+      `,
+      [
+        JSON.stringify(
+          INJURY_FACTORS.map(([factorCode, factorName]) => ({
+            factor_code: factorCode,
+            factor_name: factorName,
           })),
         ),
       ],
