@@ -14,6 +14,11 @@ import { IndustryQueryDto } from './dto/industry-query.dto.js';
 import { UpdateIndustryDto } from './dto/update-industry.dto.js';
 import { IndustryEntity } from './industry.entity.js';
 
+interface IndustryHierarchy {
+  level: number;
+  rootPrefix: string | null;
+}
+
 @Injectable()
 export class IndustryService {
   constructor(
@@ -65,16 +70,18 @@ export class IndustryService {
   }
 
   async create(dto: CreateIndustryDto): Promise<IndustryResponseDto> {
-    const industryCode = this.normalizeIndustryCode(dto.industryCode);
-    await this.assertIndustryCodeAvailable(industryCode);
-
     const parentId = dto.parentId ?? null;
-    const level = await this.deriveLevelFromParent(parentId);
+    const hierarchy = await this.deriveHierarchyFromParent(parentId);
+    const industryCode = this.normalizeIndustryCodeForHierarchy(
+      dto.industryCode,
+      hierarchy,
+    );
+    await this.assertIndustryCodeAvailable(industryCode);
 
     const industry = this.industryRepository.create({
       industryCode,
       industryName: dto.industryName.trim(),
-      level,
+      level: hierarchy.level,
       parentId,
       isActive: true,
     });
@@ -91,13 +98,18 @@ export class IndustryService {
     const nextParentId = hasParentId
       ? (dto.parentId ?? null)
       : industry.parentId;
-    const nextLevel = hasParentId
-      ? await this.deriveLevelFromParent(nextParentId, id)
-      : industry.level;
+    const nextHierarchy = hasParentId
+      ? await this.deriveHierarchyFromParent(nextParentId, id)
+      : { level: industry.level, rootPrefix: null };
+    const nextLevel = nextHierarchy.level;
     const hierarchyChanged =
       nextParentId !== industry.parentId || nextLevel !== industry.level;
 
     if (hierarchyChanged) {
+      this.assertIndustryCodeMatchesHierarchy(
+        industry.industryCode,
+        nextHierarchy,
+      );
       const [hasChildren, isUsed] = await Promise.all([
         this.industryRepository.exists({ where: { parentId: id } }),
         this.enterpriseRepository.exists({ where: { industryId: id } }),
@@ -146,7 +158,12 @@ export class IndustryService {
     }
 
     if (isActive) {
-      await this.validateStoredHierarchy(industry.level, industry.parentId, id);
+      await this.validateStoredHierarchy(
+        industry.industryCode,
+        industry.level,
+        industry.parentId,
+        id,
+      );
     } else {
       const [isUsed, hasActiveChildren] = await Promise.all([
         this.enterpriseRepository.exists({
@@ -250,12 +267,12 @@ export class IndustryService {
     }
   }
 
-  private async deriveLevelFromParent(
+  private async deriveHierarchyFromParent(
     parentId: number | null,
     currentId?: number,
-  ): Promise<number> {
+  ): Promise<IndustryHierarchy> {
     if (parentId === null) {
-      return 1;
+      return { level: 1, rootPrefix: null };
     }
 
     if (parentId === currentId) {
@@ -276,28 +293,33 @@ export class IndustryService {
       this.throwInvalidParent('Ngành cấp 4 không thể có ngành con.');
     }
 
-    await this.validateAncestorChain(parent, currentId);
-    return parent.level + 1;
+    const root = await this.validateAncestorChain(parent, currentId);
+    return {
+      level: parent.level + 1,
+      rootPrefix: this.getRootPrefix(root),
+    };
   }
 
   private async validateStoredHierarchy(
+    industryCode: string,
     level: number,
     parentId: number | null,
     currentId: number,
   ): Promise<void> {
-    const derivedLevel = await this.deriveLevelFromParent(parentId, currentId);
-    if (level !== derivedLevel) {
+    const hierarchy = await this.deriveHierarchyFromParent(parentId, currentId);
+    if (level !== hierarchy.level) {
       throw new BadRequestException({
         code: ErrorCode.INVALID_INDUSTRY_LEVEL,
-        message: `Cấp ngành phải là ${derivedLevel} theo nhóm cha đã chọn.`,
+        message: `Cấp ngành phải là ${hierarchy.level} theo nhóm cha đã chọn.`,
       });
     }
+    this.assertIndustryCodeMatchesHierarchy(industryCode, hierarchy);
   }
 
   private async validateAncestorChain(
     industry: IndustryEntity,
     currentId?: number,
-  ): Promise<void> {
+  ): Promise<IndustryEntity> {
     let current = industry;
     const visitedIds = new Set<number>();
     if (currentId !== undefined) {
@@ -316,7 +338,7 @@ export class IndustryService {
         if (current.parentId !== null) {
           this.throwInvalidParent('Ngành cấp 1 không được có nhóm cha.');
         }
-        return;
+        return current;
       }
 
       if (current.parentId === null) {
@@ -346,6 +368,86 @@ export class IndustryService {
 
   private normalizeIndustryCode(industryCode: string): string {
     return industryCode.trim().toUpperCase();
+  }
+
+  private normalizeIndustryCodeForHierarchy(
+    industryCode: string,
+    hierarchy: IndustryHierarchy,
+  ): string {
+    const normalizedCode = this.normalizeIndustryCode(industryCode);
+    if (hierarchy.level === 1) {
+      if (!/^[A-Z]/.test(normalizedCode)) {
+        this.throwInvalidCodePrefix(
+          'Mã ngành cấp 1 phải bắt đầu bằng một chữ cái.',
+        );
+      }
+      return normalizedCode;
+    }
+
+    const rootPrefix = hierarchy.rootPrefix;
+    if (!rootPrefix) {
+      this.throwInvalidCodePrefix(
+        'Không xác định được tiền tố từ ngành cấp 1.',
+      );
+    }
+
+    const firstCharacter = normalizedCode.charAt(0);
+    if (/^[A-Z]$/.test(firstCharacter) && firstCharacter !== rootPrefix) {
+      this.throwInvalidCodePrefix(
+        `Mã ngành cấp ${hierarchy.level} phải bắt đầu bằng tiền tố ${rootPrefix} của ngành cấp 1.`,
+      );
+    }
+
+    const storedCode = normalizedCode.startsWith(rootPrefix)
+      ? normalizedCode
+      : `${rootPrefix}${normalizedCode}`;
+    if (storedCode.length > 50) {
+      this.throwInvalidCodePrefix(
+        'Mã ngành sau khi thêm tiền tố không được vượt quá 50 ký tự.',
+      );
+    }
+    return storedCode;
+  }
+
+  private assertIndustryCodeMatchesHierarchy(
+    industryCode: string,
+    hierarchy: IndustryHierarchy,
+  ): void {
+    const normalizedCode = this.normalizeIndustryCode(industryCode);
+    if (hierarchy.level === 1) {
+      if (!/^[A-Z]/.test(normalizedCode)) {
+        this.throwInvalidCodePrefix(
+          'Mã ngành cấp 1 phải bắt đầu bằng một chữ cái.',
+        );
+      }
+      return;
+    }
+
+    if (
+      !hierarchy.rootPrefix ||
+      !normalizedCode.startsWith(hierarchy.rootPrefix)
+    ) {
+      this.throwInvalidCodePrefix(
+        `Không thể chuyển ngành sang nhánh có tiền tố ${hierarchy.rootPrefix ?? 'không hợp lệ'} mà không đổi mã ngành.`,
+      );
+    }
+  }
+
+  private getRootPrefix(root: IndustryEntity): string {
+    const rootPrefix = this.normalizeIndustryCode(root.industryCode).charAt(0);
+    if (!/^[A-Z]$/.test(rootPrefix)) {
+      this.throwInvalidCodePrefix(
+        'Mã ngành cấp 1 phải bắt đầu bằng một chữ cái.',
+      );
+    }
+    return rootPrefix;
+  }
+
+  private throwInvalidCodePrefix(message: string): never {
+    throw new BadRequestException({
+      code: ErrorCode.INVALID_INDUSTRY_CODE_PREFIX,
+      message,
+    });
   }
 
   private toResponse(industry: IndustryEntity): IndustryResponseDto {
