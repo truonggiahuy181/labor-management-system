@@ -318,6 +318,22 @@
     "deleteSuccess": "Đã xoá {{count}} dữ liệu",
     "deletePartial": "Đã xoá {{success}}/{{total}} dữ liệu; một số dữ liệu đang được sử dụng hoặc có dữ liệu con nên không thể xoá"
   },
+  "reportPeriods": {
+    "title": "Danh sách cấu hình báo cáo",
+    "addTitle": "Thêm mới",
+    "editTitle": "Chỉnh sửa",
+    "reportYear": "Năm báo cáo",
+    "reportName": "Tên báo cáo",
+    "reportPeriod": "Kỳ báo cáo",
+    "startDate": "Ngày bắt đầu",
+    "endDate": "Ngày kết thúc",
+    "status": "Trạng thái",
+    "active": "Hoạt động",
+    "inactive": "Ngừng hoạt động",
+    "invalidYear": "Năm báo cáo phải từ 2000 đến 2100",
+    "invalidDateRange": "Ngày kết thúc không được trước ngày bắt đầu",
+    "loadFailed": "Không tải được danh sách kỳ báo cáo"
+  },
   "accidentCatalog": {
     "category": "Loại danh mục",
     "injuryFactors": "Yếu tố gây chấn thương",
