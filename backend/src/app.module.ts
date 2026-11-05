@@ -19,6 +19,7 @@ import { LocationModule } from './modules/location/location.module.js';
 import { ReportPeriodModule } from './modules/report-period/report-period.module.js';
 import { InjuryFactorModule } from './modules/injury-factor/injury-factor.module.js';
 import { InjuryTypeModule } from './modules/injury-type/injury-type.module.js';
+import { OccupationModule } from './modules/occupation/occupation.module.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { InjuryTypeModule } from './modules/injury-type/injury-type.module.js';
     ReportPeriodModule,
     InjuryFactorModule,
     InjuryTypeModule,
+    OccupationModule,
     SeedModule,
   ],
   controllers: [AppController],
