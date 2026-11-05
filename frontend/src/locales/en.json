@@ -316,6 +316,22 @@
     "deleteSuccess": "Deleted {{count}} records",
     "deletePartial": "Deleted {{success}}/{{total}} records; some records are in use or have child records and could not be deleted"
   },
+  "reportPeriods": {
+    "title": "Report configuration list",
+    "addTitle": "Add new",
+    "editTitle": "Edit",
+    "reportYear": "Report year",
+    "reportName": "Report name",
+    "reportPeriod": "Report period",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "invalidYear": "Report year must be between 2000 and 2100",
+    "invalidDateRange": "End date cannot be earlier than start date",
+    "loadFailed": "Could not load report periods"
+  },
   "accidentCatalog": {
     "category": "Category type",
     "injuryFactors": "Injury factors",
