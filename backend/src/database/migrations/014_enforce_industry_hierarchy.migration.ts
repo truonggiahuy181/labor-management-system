@@ -5,7 +5,10 @@ export class EnforceIndustryHierarchy1793610000000 implements MigrationInterface
   name = 'EnforceIndustryHierarchy1793610000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    const industryRows = buildIndustrySeedRows();
+    // Migration 017 applies the persisted level-one prefix. Migration 014 must
+    // still use legacy numeric codes so it can repair rows created by migration
+    // 001 before adding hierarchy constraints on a fresh database.
+    const industryRows = buildIndustrySeedRows({ includeRootPrefix: false });
 
     await queryRunner.query(
       `

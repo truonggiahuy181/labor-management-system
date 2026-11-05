@@ -38,7 +38,7 @@ describe('IndustryService', () => {
 
   const industry = {
     id: 1,
-    industryCode: '6201',
+    industryCode: 'J6201',
     industryName: 'Lập trình máy vi tính',
     level: 4,
     parentId: 10,
@@ -151,7 +151,7 @@ describe('IndustryService', () => {
 
     await expect(
       service.create({
-        industryCode: '6201',
+        industryCode: 'J',
         industryName: 'Tên khác',
       }),
     ).rejects.toThrow(ConflictException);
@@ -159,21 +159,39 @@ describe('IndustryService', () => {
 
   it('derives a child level from its active parent chain', async () => {
     repository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ...industry, id: 5, level: 3, parentId: 4 })
-      .mockResolvedValueOnce({ ...industry, id: 4, level: 2, parentId: 3 })
-      .mockResolvedValueOnce({ ...industry, id: 3, level: 1, parentId: null });
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 5,
+        industryCode: 'J620',
+        level: 3,
+        parentId: 4,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 4,
+        industryCode: 'J62',
+        level: 2,
+        parentId: 3,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 3,
+        industryCode: 'J',
+        level: 1,
+        parentId: null,
+      })
+      .mockResolvedValueOnce(null);
     repository.save.mockImplementation(async (value) => ({ id: 6, ...value }));
 
     await expect(
       service.create({
-        industryCode: 'CHILD',
+        industryCode: '6201',
         industryName: 'Ngành con',
         parentId: 5,
       }),
     ).resolves.toMatchObject({
       id: 6,
-      industryCode: 'CHILD',
+      industryCode: 'J6201',
       level: 4,
       parentId: 5,
     });
@@ -213,7 +231,13 @@ describe('IndustryService', () => {
   it('rejects changing the parent of an industry with children', async () => {
     repository.findOne
       .mockResolvedValueOnce({ ...industry, level: 2, parentId: 10 })
-      .mockResolvedValueOnce({ ...industry, id: 20, level: 1, parentId: null });
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 20,
+        industryCode: 'J',
+        level: 1,
+        parentId: null,
+      });
     repository.exists.mockResolvedValue(true);
     enterpriseRepository.exists.mockResolvedValue(false);
 
@@ -225,9 +249,27 @@ describe('IndustryService', () => {
   it('rejects changing the parent of an industry used by an enterprise', async () => {
     repository.findOne
       .mockResolvedValueOnce(industry)
-      .mockResolvedValueOnce({ ...industry, id: 20, level: 3, parentId: 30 })
-      .mockResolvedValueOnce({ ...industry, id: 30, level: 2, parentId: 40 })
-      .mockResolvedValueOnce({ ...industry, id: 40, level: 1, parentId: null });
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 20,
+        industryCode: 'J620',
+        level: 3,
+        parentId: 30,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 30,
+        industryCode: 'J62',
+        level: 2,
+        parentId: 40,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 40,
+        industryCode: 'J',
+        level: 1,
+        parentId: null,
+      });
     repository.exists.mockResolvedValue(false);
     enterpriseRepository.exists.mockResolvedValue(true);
 
@@ -248,8 +290,20 @@ describe('IndustryService', () => {
   it('reparents an unused leaf and derives its level', async () => {
     repository.findOne
       .mockResolvedValueOnce(industry)
-      .mockResolvedValueOnce({ ...industry, id: 20, level: 2, parentId: 30 })
-      .mockResolvedValueOnce({ ...industry, id: 30, level: 1, parentId: null })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 20,
+        industryCode: 'J62',
+        level: 2,
+        parentId: 30,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 30,
+        industryCode: 'J',
+        level: 1,
+        parentId: null,
+      })
       .mockResolvedValueOnce({
         ...industry,
         level: 3,
@@ -266,6 +320,30 @@ describe('IndustryService', () => {
       level: 3,
       parentId: 20,
     });
+  });
+
+  it('rejects moving an industry to a different level-one prefix', async () => {
+    repository.findOne
+      .mockResolvedValueOnce(industry)
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 20,
+        industryCode: 'G46',
+        level: 2,
+        parentId: 30,
+      })
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 30,
+        industryCode: 'G',
+        level: 1,
+        parentId: null,
+      });
+
+    await expect(service.update(1, { parentId: 20 })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('updates industry status', async () => {

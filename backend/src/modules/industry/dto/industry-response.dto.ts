@@ -4,7 +4,7 @@ export class IndustryResponseDto {
   @ApiProperty({ example: 1 })
   id: number;
 
-  @ApiProperty({ example: '6201' })
+  @ApiProperty({ example: 'J6201' })
   industryCode: string;
 
   @ApiProperty({ example: 'Lập trình máy vi tính' })

@@ -13,6 +13,15 @@ export interface IndustrySeedRow {
   is_active: boolean;
 }
 
+export interface BuildIndustrySeedRowsOptions {
+  includeRootPrefix?: boolean;
+}
+
+interface ResolvedIndustryCatalogEntry extends IndustrySeedRow {
+  source_code: string;
+  root_prefix: string;
+}
+
 const industry = (
   industryCode: string,
   industryName: string,
@@ -177,30 +186,98 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogDefinition[] = [
   ),
 ];
 
-export function buildIndustrySeedRows(): IndustrySeedRow[] {
-  const levelsByCode = new Map<string, number>();
+function resolveIndustryCatalog(): ResolvedIndustryCatalogEntry[] {
+  const resolvedBySourceCode = new Map<string, ResolvedIndustryCatalogEntry>();
+  const storedCodes = new Set<string>();
 
   return INDUSTRY_CATALOG.map((item) => {
-    const parentLevel =
-      item.parentCode === null ? 0 : levelsByCode.get(item.parentCode);
-    if (parentLevel === undefined) {
+    const sourceCode = item.industryCode.trim().toUpperCase();
+    const sourceParentCode = item.parentCode?.trim().toUpperCase() ?? null;
+    const parent =
+      sourceParentCode === null
+        ? null
+        : resolvedBySourceCode.get(sourceParentCode);
+
+    if (sourceParentCode !== null && !parent) {
       throw new Error(
-        `Industry ${item.industryCode} references unknown parent ${item.parentCode}.`,
+        `Industry ${sourceCode} references unknown parent ${sourceParentCode}.`,
       );
     }
 
-    const level = parentLevel + 1;
+    const level = parent ? parent.level + 1 : 1;
     if (level > 4) {
-      throw new Error(`Industry ${item.industryCode} exceeds level 4.`);
+      throw new Error(`Industry ${sourceCode} exceeds level 4.`);
     }
-    levelsByCode.set(item.industryCode, level);
 
-    return {
-      industry_code: item.industryCode,
+    const rootPrefix = parent ? parent.root_prefix : sourceCode.charAt(0);
+    if (!/^[A-Z]$/.test(rootPrefix)) {
+      throw new Error(
+        `Level-one industry ${sourceCode} must start with a letter.`,
+      );
+    }
+
+    if (
+      parent &&
+      /^[A-Z]/.test(sourceCode) &&
+      !sourceCode.startsWith(rootPrefix)
+    ) {
+      throw new Error(
+        `Industry ${sourceCode} must start with root prefix ${rootPrefix}.`,
+      );
+    }
+
+    const storedCode =
+      parent && !sourceCode.startsWith(rootPrefix)
+        ? `${rootPrefix}${sourceCode}`
+        : sourceCode;
+    if (storedCode.length > 50) {
+      throw new Error(`Industry code ${storedCode} exceeds 50 characters.`);
+    }
+    if (storedCodes.has(storedCode)) {
+      throw new Error(`Duplicate stored industry code ${storedCode}.`);
+    }
+
+    const resolved: ResolvedIndustryCatalogEntry = {
+      source_code: sourceCode,
+      industry_code: storedCode,
       industry_name: item.industryName,
-      parent_code: item.parentCode,
+      parent_code: parent?.industry_code ?? null,
       level,
       is_active: item.isActive,
+      root_prefix: rootPrefix,
     };
+    resolvedBySourceCode.set(sourceCode, resolved);
+    storedCodes.add(storedCode);
+    return resolved;
   });
+}
+
+export function buildIndustrySeedRows(
+  options: BuildIndustrySeedRowsOptions = {},
+): IndustrySeedRow[] {
+  const includeRootPrefix = options.includeRootPrefix ?? true;
+
+  return resolveIndustryCatalog().map((item, index) => ({
+    industry_code: includeRootPrefix ? item.industry_code : item.source_code,
+    industry_name: item.industry_name,
+    parent_code: includeRootPrefix
+      ? item.parent_code
+      : (INDUSTRY_CATALOG[index].parentCode?.trim().toUpperCase() ?? null),
+    level: item.level,
+    is_active: item.is_active,
+  }));
+}
+
+export function getStoredIndustryCode(industryCode: string): string {
+  const normalizedCode = industryCode.trim().toUpperCase();
+  const resolved = resolveIndustryCatalog().find(
+    (item) =>
+      item.source_code === normalizedCode ||
+      item.industry_code === normalizedCode,
+  );
+
+  if (!resolved) {
+    throw new Error(`Unknown industry code ${industryCode}.`);
+  }
+  return resolved.industry_code;
 }

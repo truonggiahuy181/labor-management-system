@@ -13,7 +13,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 const INDUSTRY_CODE_RE = /^[A-Z0-9][A-Z0-9_-]*$/;
 
 export class CreateIndustryDto {
-  @ApiProperty({ example: '6201', maxLength: 50 })
+  @ApiProperty({
+    example: '6201',
+    maxLength: 50,
+    description:
+      'Với cấp 2-4, backend tự thêm tiền tố chữ cái của ngành cấp 1 (ví dụ 6201 thành J6201).',
+  })
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )

@@ -2,7 +2,10 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { DataSource, EntityManager } from 'typeorm';
-import { buildIndustrySeedRows } from '../catalogs/industry-catalog.js';
+import {
+  buildIndustrySeedRows,
+  getStoredIndustryCode,
+} from '../catalogs/industry-catalog.js';
 import { INJURY_TYPE_CATALOG } from '../catalogs/injury-type-catalog.js';
 import { OCCUPATION_CATALOG } from '../catalogs/occupation-catalog.js';
 
@@ -982,7 +985,7 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
         enterpriseName: `${profile.enterpriseName}${profileSuffix}`,
         foreignName: `${profile.foreignName}${profileSuffix}`,
         businessTypeCode: profile.businessTypeCode,
-        industryCode: profile.industryCode,
+        industryCode: getStoredIndustryCode(profile.industryCode),
         registrationDate: `${2018 + (index % 8)}-${String((index % 12) + 1).padStart(2, '0')}-${String((index % 27) + 1).padStart(2, '0')}`,
         provinceCode: location.province_code,
         wardCode: location.ward_code,
