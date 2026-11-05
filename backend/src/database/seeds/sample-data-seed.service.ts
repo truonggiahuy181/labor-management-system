@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { DataSource, EntityManager } from 'typeorm';
 import { buildIndustrySeedRows } from '../catalogs/industry-catalog.js';
 import { INJURY_TYPE_CATALOG } from '../catalogs/injury-type-catalog.js';
+import { OCCUPATION_CATALOG } from '../catalogs/occupation-catalog.js';
 
 interface LocationPair {
   province_code: string;
@@ -458,6 +459,7 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
     await this.seedReportPeriods(manager);
     await this.seedInjuryFactors(manager);
     await this.seedInjuryTypes(manager);
+    await this.seedOccupations(manager);
 
     const locations = await manager.query<LocationPair[]>(`
       SELECT DISTINCT ON (province.code)
@@ -890,6 +892,66 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
             rows.map((row) => ({
               injury_type_code: row.injuryTypeCode,
               injury_type_name: row.injuryTypeName,
+              parent_code: row.parentCode,
+              level: row.level,
+              is_active: row.isActive,
+            })),
+          ),
+        ],
+      );
+    }
+  }
+
+  private async seedOccupations(manager: EntityManager): Promise<void> {
+    for (const level of [1, 2, 3, 4] as const) {
+      const rows = OCCUPATION_CATALOG.filter((row) => row.level === level);
+      await manager.query(
+        `
+          INSERT INTO occupations (
+            occupation_code,
+            occupation_name,
+            level,
+            parent_id,
+            is_active,
+            created_by,
+            updated_by,
+            created_at,
+            updated_at
+          )
+          SELECT
+            seed.occupation_code,
+            seed.occupation_name,
+            seed.level,
+            parent.id,
+            seed.is_active,
+            NULL,
+            NULL,
+            NOW(),
+            NOW()
+          FROM jsonb_to_recordset($1::jsonb)
+            AS seed(
+              occupation_code VARCHAR(4),
+              occupation_name VARCHAR(255),
+              parent_code VARCHAR(4),
+              level SMALLINT,
+              is_active BOOLEAN
+            )
+          LEFT JOIN occupations parent
+            ON parent.occupation_code = seed.parent_code
+            AND parent.deleted_at IS NULL
+          ON CONFLICT (occupation_code) DO UPDATE
+          SET occupation_name = EXCLUDED.occupation_name,
+              level = EXCLUDED.level,
+              parent_id = EXCLUDED.parent_id,
+              is_active = EXCLUDED.is_active,
+              deleted_at = NULL,
+              updated_at = NOW()
+        `,
+        [
+          JSON.stringify(
+            rows.map((row) => ({
+              occupation_code: row.occupationCode,
+              occupation_name: row.occupationName,
               parent_code: row.parentCode,
               level: row.level,
               is_active: row.isActive,
