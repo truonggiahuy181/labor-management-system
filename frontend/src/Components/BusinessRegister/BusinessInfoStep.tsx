@@ -18,6 +18,7 @@ import { getLocalToday, isNotFutureDate } from '@/services/date';
 import { fileAccessUrl } from '@/services/enterprise';
 import { notBlank, stripSpaces } from '@/services/text';
 import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
+import IndustryTreeSelect from './IndustryTreeSelect';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^0\d{9}$/;
@@ -128,6 +129,24 @@ export default function BusinessInfoStep({ form, files, onFilesChange, catalog =
             if (def.name === 'province') setValue('ward', '');
             if (def.name === 'operatingProvince') setValue('operatingWard', '');
           };
+
+          if (def.name === 'mainIndustry' && catalog.industryTree?.length) {
+            return (
+              <IndustryTreeSelect
+                value={field.value}
+                onChange={selectValue}
+                onBlur={field.onBlur}
+                industries={catalog.industryTree}
+                label={def.label}
+                required={def.required}
+                disabled={disabled}
+                error={!!fieldState.error}
+                helperText={fieldState.error?.message}
+                inputRef={field.ref}
+                name={field.name}
+              />
+            );
+          }
 
           if (def.searchable && def.options) {
             const unknownOption = field.value && !def.options.some((option) => option.value === field.value)

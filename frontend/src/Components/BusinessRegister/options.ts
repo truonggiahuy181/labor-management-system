@@ -1,6 +1,7 @@
 // src/Components/BusinessRegister/options.ts
 // Danh mục mẫu cho các ô chọn. TODO: thay bằng API danh mục (loại hình, ngành nghề VSIC, tỉnh/xã).
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
+import type { Industry } from '@/services/enterprise';
 
 export type Option = { value: string; label: string };
 
@@ -21,7 +22,7 @@ export const INDUSTRIES: Option[] = [
 
 // Danh mục loại hình / ngành nghề truyền vào form: luồng đăng ký dùng mặc định,
 // Quản trị viên truyền danh mục thật từ API (Hooks/useCatalogs)
-export type CatalogOptions = { businessTypes: Option[]; industries: Option[] };
+export type CatalogOptions = { businessTypes: Option[]; industries: Option[]; industryTree?: Industry[] };
 export const DEFAULT_CATALOG: CatalogOptions = { businessTypes: BUSINESS_TYPES, industries: INDUSTRIES };
 
 export const labelOf = (options: Option[], value: string) =>

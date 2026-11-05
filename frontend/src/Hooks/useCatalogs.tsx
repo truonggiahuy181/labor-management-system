@@ -19,10 +19,12 @@ export default function useCatalogs() {
 
   return useMemo(() => {
     const businessTypeOptions: Option[] = businessTypes.map((b) => ({ value: String(b.id), label: b.typeName }));
-    const industryOptions: Option[] = industries.map((i) => ({ value: String(i.id), label: `${i.industryCode} - ${i.industryName}` }));
+    const industryOptions: Option[] = industries
+      .filter((industry) => industry.level === 4)
+      .map((industry) => ({ value: String(industry.id), label: `${industry.industryCode} - ${industry.industryName}` }));
     const find = (options: Option[], value: string | number | null | undefined) =>
       options.find((o) => o.value === String(value ?? ''))?.label ?? '';
-    const catalog: CatalogOptions = { businessTypes: businessTypeOptions, industries: industryOptions };
+    const catalog: CatalogOptions = { businessTypes: businessTypeOptions, industries: industryOptions, industryTree: industries };
     return {
       catalog,       // truyền vào form dùng chung (EnterpriseForm / ConfirmStep)
       businessTypeOptions,
