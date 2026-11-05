@@ -87,7 +87,7 @@
     "resendOtp": "Gửi lại mã xác thực",
     "submit": "Xác nhận",
     "recentlySent": "Mã xác thực đã được gửi gần đây, vui lòng đợi {{seconds}} giây trước khi gửi lại",
-    "sendSuccess":"Mã xác thực đã được gửi thành công",
+    "sendSuccess": "Mã xác thực đã được gửi thành công",
     "resetSuccess": "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập bằng mật khẩu mới  "
   },
   "menu": {
@@ -314,5 +314,34 @@
     "deleteConfirm": "Xoá {{count}} dữ liệu đã chọn?",
     "deleteSuccess": "Đã xoá {{count}} dữ liệu",
     "deletePartial": "Đã xoá {{success}}/{{total}} dữ liệu; một số dữ liệu đang được sử dụng hoặc có dữ liệu con nên không thể xoá"
+  },
+  "accidentCatalog": {
+    "category": "Loại danh mục",
+    "injuryFactors": "Yếu tố gây chấn thương",
+    "injuryTypes": "Loại chấn thương",
+    "injuryFactorTitle": "Danh sách yếu tố gây chấn thương",
+    "injuryTypeTitle": "Danh sách loại chấn thương",
+    "injuryFactorCode": "Mã yếu tố",
+    "injuryFactorName": "Tên yếu tố gây chấn thương",
+    "injuryTypeCode": "Mã số",
+    "injuryTypeName": "Tên loại chấn thương",
+    "parentInjuryType": "Nhóm cha",
+    "noParentInjuryType": "Không có (loại cấp 1)",
+    "parentInjuryTypeHint": "Chọn cấp 1 hoặc cấp 2; backend tự xác định cấp của loại mới",
+    "parentImmutableHint": "Mã số và nhóm cha không được thay đổi sau khi tạo",
+    "injuryTypeCodeHint": "Cấp 1: 1 số; cấp 2: 2 số; cấp 3: 3 số và phải bắt đầu bằng mã cha",
+    "invalidInjuryTypeCode": "Mã phải gồm từ 1 đến 3 chữ số",
+    "expandInjuryType": "Mở nhóm loại chấn thương con",
+    "collapseInjuryType": "Thu gọn nhóm loại chấn thương con",
+    "addInjuryFactor": "Thêm yếu tố gây chấn thương",
+    "editInjuryFactor": "Cập nhật yếu tố gây chấn thương",
+    "addInjuryType": "Thêm loại chấn thương",
+    "editInjuryType": "Cập nhật loại chấn thương",
+    "loadInjuryFactorsFailed": "Không tải được danh sách yếu tố gây chấn thương",
+    "loadInjuryTypesFailed": "Không tải được danh sách loại chấn thương",
+    "deleteInjuryFactorsTitle": "Xoá yếu tố gây chấn thương",
+    "deleteInjuryTypesTitle": "Xoá loại chấn thương",
+    "deleteInjuryFactorsConfirm": "Chỉ xoá được yếu tố đã ngừng sử dụng. Xoá {{count}} dữ liệu đã chọn?",
+    "deleteInjuryTypesConfirm": "Chỉ xoá được loại chấn thương đã ngừng sử dụng và không có nhóm con. Xoá {{count}} dữ liệu đã chọn?"
   }
 }

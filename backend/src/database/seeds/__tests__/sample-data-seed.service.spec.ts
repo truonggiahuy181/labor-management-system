@@ -77,12 +77,18 @@ describe('SampleDataSeedService', () => {
     const injuryFactorInsert = manager.query.mock.calls.find(([sql]) =>
       sql.includes('INSERT INTO injury_factors'),
     );
+    const injuryTypeInserts = manager.query.mock.calls.filter(([sql]) =>
+      sql.includes('INSERT INTO injury_types'),
+    );
     const industryInserts = manager.query.mock.calls.filter(([sql]) =>
       sql.includes('INSERT INTO industries'),
     );
     const enterpriseRows = JSON.parse(enterpriseInsert?.[1]?.[0] as string);
     const reportPeriodRows = JSON.parse(reportPeriodInsert?.[1]?.[0] as string);
     const injuryFactorRows = JSON.parse(injuryFactorInsert?.[1]?.[0] as string);
+    const injuryTypeRows = injuryTypeInserts.flatMap(([, parameters]) =>
+      JSON.parse(parameters?.[0] as string),
+    );
     const industryRows = industryInserts.flatMap(([, parameters]) =>
       JSON.parse(parameters?.[0] as string),
     );
@@ -90,6 +96,29 @@ describe('SampleDataSeedService', () => {
     expect(enterpriseRows).toHaveLength(30);
     expect(reportPeriodRows).toHaveLength(12);
     expect(injuryFactorRows).toHaveLength(9);
+    expect(injuryTypeInserts).toHaveLength(3);
+    expect(injuryTypeRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          injury_type_code: '1',
+          parent_code: null,
+          level: 1,
+          is_active: true,
+        }),
+        expect.objectContaining({
+          injury_type_code: '110',
+          parent_code: '11',
+          level: 3,
+          is_active: true,
+        }),
+        expect.objectContaining({
+          injury_type_code: '610',
+          parent_code: '61',
+          level: 3,
+          is_active: false,
+        }),
+      ]),
+    );
     expect(industryInserts).toHaveLength(4);
     expect(industryRows).toEqual(
       expect.arrayContaining([
