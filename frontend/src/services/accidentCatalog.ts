@@ -21,6 +21,17 @@ export interface InjuryType {
   updatedAt: string;
 }
 
+export interface Occupation {
+  id: number;
+  occupationCode: string;
+  occupationName: string;
+  level: number;
+  parentId: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CatalogFilters {
   isActive?: boolean;
   includeInactive?: boolean;
@@ -29,6 +40,13 @@ export interface CatalogFilters {
 export interface InjuryTypeFilters extends CatalogFilters {
   injuryTypeCode?: string;
   injuryTypeName?: string;
+  level?: number;
+  parentId?: number;
+}
+
+export interface OccupationFilters extends CatalogFilters {
+  occupationCode?: string;
+  occupationName?: string;
   level?: number;
   parentId?: number;
 }
@@ -88,4 +106,33 @@ export const injuryTypeApi = {
       .then((response) => response.data.data),
   remove: (id: number) =>
     api.delete(`/injury-types/${id}`).then(() => undefined),
+};
+
+export const occupationApi = {
+  list: (params: OccupationFilters = {}) =>
+    api
+      .get<BackendResponse<Occupation[]>>("/occupations", { params })
+      .then((response) => response.data.data ?? []),
+  selectable: () =>
+    api
+      .get<BackendResponse<Occupation[]>>("/occupations/selectable")
+      .then((response) => response.data.data ?? []),
+  create: (
+    body: Pick<Occupation, "occupationCode" | "occupationName" | "parentId">,
+  ) =>
+    api
+      .post<BackendResponse<Occupation>>("/occupations", body)
+      .then((response) => response.data.data),
+  update: (id: number, body: Pick<Occupation, "occupationName">) =>
+    api
+      .patch<BackendResponse<Occupation>>(`/occupations/${id}`, body)
+      .then((response) => response.data.data),
+  updateStatus: (id: number, isActive: boolean) =>
+    api
+      .patch<BackendResponse<Occupation>>(`/occupations/${id}/status`, {
+        isActive,
+      })
+      .then((response) => response.data.data),
+  remove: (id: number) =>
+    api.delete(`/occupations/${id}`).then(() => undefined),
 };

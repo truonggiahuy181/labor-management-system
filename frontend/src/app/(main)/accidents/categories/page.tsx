@@ -4,11 +4,12 @@ import { useState } from "react";
 import { MenuItem, Stack, TextField, Typography } from "@mui/material";
 import InjuryFactorCatalog from "@/Components/CatalogManagement/InjuryFactorCatalog";
 import InjuryTypeCatalog from "@/Components/CatalogManagement/InjuryTypeCatalog";
+import OccupationCatalog from "@/Components/CatalogManagement/OccupationCatalog";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
 import { ROLE } from "@/constants/roles";
 
-type CatalogKind = "injury-types" | "injury-factors";
+type CatalogKind = "injury-types" | "injury-factors" | "occupations";
 
 export default function AccidentCategoriesPage() {
   const { user } = useAuth();
@@ -39,12 +40,17 @@ export default function AccidentCategoriesPage() {
         <MenuItem value="injury-types">
           {translate("accidentCatalog.injuryTypes")}
         </MenuItem>
+        <MenuItem value="occupations">
+          {translate("accidentCatalog.occupations")}
+        </MenuItem>
       </TextField>
 
       {catalog === "injury-types" ? (
         <InjuryTypeCatalog />
-      ) : (
+      ) : catalog === "injury-factors" ? (
         <InjuryFactorCatalog />
+      ) : (
+        <OccupationCatalog />
       )}
     </Stack>
   );
