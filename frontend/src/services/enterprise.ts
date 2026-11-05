@@ -169,8 +169,8 @@ export const industryApi = {
   remove: (id: number) => api.delete(`/industries/${id}`).then(() => undefined),
 };
 
-// Các form doanh nghiệp chỉ được chọn danh mục đang hoạt động; ngành nghề chính phải là ngành cấp 4.
+// Tải đủ cây ngành đang hoạt động để FE hiển thị phân cấp; form chỉ cho chọn cấp 4.
 export const catalogApi = {
   businessTypes: () => businessTypeApi.list(),
-  industries: () => industryApi.list({ level: 4 }),
+  industries: () => industryApi.list(),
 };
