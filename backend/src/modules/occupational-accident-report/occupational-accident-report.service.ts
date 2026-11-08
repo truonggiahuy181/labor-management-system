@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Not, QueryFailedError, Repository } from 'typeorm';
+import { createHash } from 'node:crypto';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { AccidentCauseEntity } from '../accident-cause/accident-cause.entity.js';
 import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
@@ -31,6 +32,9 @@ import { OccupationalAccidentCaseEntity } from './entities/occupational-accident
 import { OccupationalAccidentReportHistoryEntity } from './entities/occupational-accident-report-history.entity.js';
 import { OccupationalAccidentReportEntity } from './entities/occupational-accident-report.entity.js';
 import { OccupationalAccidentVictimGroupEntity } from './entities/occupational-accident-victim-group.entity.js';
+import { OccupationalAccidentArticle39SummaryEntity } from './entities/occupational-accident-article39-summary.entity.js';
+import { OccupationalAccidentReportSubmissionEntity } from './entities/occupational-accident-report-submission.entity.js';
+import { OccupationalAccidentReportDraftDocumentEntity } from './entities/occupational-accident-report-draft-document.entity.js';
 import {
   OccupationalAccidentReportListStatus,
   OccupationalAccidentReportStatus,
@@ -58,6 +62,12 @@ export class OccupationalAccidentReportService {
     private readonly victimGroupRepository: Repository<OccupationalAccidentVictimGroupEntity>,
     @InjectRepository(OccupationalAccidentReportHistoryEntity)
     private readonly historyRepository: Repository<OccupationalAccidentReportHistoryEntity>,
+    @InjectRepository(OccupationalAccidentArticle39SummaryEntity)
+    private readonly article39Repository: Repository<OccupationalAccidentArticle39SummaryEntity>,
+    @InjectRepository(OccupationalAccidentReportSubmissionEntity)
+    private readonly submissionRepository: Repository<OccupationalAccidentReportSubmissionEntity>,
+    @InjectRepository(OccupationalAccidentReportDraftDocumentEntity)
+    private readonly draftDocumentRepository: Repository<OccupationalAccidentReportDraftDocumentEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(EnterpriseEntity)
@@ -86,7 +96,7 @@ export class OccupationalAccidentReportService {
         enterpriseId: enterprise.id,
       })
       .orderBy('period.report_year', 'DESC')
-      .addOrderBy('period.start_date', 'DESC');
+      .addOrderBy('period.submission_start_date', 'DESC');
 
     const periodBuilder = this.reportPeriodRepository
       .createQueryBuilder('period')
@@ -98,7 +108,7 @@ export class OccupationalAccidentReportService {
       })
       .andWhere('period.is_active = TRUE')
       .orderBy('period.report_year', 'DESC')
-      .addOrderBy('period.start_date', 'DESC');
+      .addOrderBy('period.submission_start_date', 'DESC');
 
     if (query.year !== undefined) {
       reportBuilder.andWhere('period.report_year = :year', {
@@ -125,10 +135,9 @@ export class OccupationalAccidentReportService {
         reportPeriodId: period.id,
         reportName: period.reportName,
         reportYear: period.reportYear,
-        reportPeriod: period.reportPeriod,
         periodCode: period.periodCode,
-        startDate: period.startDate,
-        endDate: period.endDate,
+        submissionStartDate: period.submissionStartDate,
+        submissionEndDate: period.submissionEndDate,
         isSubmissionOpen: this.isPeriodOpen(period),
         status:
           report?.status ?? OccupationalAccidentReportListStatus.NOT_STARTED,
@@ -146,10 +155,9 @@ export class OccupationalAccidentReportService {
         reportPeriodId: report.reportPeriodId,
         reportName: report.reportPeriod.reportName,
         reportYear: report.reportPeriod.reportYear,
-        reportPeriod: report.reportPeriod.reportPeriod,
         periodCode: report.reportPeriod.periodCode,
-        startDate: report.reportPeriod.startDate,
-        endDate: report.reportPeriod.endDate,
+        submissionStartDate: report.reportPeriod.submissionStartDate,
+        submissionEndDate: report.reportPeriod.submissionEndDate,
         isSubmissionOpen: this.isPeriodOpen(report.reportPeriod),
         status: report.status,
         noAccidentsDeclared: report.noAccidentsDeclared,
@@ -162,7 +170,7 @@ export class OccupationalAccidentReportService {
     return items.sort(
       (left, right) =>
         right.reportYear - left.reportYear ||
-        right.startDate.localeCompare(left.startDate),
+        right.submissionStartDate.localeCompare(left.submissionStartDate),
     );
   }
 
@@ -213,10 +221,9 @@ export class OccupationalAccidentReportService {
         reportPeriodId: report.reportPeriodId,
         reportName: report.reportPeriod.reportName,
         reportYear: report.reportPeriod.reportYear,
-        reportPeriod: report.reportPeriod.reportPeriod,
         periodCode: report.reportPeriod.periodCode,
-        startDate: report.reportPeriod.startDate,
-        endDate: report.reportPeriod.endDate,
+        submissionStartDate: report.reportPeriod.submissionStartDate,
+        submissionEndDate: report.reportPeriod.submissionEndDate,
         status: report.status,
         noAccidentsDeclared: report.noAccidentsDeclared,
         submittedAt: report.submittedAt,
@@ -237,10 +244,11 @@ export class OccupationalAccidentReportService {
       .createQueryBuilder('report')
       .innerJoinAndSelect('report.reportPeriod', 'period')
       .leftJoinAndSelect('report.cases', 'accidentCase')
-      .leftJoinAndSelect('accidentCase.accidentCause', 'accidentCause')
+      .leftJoinAndSelect('accidentCase.primaryCause', 'primaryCause')
       .leftJoinAndSelect('accidentCase.injuryFactor', 'injuryFactor')
       .leftJoinAndSelect('accidentCase.victimGroups', 'victimGroup')
       .leftJoinAndSelect('victimGroup.occupation', 'occupation')
+      .leftJoinAndSelect('report.article39Summary', 'article39Summary')
       .where('report.status = :receivedStatus', {
         receivedStatus: OccupationalAccidentReportStatus.RECEIVED,
       });
@@ -464,11 +472,17 @@ export class OccupationalAccidentReportService {
           femaleEmployees: 0,
           payrollFundVnd: '0',
           noAccidentsDeclared: false,
-          headerCompleted: false,
           createdBy: userId,
           updatedBy: userId,
         });
         const saved = await reportRepository.save(report);
+        await manager
+          .getRepository(OccupationalAccidentArticle39SummaryEntity)
+          .save({
+            reportId: saved.id,
+            createdBy: userId,
+            updatedBy: userId,
+          });
         await historyRepository.save(
           historyRepository.create({
             reportId: saved.id,
@@ -476,7 +490,6 @@ export class OccupationalAccidentReportService {
             toStatus: OccupationalAccidentReportStatus.DRAFT,
             reason: null,
             createdBy: userId,
-            updatedBy: userId,
           }),
         );
         return saved.id;
@@ -533,27 +546,25 @@ export class OccupationalAccidentReportService {
       'enterprise-files',
       enterprise.id,
     );
+    const previousObjectKey = report.draftDocument?.documentObjectKey;
     try {
-      await this.reportRepository.update(report.id, {
-        signedDocumentObjectKey: uploaded.objectKey,
-        signedDocumentOriginalName: uploaded.originalName,
-        signedDocumentContentType: uploaded.contentType,
-        signedDocumentSize: String(uploaded.size),
-        signedDocumentUploadedAt: uploaded.uploadedAt,
-        updatedBy: userId,
+      await this.draftDocumentRepository.save({
+        reportId: report.id,
+        documentObjectKey: uploaded.objectKey,
+        documentOriginalName: uploaded.originalName,
+        documentContentType: uploaded.contentType,
+        documentSize: String(uploaded.size),
+        documentSha256: createHash('sha256').update(file.buffer).digest('hex'),
+        uploadedBy: userId,
+        uploadedAt: uploaded.uploadedAt,
       });
     } catch (error) {
       await this.fileService.deleteEnterpriseFile(uploaded.objectKey);
       throw error;
     }
 
-    if (
-      report.signedDocumentObjectKey &&
-      report.signedDocumentObjectKey !== uploaded.objectKey
-    ) {
-      await this.fileService.deleteEnterpriseFile(
-        report.signedDocumentObjectKey,
-      );
+    if (previousObjectKey && previousObjectKey !== uploaded.objectKey) {
+      await this.fileService.deleteEnterpriseFile(previousObjectKey);
     }
     return this.getMyReport(userId, reportId);
   }
@@ -562,24 +573,23 @@ export class OccupationalAccidentReportService {
     const enterprise = await this.resolveEnterprise(userId);
     const report = await this.findOwnedReport(enterprise.id, reportId);
     this.assertEditable(report);
-    const objectKey = report.signedDocumentObjectKey;
-    await this.reportRepository.update(report.id, {
-      ...this.clearSignedDocumentFields(),
-      updatedBy: userId,
-    });
+    const objectKey = report.draftDocument?.documentObjectKey;
+    await this.draftDocumentRepository.delete(report.id);
     await this.deleteSignedDocumentFile(objectKey);
     return this.getMyReport(userId, reportId);
   }
 
   async getMySignedDocumentAccess(userId: number, reportId: number) {
     const enterprise = await this.resolveEnterprise(userId);
-    return this.getSignedDocumentAccess(
-      await this.findOwnedReport(enterprise.id, reportId),
-    );
+    const report = await this.findOwnedReport(enterprise.id, reportId);
+    return this.getSignedDocumentAccess(report, true);
   }
 
   async getAdminSignedDocumentAccess(reportId: number) {
-    return this.getSignedDocumentAccess(await this.findAdminReport(reportId));
+    return this.getSignedDocumentAccess(
+      await this.findAdminReport(reportId),
+      false,
+    );
   }
 
   async updateHeader(
@@ -611,11 +621,9 @@ export class OccupationalAccidentReportService {
       femaleEmployees: dto.femaleEmployees,
       payrollFundVnd: dto.payrollFundVnd,
       noAccidentsDeclared: dto.noAccidentsDeclared,
-      headerCompleted: true,
-      ...this.clearSignedDocumentFields(),
       updatedBy: userId,
     });
-    await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
+    await this.invalidateDraftDocument(report);
     return this.getMyReport(userId, reportId);
   }
 
@@ -645,7 +653,7 @@ export class OccupationalAccidentReportService {
         caseRepository.create({
           reportId: report.id,
           accidentDate: dto.accidentDate,
-          accidentCauseId: dto.accidentCauseId,
+          primaryCauseId: dto.primaryCauseId,
           injuryFactorId: dto.injuryFactorId,
           medicalCostVnd: dto.medicalCostVnd,
           salaryCostVnd: dto.salaryCostVnd,
@@ -669,13 +677,12 @@ export class OccupationalAccidentReportService {
       await manager
         .getRepository(OccupationalAccidentReportEntity)
         .update(report.id, {
-          ...this.clearSignedDocumentFields(),
           updatedBy: userId,
         });
       return accidentCase.id;
     });
 
-    await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
+    await this.invalidateDraftDocument(report);
 
     return this.getOwnedCaseResponse(userId, reportId, caseId);
   }
@@ -697,7 +704,7 @@ export class OccupationalAccidentReportService {
         .getRepository(OccupationalAccidentCaseEntity)
         .update(caseId, {
           accidentDate: dto.accidentDate,
-          accidentCauseId: dto.accidentCauseId,
+          primaryCauseId: dto.primaryCauseId,
           injuryFactorId: dto.injuryFactorId,
           medicalCostVnd: dto.medicalCostVnd,
           salaryCostVnd: dto.salaryCostVnd,
@@ -723,12 +730,11 @@ export class OccupationalAccidentReportService {
       await manager
         .getRepository(OccupationalAccidentReportEntity)
         .update(report.id, {
-          ...this.clearSignedDocumentFields(),
           updatedBy: userId,
         });
     });
 
-    await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
+    await this.invalidateDraftDocument(report);
 
     return this.getOwnedCaseResponse(userId, reportId, caseId);
   }
@@ -750,11 +756,10 @@ export class OccupationalAccidentReportService {
       await manager
         .getRepository(OccupationalAccidentReportEntity)
         .update(report.id, {
-          ...this.clearSignedDocumentFields(),
           updatedBy: userId,
         });
     });
-    await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
+    await this.invalidateDraftDocument(report);
   }
 
   async updateArticle39Summary(
@@ -772,27 +777,13 @@ export class OccupationalAccidentReportService {
       );
     }
 
-    await this.reportRepository.update(report.id, {
-      article39TotalCases: dto.totalCases,
-      article39FatalCases: dto.fatalCases,
-      article39MultiVictimCases: dto.multiVictimCases,
-      article39VictimCount: dto.victimCount,
-      article39FemaleCount: dto.femaleCount,
-      article39DeathCount: dto.deathCount,
-      article39SevereCount: dto.severeCount,
-      article39UnmanagedVictimCount: dto.unmanagedVictimCount,
-      article39UnmanagedFemaleCount: dto.unmanagedFemaleCount,
-      article39UnmanagedDeathCount: dto.unmanagedDeathCount,
-      article39UnmanagedSevereCount: dto.unmanagedSevereCount,
-      article39MedicalCostVnd: dto.medicalCostVnd,
-      article39SalaryCostVnd: dto.salaryCostVnd,
-      article39CompensationCostVnd: dto.compensationCostVnd,
-      article39LostWorkDays: dto.lostWorkDays,
-      article39PropertyDamageVnd: dto.propertyDamageVnd,
-      ...this.clearSignedDocumentFields(),
+    await this.article39Repository.save({
+      reportId: report.id,
+      ...dto,
+      createdBy: report.article39Summary?.createdBy ?? userId,
       updatedBy: userId,
     });
-    await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
+    await this.invalidateDraftDocument(report);
     return this.getMyReport(userId, reportId);
   }
 
@@ -809,7 +800,7 @@ export class OccupationalAccidentReportService {
     const enterprise = await this.resolveEnterprise(userId);
     const report = await this.findOwnedReport(enterprise.id, reportId);
     this.assertEditable(report);
-    if (!report.headerCompleted) {
+    if (report.totalEmployees <= 0) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INCOMPLETE,
         message:
@@ -817,7 +808,8 @@ export class OccupationalAccidentReportService {
       });
     }
     const hasAccidentData =
-      report.cases.length > 0 || report.article39TotalCases > 0;
+      report.cases.length > 0 ||
+      (report.article39Summary?.totalCases ?? 0) > 0;
     if (!report.noAccidentsDeclared && !hasAccidentData) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INCOMPLETE,
@@ -825,7 +817,8 @@ export class OccupationalAccidentReportService {
           'Báo cáo chưa có vụ tai nạn và chưa xác nhận không phát sinh tai nạn.',
       });
     }
-    if (!report.signedDocumentObjectKey) {
+    const document = report.draftDocument;
+    if (!document) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_DOCUMENT_REQUIRED,
         message:
@@ -835,29 +828,70 @@ export class OccupationalAccidentReportService {
 
     const submittedAt = new Date();
     await this.dataSource.transaction(async (manager) => {
-      await manager
-        .getRepository(OccupationalAccidentReportEntity)
-        .update(report.id, {
+      const updateResult = await manager.update(
+        OccupationalAccidentReportEntity,
+        {
+          id: report.id,
+          status: In([
+            OccupationalAccidentReportStatus.DRAFT,
+            OccupationalAccidentReportStatus.RETURNED,
+          ]),
+        },
+        {
           status: OccupationalAccidentReportStatus.SUBMITTED,
           submittedAt,
           receivedAt: null,
           returnedAt: null,
           returnedReason: null,
           updatedBy: userId,
+        },
+      );
+      if (updateResult.affected !== 1) {
+        throw new ConflictException({
+          code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INVALID_STATUS,
+          message: 'Báo cáo đã được xử lý. Vui lòng tải lại dữ liệu.',
         });
+      }
+
+      const submissionRepository = manager.getRepository(
+        OccupationalAccidentReportSubmissionEntity,
+      );
+      const raw = await submissionRepository
+        .createQueryBuilder('submission')
+        .select('COALESCE(MAX(submission.submission_no), 0)', 'max')
+        .where('submission.report_id = :reportId', { reportId: report.id })
+        .getRawOne<{ max: string }>();
+      const submission = await submissionRepository.save(
+        submissionRepository.create({
+          reportId: report.id,
+          submissionNo: Number(raw?.max ?? 0) + 1,
+          reportDate: this.getCurrentDateInVietnam(),
+          submittedBy: userId,
+          submittedAt,
+          payloadSnapshot: this.buildSubmissionSnapshot(report, submittedAt),
+          documentObjectKey: document.documentObjectKey,
+          documentOriginalName: document.documentOriginalName,
+          documentContentType: document.documentContentType,
+          documentSize: document.documentSize,
+          documentSha256: document.documentSha256,
+        }),
+      );
       const historyRepository = manager.getRepository(
         OccupationalAccidentReportHistoryEntity,
       );
       await historyRepository.save(
         historyRepository.create({
           reportId: report.id,
+          submissionId: submission.id,
           fromStatus: report.status,
           toStatus: OccupationalAccidentReportStatus.SUBMITTED,
           reason: null,
           createdBy: userId,
-          updatedBy: userId,
         }),
       );
+      await manager.delete(OccupationalAccidentReportDraftDocumentEntity, {
+        reportId: report.id,
+      });
     });
     return this.getMyReport(userId, reportId);
   }
@@ -922,7 +956,9 @@ export class OccupationalAccidentReportService {
   private isPeriodOpen(period: ReportPeriodEntity): boolean {
     const today = this.getCurrentDateInVietnam();
     return Boolean(
-      period.isActive && today >= period.startDate && today <= period.endDate,
+      period.isActive &&
+        today >= period.submissionStartDate &&
+        today <= period.submissionEndDate,
     );
   }
 
@@ -960,8 +996,11 @@ export class OccupationalAccidentReportService {
       where: { id: reportId, enterpriseId },
       relations: {
         reportPeriod: true,
+        article39Summary: true,
+        draftDocument: true,
+        submissions: true,
         cases: {
-          accidentCause: true,
+          primaryCause: true,
           injuryFactor: true,
           victimGroups: { occupation: true },
         },
@@ -991,8 +1030,11 @@ export class OccupationalAccidentReportService {
       relations: {
         reportPeriod: true,
         histories: true,
+        article39Summary: true,
+        draftDocument: true,
+        submissions: true,
         cases: {
-          accidentCause: true,
+          primaryCause: true,
           injuryFactor: true,
           victimGroups: { occupation: true },
         },
@@ -1030,7 +1072,7 @@ export class OccupationalAccidentReportService {
     }
     if (
       toStatus === OccupationalAccidentReportStatus.RECEIVED &&
-      !report.signedDocumentObjectKey
+      !this.latestSubmission(report)
     ) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_DOCUMENT_REQUIRED,
@@ -1059,7 +1101,6 @@ export class OccupationalAccidentReportService {
               receivedAt: null,
               returnedAt: actionAt,
               returnedReason: reason,
-              ...this.clearSignedDocumentFields(),
               updatedBy: userId,
             },
       );
@@ -1077,18 +1118,14 @@ export class OccupationalAccidentReportService {
       await historyRepository.save(
         historyRepository.create({
           reportId: report.id,
+          submissionId: this.latestSubmission(report)?.id ?? null,
           fromStatus: OccupationalAccidentReportStatus.SUBMITTED,
           toStatus,
           reason,
           createdBy: userId,
-          updatedBy: userId,
         }),
       );
     });
-
-    if (toStatus === OccupationalAccidentReportStatus.RETURNED) {
-      await this.deleteSignedDocumentFile(report.signedDocumentObjectKey);
-    }
 
     return this.getAdminReport(reportId);
   }
@@ -1123,7 +1160,7 @@ export class OccupationalAccidentReportService {
 
     const [cause, factor] = await Promise.all([
       this.causeRepository.findOne({
-        where: { id: dto.accidentCauseId, isActive: true },
+        where: { id: dto.primaryCauseId, isActive: true },
       }),
       this.injuryFactorRepository.findOne({
         where: { id: dto.injuryFactorId, isActive: true },
@@ -1268,26 +1305,29 @@ export class OccupationalAccidentReportService {
       reportPeriod: {
         reportName: report.reportPeriod.reportName,
         reportYear: report.reportPeriod.reportYear,
-        reportPeriod: report.reportPeriod.reportPeriod,
+        reportTypeCode: report.reportPeriod.reportTypeCode,
         periodCode: report.reportPeriod.periodCode,
-        startDate: report.reportPeriod.startDate,
-        endDate: report.reportPeriod.endDate,
+        submissionStartDate: report.reportPeriod.submissionStartDate,
+        submissionEndDate: report.reportPeriod.submissionEndDate,
         isSubmissionOpen: this.isPeriodOpen(report.reportPeriod),
       },
       totalEmployees: report.totalEmployees,
       femaleEmployees: report.femaleEmployees,
       payrollFundVnd: report.payrollFundVnd,
       noAccidentsDeclared: report.noAccidentsDeclared,
-      headerCompleted: report.headerCompleted,
-      signedDocument: report.signedDocumentObjectKey
-        ? {
-            objectKey: report.signedDocumentObjectKey,
-            originalName: report.signedDocumentOriginalName,
-            contentType: report.signedDocumentContentType,
-            size: report.signedDocumentSize,
-            uploadedAt: report.signedDocumentUploadedAt,
-          }
-        : null,
+      headerCompleted: report.totalEmployees > 0,
+      signedDocument: this.documentMetadata(report),
+      submissions: [...(report.submissions ?? [])]
+        .sort((left, right) => right.submissionNo - left.submissionNo)
+        .map((submission) => ({
+          id: submission.id,
+          submissionNo: submission.submissionNo,
+          reportDate: submission.reportDate,
+          submittedAt: submission.submittedAt,
+          documentOriginalName: submission.documentOriginalName,
+          documentSize: submission.documentSize,
+          documentSha256: submission.documentSha256,
+        })),
       article39Summary: this.article39Summary(report),
       cases: [...report.cases]
         .sort((left, right) =>
@@ -1297,10 +1337,10 @@ export class OccupationalAccidentReportService {
           id: row.id,
           accidentDate: row.accidentDate,
           accidentCause: {
-            id: row.accidentCause.id,
-            code: row.accidentCause.causeCode,
-            name: row.accidentCause.causeName,
-            group: row.accidentCause.causeGroup,
+            id: row.primaryCause.id,
+            code: row.primaryCause.causeCode,
+            name: row.primaryCause.causeName,
+            group: row.primaryCause.causeGroup,
           },
           injuryFactor: {
             id: row.injuryFactor.id,
@@ -1378,9 +1418,9 @@ export class OccupationalAccidentReportService {
       this.addSummary(regular, caseSummary);
       this.addBreakdown(
         byCause,
-        accidentCase.accidentCause.id,
-        accidentCase.accidentCause.causeCode,
-        accidentCase.accidentCause.causeName,
+        accidentCase.primaryCause.id,
+        accidentCase.primaryCause.causeCode,
+        accidentCase.primaryCause.causeName,
         caseCounts,
       );
       this.addBreakdown(
@@ -1475,28 +1515,30 @@ export class OccupationalAccidentReportService {
   private article39Summary(
     report: OccupationalAccidentReportEntity,
   ): AccidentSummary {
+    const summary = report.article39Summary;
+    if (!summary) return this.emptySummary();
     return {
-      totalCases: report.article39TotalCases,
-      fatalCases: report.article39FatalCases,
-      multiVictimCases: report.article39MultiVictimCases,
-      victimCount: report.article39VictimCount,
-      femaleCount: report.article39FemaleCount,
-      deathCount: report.article39DeathCount,
-      severeCount: report.article39SevereCount,
-      unmanagedVictimCount: report.article39UnmanagedVictimCount,
-      unmanagedFemaleCount: report.article39UnmanagedFemaleCount,
-      unmanagedDeathCount: report.article39UnmanagedDeathCount,
-      unmanagedSevereCount: report.article39UnmanagedSevereCount,
-      medicalCostVnd: report.article39MedicalCostVnd,
-      salaryCostVnd: report.article39SalaryCostVnd,
-      compensationCostVnd: report.article39CompensationCostVnd,
+      totalCases: summary.totalCases,
+      fatalCases: summary.fatalCases,
+      multiVictimCases: summary.multiVictimCases,
+      victimCount: summary.victimCount,
+      femaleCount: summary.femaleCount,
+      deathCount: summary.deathCount,
+      severeCount: summary.severeCount,
+      unmanagedVictimCount: summary.unmanagedVictimCount,
+      unmanagedFemaleCount: summary.unmanagedFemaleCount,
+      unmanagedDeathCount: summary.unmanagedDeathCount,
+      unmanagedSevereCount: summary.unmanagedSevereCount,
+      medicalCostVnd: summary.medicalCostVnd,
+      salaryCostVnd: summary.salaryCostVnd,
+      compensationCostVnd: summary.compensationCostVnd,
       totalCostVnd: this.sumMoney(
-        report.article39MedicalCostVnd,
-        report.article39SalaryCostVnd,
-        report.article39CompensationCostVnd,
+        summary.medicalCostVnd,
+        summary.salaryCostVnd,
+        summary.compensationCostVnd,
       ),
-      lostWorkDays: report.article39LostWorkDays,
-      propertyDamageVnd: report.article39PropertyDamageVnd,
+      lostWorkDays: summary.lostWorkDays,
+      propertyDamageVnd: summary.propertyDamageVnd,
     };
   }
 
@@ -1574,14 +1616,16 @@ export class OccupationalAccidentReportService {
   }
 
   private hasArticle39Data(report: OccupationalAccidentReportEntity): boolean {
+    const summary = report.article39Summary;
+    if (!summary) return false;
     return (
-      report.article39TotalCases > 0 ||
-      report.article39VictimCount > 0 ||
-      report.article39MedicalCostVnd !== '0' ||
-      report.article39SalaryCostVnd !== '0' ||
-      report.article39CompensationCostVnd !== '0' ||
-      report.article39LostWorkDays > 0 ||
-      report.article39PropertyDamageVnd !== '0'
+      summary.totalCases > 0 ||
+      summary.victimCount > 0 ||
+      summary.medicalCostVnd !== '0' ||
+      summary.salaryCostVnd !== '0' ||
+      summary.compensationCostVnd !== '0' ||
+      summary.lostWorkDays > 0 ||
+      summary.propertyDamageVnd !== '0'
     );
   }
 
@@ -1601,13 +1645,67 @@ export class OccupationalAccidentReportService {
     return values.reduce((sum, value) => sum + BigInt(value), 0n).toString();
   }
 
-  private clearSignedDocumentFields() {
+  private async invalidateDraftDocument(
+    report: OccupationalAccidentReportEntity,
+  ): Promise<void> {
+    const objectKey = report.draftDocument?.documentObjectKey;
+    if (!objectKey) return;
+    await this.draftDocumentRepository.delete(report.id);
+    await this.deleteSignedDocumentFile(objectKey);
+    report.draftDocument = null;
+  }
+
+  private latestSubmission(
+    report: OccupationalAccidentReportEntity,
+  ): OccupationalAccidentReportSubmissionEntity | null {
+    return (
+      [...(report.submissions ?? [])].sort(
+        (left, right) => right.submissionNo - left.submissionNo,
+      )[0] ?? null
+    );
+  }
+
+  private documentMetadata(report: OccupationalAccidentReportEntity) {
+    if (report.draftDocument) {
+      return {
+        objectKey: report.draftDocument.documentObjectKey,
+        originalName: report.draftDocument.documentOriginalName,
+        contentType: report.draftDocument.documentContentType,
+        size: report.draftDocument.documentSize,
+        uploadedAt: report.draftDocument.uploadedAt,
+        submissionNo: null,
+        isDraft: true,
+      };
+    }
+    const submission = this.latestSubmission(report);
+    return submission
+      ? {
+          objectKey: submission.documentObjectKey,
+          originalName: submission.documentOriginalName,
+          contentType: submission.documentContentType,
+          size: submission.documentSize,
+          uploadedAt: submission.submittedAt,
+          submissionNo: submission.submissionNo,
+          isDraft: false,
+        }
+      : null;
+  }
+
+  private buildSubmissionSnapshot(
+    report: OccupationalAccidentReportEntity,
+    submittedAt: Date,
+  ): Record<string, unknown> {
+    const response = this.toResponse(report) as Record<string, unknown>;
+    const { signedDocument: _document, submissions: _submissions, ...data } =
+      response;
     return {
-      signedDocumentObjectKey: null,
-      signedDocumentOriginalName: null,
-      signedDocumentContentType: null,
-      signedDocumentSize: null,
-      signedDocumentUploadedAt: null,
+      schemaVersion: 1,
+      ...data,
+      status: OccupationalAccidentReportStatus.SUBMITTED,
+      submittedAt: submittedAt.toISOString(),
+      receivedAt: null,
+      returnedAt: null,
+      returnedReason: null,
     };
   }
 
@@ -1619,21 +1717,35 @@ export class OccupationalAccidentReportService {
     }
   }
 
-  private getSignedDocumentAccess(report: OccupationalAccidentReportEntity) {
-    if (!report.signedDocumentObjectKey) {
+  private getSignedDocumentAccess(
+    report: OccupationalAccidentReportEntity,
+    preferDraft: boolean,
+  ) {
+    const latestSubmission = this.latestSubmission(report);
+    const document =
+      preferDraft && report.draftDocument
+        ? this.documentMetadata(report)
+        : latestSubmission
+          ? {
+              objectKey: latestSubmission.documentObjectKey,
+              originalName: latestSubmission.documentOriginalName,
+              contentType: latestSubmission.documentContentType,
+              size: latestSubmission.documentSize,
+              uploadedAt: latestSubmission.submittedAt,
+              submissionNo: latestSubmission.submissionNo,
+              isDraft: false,
+            }
+          : null;
+    if (!document) {
       throw new NotFoundException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_DOCUMENT_NOT_FOUND,
         message: 'Báo cáo chưa có bản PDF đã ký, đóng dấu.',
       });
     }
     return {
-      objectKey: report.signedDocumentObjectKey,
-      originalName: report.signedDocumentOriginalName,
-      contentType: report.signedDocumentContentType,
-      size: report.signedDocumentSize,
-      uploadedAt: report.signedDocumentUploadedAt,
+      ...document,
       accessUrl: this.fileService.getEnterpriseFileAccessUrl(
-        report.signedDocumentObjectKey,
+        document.objectKey,
       ),
     };
   }

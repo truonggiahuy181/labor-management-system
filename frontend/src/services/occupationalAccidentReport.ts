@@ -21,10 +21,9 @@ export interface OccupationalAccidentReportListItem {
   reportPeriodId: number;
   reportName: string;
   reportYear: number;
-  reportPeriod: string;
   periodCode: OccupationalAccidentPeriodCode;
-  startDate: string;
-  endDate: string;
+  submissionStartDate: string;
+  submissionEndDate: string;
   isSubmissionOpen: boolean;
   status: OccupationalAccidentReportStatus;
   noAccidentsDeclared: boolean;
@@ -46,10 +45,9 @@ export interface AdminOccupationalAccidentReportListItem {
   reportPeriodId: number;
   reportName: string;
   reportYear: number;
-  reportPeriod: string;
-  periodCode: string;
-  startDate: string;
-  endDate: string;
+  periodCode: OccupationalAccidentPeriodCode;
+  submissionStartDate: string;
+  submissionEndDate: string;
   status: ReviewableOccupationalAccidentReportStatus;
   noAccidentsDeclared: boolean;
   submittedAt: string | null;
@@ -152,7 +150,7 @@ export interface AccidentVictimGroupBody {
 
 export interface AccidentCaseBody {
   accidentDate: string;
-  accidentCauseId: number;
+  primaryCauseId: number;
   injuryFactorId: number;
   medicalCostVnd: string;
   salaryCostVnd: string;
@@ -232,10 +230,10 @@ export interface OccupationalAccidentReport {
   reportPeriod: {
     reportName: string;
     reportYear: number;
-    reportPeriod: string;
+    reportTypeCode: 'OCCUPATIONAL_ACCIDENT';
     periodCode: OccupationalAccidentPeriodCode;
-    startDate: string;
-    endDate: string;
+    submissionStartDate: string;
+    submissionEndDate: string;
     isSubmissionOpen: boolean;
   };
   totalEmployees: number;
@@ -249,7 +247,18 @@ export interface OccupationalAccidentReport {
     contentType: string;
     size: string;
     uploadedAt: string;
+    submissionNo: number | null;
+    isDraft: boolean;
   } | null;
+  submissions: Array<{
+    id: number;
+    submissionNo: number;
+    reportDate: string;
+    submittedAt: string;
+    documentOriginalName: string;
+    documentSize: string;
+    documentSha256: string;
+  }>;
   article39Summary: AccidentSummary;
   cases: OccupationalAccidentCase[];
   version: number;
@@ -275,6 +284,8 @@ export interface SignedReportDocumentAccess {
   contentType: string;
   size: string;
   uploadedAt: string;
+  submissionNo: number | null;
+  isDraft: boolean;
   accessUrl: string;
 }
 

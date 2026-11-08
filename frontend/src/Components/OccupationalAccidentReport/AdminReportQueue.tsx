@@ -30,6 +30,7 @@ import {
   type ReviewableOccupationalAccidentReportStatus,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
+import { getReportPeriodLabel } from "@/services/reportPeriod";
 
 const STATUS: Record<
   ReviewableOccupationalAccidentReportStatus,
@@ -204,7 +205,7 @@ export default function AdminReportQueue() {
                   <TableCell>{row.enterpriseName}</TableCell>
                   <TableCell>{row.taxCode}</TableCell>
                   <TableCell>{row.reportYear}</TableCell>
-                  <TableCell>{row.reportPeriod}</TableCell>
+                  <TableCell>{getReportPeriodLabel(row.periodCode)}</TableCell>
                   <TableCell>{formatDate(row.submittedAt)}</TableCell>
                   <TableCell>
                     <Chip

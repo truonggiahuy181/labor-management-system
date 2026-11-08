@@ -40,6 +40,7 @@ import {
   type OccupationalAccidentReport,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
+import { getReportPeriodLabel } from "@/services/reportPeriod";
 import Article39Form from "./Article39Form";
 import OverviewPanel from "./OverviewPanel";
 import ReportHeaderForm from "./ReportHeaderForm";
@@ -252,7 +253,7 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontWeight: 700 }}>{report.enterprise.enterpriseName}</Typography>
           <Typography variant="body2" color="text.secondary">
-            {report.reportPeriod.reportName} · {report.reportPeriod.reportPeriod} năm {report.reportPeriod.reportYear}
+            {report.reportPeriod.reportName} · {getReportPeriodLabel(report.reportPeriod.periodCode)} năm {report.reportPeriod.reportYear}
           </Typography>
         </Box>
         <Chip size="small" variant="outlined" label={STATUS[report.status].label} color={STATUS[report.status].color} />

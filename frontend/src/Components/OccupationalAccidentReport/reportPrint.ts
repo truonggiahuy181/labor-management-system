@@ -5,6 +5,7 @@ import type {
   OccupationalAccidentReport,
 } from "@/services/occupationalAccidentReport";
 import { getOccupationalAccidentCoverage } from "@/services/occupationalAccidentReport";
+import { getReportPeriodLabel } from "@/services/reportPeriod";
 
 const escapeHtml = (value: unknown) =>
   String(value ?? "")
@@ -131,7 +132,7 @@ export function printOccupationalAccidentReport(
       .muted { color: #555; font-style: italic; }
     </style></head><body>
     <h1>BÁO CÁO TỔNG HỢP TÌNH HÌNH TAI NẠN LAO ĐỘNG</h1>
-    <div class="subtitle"><b>${escapeHtml(report.reportPeriod.reportPeriod)} năm ${report.reportPeriod.reportYear}</b><br />
+    <div class="subtitle"><b>${escapeHtml(getReportPeriodLabel(report.reportPeriod.periodCode))} năm ${report.reportPeriod.reportYear}</b><br />
       Thời gian thống kê: ${date(coverage.startDate)} – ${date(coverage.endDate)}</div>
     <div class="info">
       <div><b>Doanh nghiệp:</b> ${escapeHtml(report.enterprise.enterpriseName)}</div>

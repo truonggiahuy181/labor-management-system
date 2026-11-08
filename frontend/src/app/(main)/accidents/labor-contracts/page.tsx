@@ -35,6 +35,7 @@ import {
   type OccupationalAccidentReportStatus,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
+import { getReportPeriodLabel } from "@/services/reportPeriod";
 
 const STATUS: Record<
   OccupationalAccidentReportStatus,
@@ -252,9 +253,9 @@ export default function OccupationalAccidentReportsPage() {
                     </TableCell>
                     <TableCell>{row.reportName}</TableCell>
                     <TableCell>{row.reportYear}</TableCell>
-                    <TableCell>{row.reportPeriod}</TableCell>
+                    <TableCell>{getReportPeriodLabel(row.periodCode)}</TableCell>
                     <TableCell>
-                      {formatDate(row.startDate)} – {formatDate(row.endDate)}
+                      {formatDate(row.submissionStartDate)} – {formatDate(row.submissionEndDate)}
                     </TableCell>
                     <TableCell>
                       <Chip

@@ -39,6 +39,7 @@ import {
   type ReviewableOccupationalAccidentReportStatus,
 } from '@/services/occupationalAccidentReport';
 import { getErrorMessage } from '@/services/user';
+import { getReportPeriodLabel } from '@/services/reportPeriod';
 import SignedDocumentPanel from '@/Components/OccupationalAccidentReport/SignedDocumentPanel';
 import { printOccupationalAccidentReport } from '@/Components/OccupationalAccidentReport/reportPrint';
 import ReportTables from './ReportTables';
@@ -170,7 +171,7 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {report.enterprise.enterpriseName} ·{' '}
-            {report.reportPeriod.reportPeriod} {report.reportPeriod.reportYear}
+            {getReportPeriodLabel(report.reportPeriod.periodCode)} {report.reportPeriod.reportYear}
           </Typography>
         </Box>
         {statusMeta && (
@@ -223,7 +224,7 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
           Báo cáo tổng hợp tình hình tai nạn lao động
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-          Kỳ báo cáo: {report.reportPeriod.reportPeriod}{' '}
+          Kỳ báo cáo: {getReportPeriodLabel(report.reportPeriod.periodCode)}{' '}
           {report.reportPeriod.reportYear} (
           {formatReportDate(coverage.startDate)} –{' '}
           {formatReportDate(coverage.endDate)})

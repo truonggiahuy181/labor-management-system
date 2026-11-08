@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -11,7 +12,6 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
 import { parseBooleanQueryParam } from '../../../commons/transforms/query.transform.js';
 import {
   ReportPeriodCode,
@@ -21,10 +21,7 @@ import {
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ReportPeriodQueryDto {
-  @ApiPropertyOptional({
-    example: 'tai nạn',
-    description: 'Tìm gần đúng theo tên báo cáo hoặc kỳ báo cáo',
-  })
+  @ApiPropertyOptional({ example: 'tai nạn' })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -44,12 +41,6 @@ export class ReportPeriodQueryDto {
   @Max(2100)
   reportYear?: number;
 
-  @ApiPropertyOptional({ example: 'Cả năm' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  reportPeriod?: string;
-
   @ApiPropertyOptional({ enum: Object.values(ReportTypeCode) })
   @IsOptional()
   @IsEnum(ReportTypeCode)
@@ -64,13 +55,13 @@ export class ReportPeriodQueryDto {
   @IsOptional()
   @IsDateString()
   @Matches(DATE_ONLY_RE)
-  startDate?: string;
+  submissionStartDate?: string;
 
   @ApiPropertyOptional({ example: '2026-12-31', format: 'date' })
   @IsOptional()
   @IsDateString()
   @Matches(DATE_ONLY_RE)
-  endDate?: string;
+  submissionEndDate?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
@@ -78,10 +69,7 @@ export class ReportPeriodQueryDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({
-    default: false,
-    description: 'Lấy cả bản ghi inactive khi chưa truyền isActive',
-  })
+  @ApiPropertyOptional({ default: false })
   @IsOptional()
   @Transform(parseBooleanQueryParam)
   @IsBoolean()

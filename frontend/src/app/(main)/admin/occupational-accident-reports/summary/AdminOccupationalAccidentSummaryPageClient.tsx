@@ -29,7 +29,7 @@ import {
   adminOccupationalAccidentReportApi,
   type AdminOccupationalAccidentSummary,
 } from '@/services/occupationalAccidentReport';
-import { reportPeriodApi, type ReportPeriod } from '@/services/reportPeriod';
+import { getReportPeriodLabel, reportPeriodApi, type ReportPeriod } from '@/services/reportPeriod';
 import { getErrorMessage } from '@/services/user';
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
@@ -84,7 +84,7 @@ export default function AdminOccupationalAccidentSummaryPage() {
     [periods, reportPeriodId],
   );
   const scopeLabel = period
-    ? `${period.reportPeriod} ${period.reportYear}`
+    ? `${getReportPeriodLabel(period.periodCode)} ${period.reportYear}`
     : year
       ? `Năm ${year}`
       : 'Tất cả các kỳ';

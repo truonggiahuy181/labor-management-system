@@ -14,20 +14,17 @@ export class ReportPeriodResponseDto {
   @ApiProperty({ example: 2026 })
   reportYear: number;
 
-  @ApiProperty({ example: 'Cả năm' })
-  reportPeriod: string;
-
   @ApiProperty({ example: 'OCCUPATIONAL_ACCIDENT' })
   reportTypeCode: ReportTypeCode;
 
   @ApiProperty({ example: 'FIRST_HALF' })
   periodCode: ReportPeriodCode;
 
-  @ApiProperty({ example: '2027-01-01', format: 'date' })
-  startDate: string;
+  @ApiProperty({ example: '2026-07-01', format: 'date' })
+  submissionStartDate: string;
 
-  @ApiProperty({ example: '2027-01-09', format: 'date' })
-  endDate: string;
+  @ApiProperty({ example: '2026-07-04', format: 'date' })
+  submissionEndDate: string;
 
   @ApiProperty({ example: true })
   isActive: boolean;

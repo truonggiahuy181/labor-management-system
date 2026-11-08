@@ -21,6 +21,7 @@ import { OccupationalAccidentCaseEntity } from './occupational-accident-case.ent
 import { OccupationalAccidentArticle39SummaryEntity } from './occupational-accident-article39-summary.entity.js';
 import { OccupationalAccidentReportHistoryEntity } from './occupational-accident-report-history.entity.js';
 import { OccupationalAccidentReportSubmissionEntity } from './occupational-accident-report-submission.entity.js';
+import { OccupationalAccidentReportDraftDocumentEntity } from './occupational-accident-report-draft-document.entity.js';
 
 @Index('uq_oa_reports_enterprise_period', ['enterpriseId', 'reportPeriodId'], {
   unique: true,
@@ -169,6 +170,12 @@ export class OccupationalAccidentReportEntity extends BaseEntity {
     (submission) => submission.report,
   )
   submissions: Relation<OccupationalAccidentReportSubmissionEntity[]>;
+
+  @OneToOne(
+    () => OccupationalAccidentReportDraftDocumentEntity,
+    (document) => document.report,
+  )
+  draftDocument: Relation<OccupationalAccidentReportDraftDocumentEntity | null>;
 
   @OneToMany(() => OccupationalAccidentReportHistoryEntity, (row) => row.report)
   histories: Relation<OccupationalAccidentReportHistoryEntity[]>;

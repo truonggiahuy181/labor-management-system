@@ -59,6 +59,8 @@ postman/
 # Local analysis and generated artifacts
 /.codex-tmp/
 /tmp/
+/outputs/
+/tmp_spreadsheet_filter_levels/
 *.py
 *.py[cod]
 __pycache__/

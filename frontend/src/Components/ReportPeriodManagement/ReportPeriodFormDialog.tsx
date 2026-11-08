@@ -21,29 +21,31 @@ import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import {
   getOccupationalAccidentSubmissionWindow,
-  inferReportPeriodCode,
-  inferReportTypeCode,
   reportPeriodApi,
   type ReportPeriod,
   type ReportPeriodBody,
+  type ReportPeriodCode,
+  type ReportTypeCode,
 } from '@/services/reportPeriod';
 import { getErrorMessage } from '@/services/user';
 
 type ReportPeriodForm = {
   reportName: string;
   reportYear: string;
-  reportPeriod: string;
-  startDate: string;
-  endDate: string;
+  reportTypeCode: ReportTypeCode;
+  periodCode: ReportPeriodCode;
+  submissionStartDate: string;
+  submissionEndDate: string;
   isActive: boolean;
 };
 
 const toFormValues = (item: ReportPeriod | null): ReportPeriodForm => ({
-  reportName: item?.reportName ?? '',
-  reportYear: item ? String(item.reportYear) : '',
-  reportPeriod: item?.reportPeriod ?? '',
-  startDate: item?.startDate.slice(0, 10) ?? '',
-  endDate: item?.endDate.slice(0, 10) ?? '',
+  reportName: item?.reportName ?? 'Báo cáo tai nạn lao động',
+  reportYear: item ? String(item.reportYear) : String(new Date().getFullYear()),
+  reportTypeCode: item?.reportTypeCode ?? 'OCCUPATIONAL_ACCIDENT',
+  periodCode: item?.periodCode ?? 'FIRST_HALF',
+  submissionStartDate: item?.submissionStartDate.slice(0, 10) ?? '',
+  submissionEndDate: item?.submissionEndDate.slice(0, 10) ?? '',
   isActive: item?.isActive ?? true,
 });
 
@@ -51,7 +53,6 @@ interface ReportPeriodFormDialogProps {
   open: boolean;
   item: ReportPeriod | null;
   reportNames: string[];
-  reportPeriods: string[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -60,7 +61,6 @@ export default function ReportPeriodFormDialog({
   open,
   item,
   reportNames,
-  reportPeriods,
   onClose,
   onSaved,
 }: ReportPeriodFormDialogProps) {
@@ -71,49 +71,67 @@ export default function ReportPeriodFormDialog({
     () => [...new Set([...reportNames, ...(item ? [item.reportName] : [])])],
     [item, reportNames],
   );
-  const periodOptions = useMemo(
-    () => [
-      ...new Set([...reportPeriods, ...(item ? [item.reportPeriod] : [])]),
-    ],
-    [item, reportPeriods],
-  );
   const {
     control,
     handleSubmit,
     reset,
+    setValue,
     getValues,
     formState: { isSubmitting },
   } = useForm<ReportPeriodForm>({ defaultValues: toFormValues(null) });
-  const reportName = useWatch({ control, name: 'reportName' });
   const reportYear = useWatch({ control, name: 'reportYear' });
-  const reportPeriod = useWatch({ control, name: 'reportPeriod' });
-  const reportTypeCode = inferReportTypeCode(reportName);
-  const periodCode = inferReportPeriodCode(reportPeriod, reportTypeCode);
-  const statutoryWindow = getOccupationalAccidentSubmissionWindow(
-    Number(reportYear),
-    periodCode,
-  );
+  const reportTypeCode = useWatch({ control, name: 'reportTypeCode' });
+  const periodCode = useWatch({ control, name: 'periodCode' });
+  const statutoryWindow =
+    reportTypeCode === 'OCCUPATIONAL_ACCIDENT'
+      ? getOccupationalAccidentSubmissionWindow(Number(reportYear), periodCode)
+      : null;
   const statutoryWindowMessage = statutoryWindow
     ? translate(statutoryWindow.messageKey)
     : undefined;
-
-  const validateStatutoryWindow = (value: string) =>
-    !statutoryWindow ||
-    (value >= statutoryWindow.firstSubmissionDate &&
-      value < statutoryWindow.deadlineExclusive) ||
-    statutoryWindowMessage;
+  const statutoryStartDate = statutoryWindow?.firstSubmissionDate;
+  const statutoryEndDate = statutoryWindow?.lastSubmissionDate;
 
   useEffect(() => {
     if (open) reset(toFormValues(item));
   }, [item, open, reset]);
 
+  useEffect(() => {
+    if (!open || !statutoryStartDate || !statutoryEndDate) return;
+    const keepsExistingWindow =
+      item !== null &&
+      Number(reportYear) === item.reportYear &&
+      reportTypeCode === item.reportTypeCode &&
+      periodCode === item.periodCode &&
+      getValues('submissionStartDate') === item.submissionStartDate.slice(0, 10) &&
+      getValues('submissionEndDate') === item.submissionEndDate.slice(0, 10);
+    if (keepsExistingWindow) return;
+    setValue('submissionStartDate', statutoryStartDate, {
+      shouldValidate: true,
+    });
+    setValue('submissionEndDate', statutoryEndDate, {
+      shouldValidate: true,
+    });
+  }, [
+    getValues,
+    item,
+    open,
+    periodCode,
+    reportTypeCode,
+    reportYear,
+    setValue,
+    statutoryStartDate,
+    statutoryEndDate,
+  ]);
+
   const onSubmit = async (values: ReportPeriodForm) => {
     const body: ReportPeriodBody = {
       reportName: values.reportName.trim(),
       reportYear: Number(values.reportYear),
-      reportPeriod: values.reportPeriod.trim(),
-      startDate: values.startDate,
-      endDate: values.endDate,
+      reportTypeCode: values.reportTypeCode,
+      periodCode: values.periodCode,
+      submissionStartDate: values.submissionStartDate,
+      submissionEndDate: values.submissionEndDate,
       isActive: values.isActive,
     };
 
@@ -131,36 +149,19 @@ export default function ReportPeriodFormDialog({
   };
 
   const required = translate('common.required');
+  const validateStatutoryWindow = (value: string) =>
+    !statutoryWindow ||
+    (value >= statutoryWindow.firstSubmissionDate &&
+      value < statutoryWindow.deadlineExclusive) ||
+    statutoryWindowMessage;
 
   return (
-    <Dialog
-      open={open}
-      onClose={isSubmitting ? undefined : onClose}
-      fullWidth
-      maxWidth="sm"
-      slotProps={{
-        paper: {
-          sx: { borderRadius: 1, width: 560 },
-        },
-      }}
-    >
-      <DialogTitle
-        sx={{ display: 'flex', alignItems: 'center', px: 2.5, py: 1.5 }}
-      >
-        <Typography
-          component="span"
-          sx={{ flex: 1, fontSize: 18, fontWeight: 700 }}
-        >
-          {translate(
-            isEdit ? 'reportPeriods.editTitle' : 'reportPeriods.addTitle',
-          )}
+    <Dialog open={open} onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', px: 2.5, py: 1.5 }}>
+        <Typography component="span" sx={{ flex: 1, fontSize: 18, fontWeight: 700 }}>
+          {translate(isEdit ? 'reportPeriods.editTitle' : 'reportPeriods.addTitle')}
         </Typography>
-        <IconButton
-          size="small"
-          onClick={onClose}
-          disabled={isSubmitting}
-          aria-label={translate('common.cancel')}
-        >
+        <IconButton size="small" onClick={onClose} disabled={isSubmitting} aria-label={translate('common.cancel')}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -171,11 +172,7 @@ export default function ReportPeriodFormDialog({
           id="report-period-form"
           noValidate
           onSubmit={handleSubmit(onSubmit)}
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-            gap: 2,
-          }}
+          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}
         >
           <Controller
             name="reportName"
@@ -188,9 +185,7 @@ export default function ReportPeriodFormDialog({
                 options={nameOptions}
                 value={field.value || null}
                 onChange={(_, value) => field.onChange(value ?? '')}
-                onInputChange={(_, value, reason) => {
-                  if (reason === 'input') field.onChange(value);
-                }}
+                onInputChange={(_, value, reason) => reason === 'input' && field.onChange(value)}
                 sx={{ gridColumn: '1 / -1' }}
                 renderInput={(params) => (
                   <TextField
@@ -199,16 +194,32 @@ export default function ReportPeriodFormDialog({
                     label={translate('reportPeriods.reportName')}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                    slotProps={{
-                      ...params.slotProps,
-                      htmlInput: {
-                        ...params.slotProps.htmlInput,
-                        maxLength: 255,
-                      },
-                    }}
+                    slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, maxLength: 255 } }}
                   />
                 )}
               />
+            )}
+          />
+
+          <Controller
+            name="reportTypeCode"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                required
+                size="small"
+                label="Loại báo cáo"
+                onChange={(event) => {
+                  const value = event.target.value as ReportTypeCode;
+                  field.onChange(value);
+                  setValue('periodCode', value === 'OCCUPATIONAL_ACCIDENT' ? 'FIRST_HALF' : 'CUSTOM');
+                }}
+              >
+                <MenuItem value="OCCUPATIONAL_ACCIDENT">Báo cáo tai nạn lao động</MenuItem>
+                <MenuItem value="OTHER">Báo cáo khác</MenuItem>
+              </TextField>
             )}
           />
 
@@ -217,14 +228,8 @@ export default function ReportPeriodFormDialog({
             control={control}
             rules={{
               required,
-              min: {
-                value: 2000,
-                message: translate('reportPeriods.invalidYear'),
-              },
-              max: {
-                value: 2100,
-                message: translate('reportPeriods.invalidYear'),
-              },
+              min: { value: 2000, message: translate('reportPeriods.invalidYear') },
+              max: { value: 2100, message: translate('reportPeriods.invalidYear') },
             }}
             render={({ field, fieldState }) => (
               <TextField
@@ -241,49 +246,23 @@ export default function ReportPeriodFormDialog({
           />
 
           <Controller
-            name="reportPeriod"
+            name="periodCode"
             control={control}
-            rules={{
-              required,
-              validate: (value) =>
-                inferReportTypeCode(getValues('reportName')) !==
-                  'OCCUPATIONAL_ACCIDENT' ||
-                inferReportPeriodCode(value, 'OCCUPATIONAL_ACCIDENT') !==
-                  'CUSTOM' ||
-                translate('reportPeriods.invalidOccupationalAccidentPeriod'),
-            }}
-            render={({ field, fieldState }) => (
-              <Autocomplete
-                freeSolo
-                size="small"
-                options={periodOptions}
-                value={field.value || null}
-                onChange={(_, value) => field.onChange(value ?? '')}
-                onInputChange={(_, value, reason) => {
-                  if (reason === 'input') field.onChange(value);
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    label={translate('reportPeriods.reportPeriod')}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                    slotProps={{
-                      ...params.slotProps,
-                      htmlInput: {
-                        ...params.slotProps.htmlInput,
-                        maxLength: 100,
-                      },
-                    }}
-                  />
+            rules={{ required }}
+            render={({ field }) => (
+              <TextField {...field} select required size="small" label={translate('reportPeriods.reportPeriod')}>
+                {reportTypeCode === 'OCCUPATIONAL_ACCIDENT' ? [
+                  <MenuItem key="FIRST_HALF" value="FIRST_HALF">6 tháng đầu năm</MenuItem>,
+                  <MenuItem key="ANNUAL" value="ANNUAL">Cả năm</MenuItem>,
+                ] : (
+                  <MenuItem value="CUSTOM">Kỳ tùy chỉnh</MenuItem>
                 )}
-              />
+              </TextField>
             )}
           />
 
           <Controller
-            name="startDate"
+            name="submissionStartDate"
             control={control}
             rules={{ required, validate: validateStatutoryWindow }}
             render={({ field, fieldState }) => (
@@ -298,10 +277,7 @@ export default function ReportPeriodFormDialog({
                 slotProps={{
                   inputLabel: { shrink: true },
                   htmlInput: statutoryWindow
-                    ? {
-                        min: statutoryWindow.firstSubmissionDate,
-                        max: statutoryWindow.lastSubmissionDate,
-                      }
+                    ? { min: statutoryWindow.firstSubmissionDate, max: statutoryWindow.lastSubmissionDate }
                     : undefined,
                 }}
               />
@@ -309,12 +285,12 @@ export default function ReportPeriodFormDialog({
           />
 
           <Controller
-            name="endDate"
+            name="submissionEndDate"
             control={control}
             rules={{
               required,
               validate: (value) =>
-                ((!getValues('startDate') || value >= getValues('startDate')) &&
+                ((!getValues('submissionStartDate') || value >= getValues('submissionStartDate')) &&
                   validateStatutoryWindow(value)) ||
                 translate('reportPeriods.invalidDateRange'),
             }}
@@ -330,10 +306,7 @@ export default function ReportPeriodFormDialog({
                 slotProps={{
                   inputLabel: { shrink: true },
                   htmlInput: statutoryWindow
-                    ? {
-                        min: statutoryWindow.firstSubmissionDate,
-                        max: statutoryWindow.lastSubmissionDate,
-                      }
+                    ? { min: statutoryWindow.firstSubmissionDate, max: statutoryWindow.lastSubmissionDate }
                     : undefined,
                 }}
               />
@@ -349,17 +322,11 @@ export default function ReportPeriodFormDialog({
                 size="small"
                 label={translate('reportPeriods.status')}
                 value={String(field.value)}
-                onChange={(event) =>
-                  field.onChange(event.target.value === 'true')
-                }
+                onChange={(event) => field.onChange(event.target.value === 'true')}
                 sx={{ gridColumn: '1 / -1' }}
               >
-                <MenuItem value="true">
-                  {translate('reportPeriods.active')}
-                </MenuItem>
-                <MenuItem value="false">
-                  {translate('reportPeriods.inactive')}
-                </MenuItem>
+                <MenuItem value="true">{translate('reportPeriods.active')}</MenuItem>
+                <MenuItem value="false">{translate('reportPeriods.inactive')}</MenuItem>
               </TextField>
             )}
           />
@@ -367,13 +334,7 @@ export default function ReportPeriodFormDialog({
       </DialogContent>
 
       <DialogActions sx={{ px: 2.5, py: 1.5 }}>
-        <Button
-          type="submit"
-          form="report-period-form"
-          variant="contained"
-          startIcon={<SaveOutlinedIcon />}
-          disabled={isSubmitting}
-        >
+        <Button type="submit" form="report-period-form" variant="contained" startIcon={<SaveOutlinedIcon />} disabled={isSubmitting}>
           {translate('common.save')}
         </Button>
       </DialogActions>

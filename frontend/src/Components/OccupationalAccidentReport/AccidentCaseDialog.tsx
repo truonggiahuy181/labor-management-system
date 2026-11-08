@@ -40,7 +40,7 @@ const EMPTY_GROUP: AccidentVictimGroupBody = {
 
 const EMPTY_CASE: AccidentCaseBody = {
   accidentDate: "",
-  accidentCauseId: 0,
+  primaryCauseId: 0,
   injuryFactorId: 0,
   medicalCostVnd: "0",
   salaryCostVnd: "0",
@@ -54,7 +54,7 @@ const toBody = (item: OccupationalAccidentCase | null): AccidentCaseBody =>
   item
     ? {
         accidentDate: item.accidentDate.slice(0, 10),
-        accidentCauseId: item.accidentCause.id,
+        primaryCauseId: item.accidentCause.id,
         injuryFactorId: item.injuryFactor.id,
         medicalCostVnd: item.medicalCostVnd,
         salaryCostVnd: item.salaryCostVnd,
@@ -129,7 +129,7 @@ export default function AccidentCaseDialog({
 
   const valid =
     Boolean(form.accidentDate) &&
-    form.accidentCauseId > 0 &&
+    form.primaryCauseId > 0 &&
     form.injuryFactorId > 0 &&
     form.victimGroups.length > 0 &&
     form.victimGroups.every(
@@ -181,9 +181,9 @@ export default function AccidentCaseDialog({
               select
               size="small"
               label="Nguyên nhân xảy ra tai nạn"
-              value={form.accidentCauseId || ""}
+              value={form.primaryCauseId || ""}
               onChange={(event) =>
-                setField("accidentCauseId", Number(event.target.value))
+                setField("primaryCauseId", Number(event.target.value))
               }
             >
               {causes.map((cause) => (

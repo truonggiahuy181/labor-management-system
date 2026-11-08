@@ -48,10 +48,9 @@ export interface OccupationalAccidentReportListItem {
   reportPeriodId: number;
   reportName: string;
   reportYear: number;
-  reportPeriod: string;
   periodCode: string;
-  startDate: string;
-  endDate: string;
+  submissionStartDate: string;
+  submissionEndDate: string;
   isSubmissionOpen: boolean;
   status: OccupationalAccidentReportListStatus;
   noAccidentsDeclared: boolean;
@@ -68,10 +67,9 @@ export interface AdminOccupationalAccidentReportListItem {
   reportPeriodId: number;
   reportName: string;
   reportYear: number;
-  reportPeriod: string;
   periodCode: string;
-  startDate: string;
-  endDate: string;
+  submissionStartDate: string;
+  submissionEndDate: string;
   status: OccupationalAccidentReportStatus;
   noAccidentsDeclared: boolean;
   submittedAt: Date | null;

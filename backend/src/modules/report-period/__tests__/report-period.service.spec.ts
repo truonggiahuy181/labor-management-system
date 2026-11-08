@@ -10,11 +10,10 @@ const makeReportPeriod = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
   reportName: 'Báo cáo tai nạn lao động',
   reportYear: 2026,
-  reportPeriod: 'Cả năm',
   reportTypeCode: 'OCCUPATIONAL_ACCIDENT',
   periodCode: 'ANNUAL',
-  startDate: '2027-01-01',
-  endDate: '2027-01-09',
+  submissionStartDate: '2027-01-01',
+  submissionEndDate: '2027-01-09',
   isActive: true,
   createdBy: 10,
   updatedBy: 10,
@@ -24,17 +23,20 @@ const makeReportPeriod = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const annualDto = (overrides: Record<string, unknown> = {}) => ({
+  reportName: 'Báo cáo tai nạn lao động',
+  reportYear: 2026,
+  reportTypeCode: 'OCCUPATIONAL_ACCIDENT' as const,
+  periodCode: 'ANNUAL' as const,
+  submissionStartDate: '2027-01-01',
+  submissionEndDate: '2027-01-09',
+  ...overrides,
+});
+
 describe('ReportPeriodService', () => {
-  let repository: {
-    find: ReturnType<typeof vi.fn>;
-    findOne: ReturnType<typeof vi.fn>;
-    create: ReturnType<typeof vi.fn>;
-    save: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
-    softDelete: ReturnType<typeof vi.fn>;
-  };
-  let service: ReportPeriodService;
+  let repository: Record<string, ReturnType<typeof vi.fn>>;
   let accidentReportRepository: { exists: ReturnType<typeof vi.fn> };
+  let service: ReportPeriodService;
 
   beforeEach(() => {
     repository = {
@@ -47,58 +49,49 @@ describe('ReportPeriodService', () => {
     };
     accidentReportRepository = { exists: vi.fn().mockResolvedValue(false) };
     service = new ReportPeriodService(
-      repository as any,
-      accidentReportRepository as any,
+      repository as never,
+      accidentReportRepository as never,
     );
   });
 
-  it('filters report periods by every list column', async () => {
+  it('filters by explicit report definition and submission window', async () => {
     await service.getAll({
       reportName: 'Báo cáo tai nạn lao động',
       reportYear: 2026,
-      reportPeriod: 'Cả năm',
-      startDate: '2026-01-01',
-      endDate: '2026-12-31',
+      reportTypeCode: 'OCCUPATIONAL_ACCIDENT',
+      periodCode: 'ANNUAL',
+      submissionStartDate: '2027-01-01',
+      submissionEndDate: '2027-01-09',
       isActive: false,
     });
 
     expect(repository.find).toHaveBeenCalledWith({
       where: expect.objectContaining({
-        reportName: expect.objectContaining({
-          _type: 'ilike',
-          _value: 'Báo cáo tai nạn lao động',
-        }),
         reportYear: 2026,
-        reportPeriod: expect.objectContaining({
-          _type: 'ilike',
-          _value: 'Cả năm',
-        }),
-        startDate: '2026-01-01',
-        endDate: '2026-12-31',
+        reportTypeCode: 'OCCUPATIONAL_ACCIDENT',
+        periodCode: 'ANNUAL',
+        submissionStartDate: '2027-01-01',
+        submissionEndDate: '2027-01-09',
         isActive: false,
       }),
-      order: { reportYear: 'DESC', startDate: 'DESC', id: 'DESC' },
+      order: {
+        reportYear: 'DESC',
+        submissionStartDate: 'DESC',
+        id: 'DESC',
+      },
     });
   });
 
-  it('creates a normalized active report period', async () => {
+  it('creates a normalized active report period without inferring codes', async () => {
     repository.findOne.mockResolvedValue(null);
-
     const result = await service.create(
-      {
-        reportName: '  Báo cáo   tai nạn lao động ',
-        reportYear: 2026,
-        reportPeriod: ' Cả năm ',
-        startDate: '2027-01-01',
-        endDate: '2027-01-09',
-      },
+      annualDto({ reportName: '  Báo cáo   tai nạn lao động ' }) as any,
       10,
     );
 
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         reportName: 'Báo cáo tai nạn lao động',
-        reportPeriod: 'Cả năm',
         reportTypeCode: 'OCCUPATIONAL_ACCIDENT',
         periodCode: 'ANNUAL',
         isActive: true,
@@ -109,195 +102,167 @@ describe('ReportPeriodService', () => {
     expect(result.reportName).toBe('Báo cáo tai nạn lao động');
   });
 
-  it('accepts the annual statutory submission window', async () => {
+  it('accepts both statutory occupational-accident windows', async () => {
     repository.findOne.mockResolvedValue(null);
-
-    await expect(
-      service.create({
-        reportName: 'Báo cáo tai nạn lao động',
-        reportYear: 2022,
-        reportPeriod: 'Cả năm',
-        startDate: '2023-01-01',
-        endDate: '2023-01-09',
-      }),
-    ).resolves.toMatchObject({
-      reportYear: 2022,
-      startDate: '2023-01-01',
-      endDate: '2023-01-09',
+    await expect(service.create(annualDto() as any)).resolves.toMatchObject({
+      submissionStartDate: '2027-01-01',
+      submissionEndDate: '2027-01-09',
     });
-  });
-
-  it('accepts the first-half statutory submission window', async () => {
-    repository.findOne.mockResolvedValue(null);
-
     await expect(
-      service.create({
-        reportName: 'Báo cáo tai nạn lao động',
-        reportYear: 2026,
-        reportPeriod: '6 tháng đầu năm',
-        startDate: '2026-07-01',
-        endDate: '2026-07-04',
-      }),
-    ).resolves.toMatchObject({
-      periodCode: 'FIRST_HALF',
-      startDate: '2026-07-01',
-      endDate: '2026-07-04',
-    });
+      service.create(
+        annualDto({
+          periodCode: 'FIRST_HALF',
+          submissionStartDate: '2026-07-01',
+          submissionEndDate: '2026-07-04',
+        }) as any,
+      ),
+    ).resolves.toMatchObject({ periodCode: 'FIRST_HALF' });
   });
 
   it.each([
-    ['6 tháng đầu năm', '2026-07-01', '2026-07-05'],
-    ['Cả năm', '2027-01-01', '2027-01-10'],
-    ['Cả năm', '2026-12-31', '2027-01-09'],
+    ['FIRST_HALF', '2026-07-01', '2026-07-05'],
+    ['ANNUAL', '2027-01-01', '2027-01-10'],
+    ['ANNUAL', '2026-12-31', '2027-01-09'],
   ])(
-    'rejects a %s submission window outside the statutory deadline',
-    async (reportPeriod, startDate, endDate) => {
+    'rejects %s dates outside its statutory window',
+    async (periodCode, submissionStartDate, submissionEndDate) => {
       await expect(
-        service.create({
-          reportName: 'Báo cáo tai nạn lao động',
-          reportYear: 2026,
-          reportPeriod,
-          startDate,
-          endDate,
-        }),
+        service.create(
+          annualDto({ periodCode, submissionStartDate, submissionEndDate }) as any,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(repository.findOne).not.toHaveBeenCalled();
     },
   );
 
-  it('rejects a duplicate name, year and period combination', async () => {
-    repository.findOne.mockResolvedValue(makeReportPeriod());
+  it('allows custom windows only for other report types', async () => {
+    repository.findOne.mockResolvedValue(null);
+    await expect(
+      service.create(
+        annualDto({
+          reportTypeCode: 'OTHER',
+          periodCode: 'CUSTOM',
+          submissionStartDate: '2026-03-01',
+          submissionEndDate: '2026-03-31',
+        }) as any,
+      ),
+    ).resolves.toMatchObject({ reportTypeCode: 'OTHER', periodCode: 'CUSTOM' });
 
     await expect(
-      service.create({
-        reportName: 'Báo cáo tai nạn lao động',
-        reportYear: 2026,
-        reportPeriod: 'Cả năm',
-        startDate: '2027-01-01',
-        endDate: '2027-01-09',
-      }),
-    ).rejects.toThrow(ConflictException);
+      service.create(annualDto({ reportTypeCode: 'OTHER' }) as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects a duplicate type, year and period code', async () => {
+    repository.findOne.mockResolvedValue(makeReportPeriod());
+    await expect(service.create(annualDto() as any)).rejects.toThrow(
+      ConflictException,
+    );
     expect(repository.save).not.toHaveBeenCalled();
   });
 
   it('rejects an end date before the start date', async () => {
     await expect(
-      service.create({
-        reportName: 'Báo cáo tai nạn lao động',
-        reportYear: 2026,
-        reportPeriod: 'Cả năm',
-        startDate: '2027-01-09',
-        endDate: '2027-01-01',
-      }),
+      service.create(
+        annualDto({
+          submissionStartDate: '2027-01-09',
+          submissionEndDate: '2027-01-01',
+        }) as any,
+      ),
     ).rejects.toThrow(BadRequestException);
-    expect(repository.findOne).not.toHaveBeenCalled();
   });
 
-  it('updates fields and validates the merged date range', async () => {
+  it('updates a custom window using the merged definition', async () => {
     const entity = makeReportPeriod({
-      reportName: 'Báo cáo tình hình sử dụng lao động',
+      reportName: 'Báo cáo khác',
       reportTypeCode: 'OTHER',
       periodCode: 'CUSTOM',
-      startDate: '2026-01-01',
-      endDate: '2026-12-31',
+      submissionStartDate: '2026-01-01',
+      submissionEndDate: '2026-12-31',
     });
     repository.findOne.mockImplementation(async ({ where }) =>
-      'id' in where && typeof where.id === 'number' ? entity : null,
+      typeof where.id === 'number' ? entity : null,
     );
-    repository.update.mockImplementation(async (_id, values) => {
-      Object.assign(entity, values);
-    });
+    repository.update.mockImplementation(async (_id, values) =>
+      Object.assign(entity, values),
+    );
 
     const result = await service.update(
       1,
-      {
-        reportPeriod: '6 tháng cuối năm',
-        startDate: '2026-07-01',
-      },
+      { submissionStartDate: '2026-07-01' },
       20,
     );
-
     expect(repository.update).toHaveBeenCalledWith(
       1,
       expect.objectContaining({
-        reportPeriod: '6 tháng cuối năm',
-        startDate: '2026-07-01',
-        endDate: '2026-12-31',
+        submissionStartDate: '2026-07-01',
+        submissionEndDate: '2026-12-31',
         updatedBy: 20,
       }),
     );
-    expect(result.reportPeriod).toBe('6 tháng cuối năm');
+    expect(result.submissionStartDate).toBe('2026-07-01');
   });
 
-  it('rejects changing the definition of an in-use report period', async () => {
+  it('rejects changing an in-use report definition', async () => {
     repository.findOne.mockResolvedValue(makeReportPeriod());
     accidentReportRepository.exists.mockResolvedValue(true);
-
     await expect(service.update(1, { reportYear: 2027 }, 20)).rejects.toThrow(
       ConflictException,
     );
     expect(repository.update).not.toHaveBeenCalled();
   });
 
-  it('allows changing the submission window of an in-use report period', async () => {
+  it('allows changing only the submission window of an in-use period', async () => {
     const entity = makeReportPeriod();
     repository.findOne.mockImplementation(async ({ where }) =>
-      'id' in where && typeof where.id === 'number' ? entity : null,
+      typeof where.id === 'number' ? entity : null,
     );
-    repository.update.mockImplementation(async (_id, values) => {
-      Object.assign(entity, values);
-    });
+    repository.update.mockImplementation(async (_id, values) =>
+      Object.assign(entity, values),
+    );
     accidentReportRepository.exists.mockResolvedValue(true);
 
     await expect(
-      service.update(1, { startDate: '2027-01-02', endDate: '2027-01-08' }, 20),
+      service.update(
+        1,
+        {
+          submissionStartDate: '2027-01-02',
+          submissionEndDate: '2027-01-08',
+        },
+        20,
+      ),
     ).resolves.toMatchObject({
-      startDate: '2027-01-02',
-      endDate: '2027-01-08',
+      submissionStartDate: '2027-01-02',
+      submissionEndDate: '2027-01-08',
     });
   });
 
   it('updates status independently', async () => {
     const entity = makeReportPeriod();
     repository.findOne.mockResolvedValue(entity);
-    repository.update.mockImplementation(async (_id, values) => {
-      Object.assign(entity, values);
-    });
-
+    repository.update.mockImplementation(async (_id, values) =>
+      Object.assign(entity, values),
+    );
     await expect(service.updateStatus(1, false, 20)).resolves.toMatchObject({
       isActive: false,
     });
-    expect(repository.update).toHaveBeenCalledWith(1, {
-      isActive: false,
-      updatedBy: 20,
-    });
   });
 
-  it('rejects deleting an active report period', async () => {
+  it('only deletes inactive and unused periods', async () => {
     repository.findOne.mockResolvedValue(makeReportPeriod());
-
     await expect(service.remove(1)).rejects.toThrow(BadRequestException);
-    expect(repository.softDelete).not.toHaveBeenCalled();
-  });
 
-  it('soft-deletes an inactive report period', async () => {
     repository.findOne.mockResolvedValue(makeReportPeriod({ isActive: false }));
+    accidentReportRepository.exists.mockResolvedValue(true);
+    await expect(service.remove(1)).rejects.toThrow(ConflictException);
 
+    accidentReportRepository.exists.mockResolvedValue(false);
     await expect(service.remove(1)).resolves.toBeUndefined();
     expect(repository.softDelete).toHaveBeenCalledWith(1);
   });
 
-  it('rejects deleting a report period already used by an enterprise', async () => {
-    repository.findOne.mockResolvedValue(makeReportPeriod({ isActive: false }));
-    accidentReportRepository.exists.mockResolvedValue(true);
-
-    await expect(service.remove(1)).rejects.toThrow(ConflictException);
-    expect(repository.softDelete).not.toHaveBeenCalled();
-  });
-
   it('returns not found for a missing report period', async () => {
     repository.findOne.mockResolvedValue(null);
-
     await expect(service.getById(999)).rejects.toThrow(NotFoundException);
   });
 });

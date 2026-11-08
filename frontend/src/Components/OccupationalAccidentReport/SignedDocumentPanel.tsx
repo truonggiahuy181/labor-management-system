@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CircularProgress,
+  Divider,
   Stack,
   Typography,
 } from "@mui/material";
@@ -39,6 +40,7 @@ export default function SignedDocumentPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [processing, setProcessing] = useState(false);
   const document = report.signedDocument;
+  const draftDocument = document?.isDraft === true;
   const editable = mode === "enterprise" && !readOnly;
 
   const viewDocument = async () => {
@@ -120,7 +122,7 @@ export default function SignedDocumentPanel({
           <Typography sx={{ fontWeight: 700 }}>Bản báo cáo đã ký, đóng dấu</Typography>
           {document ? (
             <Typography variant="body2" color="text.secondary">
-              {document.originalName} · {(Number(document.size) / 1024 / 1024).toFixed(2)} MB · tải lên {new Date(document.uploadedAt).toLocaleString("vi-VN")}
+              {document.originalName} · {(Number(document.size) / 1024 / 1024).toFixed(2)} MB · {draftDocument ? "bản nháp tải lên" : `lần nộp #${document.submissionNo}`} {new Date(document.uploadedAt).toLocaleString("vi-VN")}
             </Typography>
           ) : (
             <Typography variant="body2" color="text.secondary">
@@ -152,14 +154,14 @@ export default function SignedDocumentPanel({
             />
             <Button
               size="small"
-              variant={document ? "outlined" : "contained"}
+              variant={draftDocument ? "outlined" : "contained"}
               startIcon={<UploadFileOutlinedIcon />}
               disabled={processing}
               onClick={() => inputRef.current?.click()}
             >
-              {document ? "Thay PDF" : "Tải PDF đã ký"}
+              {draftDocument ? "Thay PDF" : "Tải PDF mới đã ký"}
             </Button>
-            {document && (
+            {draftDocument && (
               <Button
                 size="small"
                 color="error"
@@ -178,10 +180,30 @@ export default function SignedDocumentPanel({
           Đây là hồ sơ bắt buộc. Báo cáo chưa thể gửi cho đến khi có bản PDF đã ký, đóng dấu.
         </Alert>
       )}
+      {document && !draftDocument && editable && (
+        <Alert severity="info" sx={{ mt: 1.5 }}>
+          PDF của lần nộp trước đã được khóa. Hãy tải PDF mới đã ký để gửi lại báo cáo.
+        </Alert>
+      )}
       {!document && mode === "admin" && (
         <Alert severity="warning" sx={{ mt: 1.5 }}>
           Báo cáo này không có bản PDF ký, đóng dấu đính kèm.
         </Alert>
+      )}
+      {report.submissions.length > 0 && (
+        <>
+          <Divider sx={{ my: 1.5 }} />
+          <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
+            Lịch sử các lần nộp
+          </Typography>
+          <Stack spacing={0.5}>
+            {report.submissions.map((submission) => (
+              <Typography key={submission.id} variant="body2" color="text.secondary">
+                Lần #{submission.submissionNo} · ngày báo cáo {new Date(`${submission.reportDate}T00:00:00`).toLocaleDateString("vi-VN")} · gửi {new Date(submission.submittedAt).toLocaleString("vi-VN")} · {submission.documentOriginalName} · SHA-256 {submission.documentSha256.slice(0, 12)}…
+              </Typography>
+            ))}
+          </Stack>
+        </>
       )}
     </Card>
   );
