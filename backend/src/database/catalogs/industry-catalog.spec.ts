@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildIndustrySeedRows } from './industry-catalog.js';
 
 describe('industry catalog', () => {
-  it('keeps official codes through level four and filters level five', () => {
+  it('contains the complete official catalog for levels one through four', () => {
     const rows = buildIndustrySeedRows();
 
     expect(rows).toEqual(
@@ -30,6 +30,15 @@ describe('industry catalog', () => {
       ]),
     );
     expect(rows.some((row) => row.industry_code === '01110')).toBe(false);
+    expect(rows).toHaveLength(863);
+    expect(
+      Object.fromEntries(
+        [1, 2, 3, 4].map((level) => [
+          level,
+          rows.filter((row) => row.level === level).length,
+        ]),
+      ),
+    ).toEqual({ 1: 22, 2: 87, 3: 259, 4: 495 });
     expect(rows.every((row) => row.level >= 1 && row.level <= 4)).toBe(true);
     expect(
       rows.some((row) => row.level > 1 && /^[A-V]/.test(row.industry_code)),

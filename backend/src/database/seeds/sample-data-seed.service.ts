@@ -2,12 +2,12 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { DataSource, EntityManager } from 'typeorm';
-import {
-  buildIndustrySeedRows,
-  getStoredIndustryCode,
-} from '../catalogs/industry-catalog.js';
+import type { BusinessTypeCode } from '../catalogs/business-type-catalog.js';
+import { getStoredIndustryCode } from '../catalogs/industry-catalog.js';
 import { INJURY_TYPE_CATALOG } from '../catalogs/injury-type-catalog.js';
-import { OCCUPATION_CATALOG } from '../catalogs/occupation-catalog.js';
+import { seedBusinessTypeCatalog } from './business-type-seed.js';
+import { seedIndustryCatalog } from './industry-seed.js';
+import { seedOccupationCatalog } from './occupation-seed.js';
 import {
   ReportPeriodCode,
   ReportTypeCode,
@@ -39,21 +39,13 @@ interface EnterpriseSeedRow {
 interface CompanyProfile {
   enterpriseName: string;
   foreignName: string;
-  businessTypeCode: (typeof BUSINESS_TYPES)[number][0];
+  businessTypeCode: BusinessTypeCode;
   industryCode: string;
 }
 
 const DEFAULT_PAGINATION_RECORDS = 30;
 const MAX_PAGINATION_RECORDS = 100;
 const DEFAULT_ENTERPRISE_PASSWORD = '12345678';
-
-const BUSINESS_TYPES = [
-  ['TNHH1', 'Công ty trách nhiệm hữu hạn một thành viên'],
-  ['TNHH2', 'Công ty trách nhiệm hữu hạn hai thành viên trở lên'],
-  ['CTCP', 'Công ty cổ phần'],
-  ['DNTN', 'Doanh nghiệp tư nhân'],
-  ['HD', 'Công ty hợp danh'],
-] as const;
 
 const REPRESENTATIVE_NAMES = [
   'Nguyễn Minh Anh',
@@ -111,13 +103,13 @@ const COMPANY_PROFILES: readonly CompanyProfile[] = [
     enterpriseName: 'Công ty TNHH Công nghệ Sao Việt',
     foreignName: 'Sao Viet Technology Company Limited',
     businessTypeCode: 'TNHH2',
-    industryCode: '6201',
+    industryCode: '6219',
   },
   {
     enterpriseName: 'Công ty Cổ phần Giải pháp Số Đông Dương',
     foreignName: 'Indochina Digital Solutions Joint Stock Company',
     businessTypeCode: 'CTCP',
-    industryCode: '6202',
+    industryCode: '6220',
   },
   {
     enterpriseName: 'Công ty TNHH Một Thành Viên Thương mại An Phát',
@@ -153,7 +145,7 @@ const COMPANY_PROFILES: readonly CompanyProfile[] = [
     enterpriseName: 'Doanh nghiệp Tư nhân Nội thất Gia Bảo',
     foreignName: 'Gia Bao Furniture Private Enterprise',
     businessTypeCode: 'DNTN',
-    industryCode: '3100',
+    industryCode: '3101',
   },
   {
     enterpriseName: 'Công ty TNHH Du lịch Biển Xanh',
@@ -225,19 +217,19 @@ const COMPANY_PROFILES: readonly CompanyProfile[] = [
     enterpriseName: 'Công ty TNHH Điện tử Nam Việt',
     foreignName: 'Nam Viet Electronics Company Limited',
     businessTypeCode: 'TNHH2',
-    industryCode: '2610',
+    industryCode: '2619',
   },
   {
     enterpriseName: 'Công ty TNHH Một Thành Viên Nội thất Mộc Việt',
     foreignName: 'Moc Viet Furniture One Member Company Limited',
     businessTypeCode: 'TNHH1',
-    industryCode: '3100',
+    industryCode: '3101',
   },
   {
     enterpriseName: 'Công ty Cổ phần Phần mềm Tiên Phong',
     foreignName: 'Tien Phong Software Joint Stock Company',
     businessTypeCode: 'CTCP',
-    industryCode: '6201',
+    industryCode: '6219',
   },
   {
     enterpriseName: 'Công ty TNHH Nhà hàng Hương Quê',
@@ -703,67 +695,9 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           deleted_at = NULL
     `);
 
-    await manager.query(
-      `
-        INSERT INTO business_types (type_code, type_name, is_active, deleted_at)
-        SELECT type_code, type_name, TRUE, NULL
-        FROM jsonb_to_recordset($1::jsonb)
-          AS seed(type_code VARCHAR(50), type_name VARCHAR(255))
-        ON CONFLICT (type_code) DO UPDATE
-        SET type_name = EXCLUDED.type_name,
-            is_active = TRUE,
-            deleted_at = NULL
-      `,
-      [
-        JSON.stringify(
-          BUSINESS_TYPES.map(([typeCode, typeName]) => ({
-            type_code: typeCode,
-            type_name: typeName,
-          })),
-        ),
-      ],
-    );
+    await seedBusinessTypeCatalog(manager);
 
-    const industryRows = buildIndustrySeedRows();
-    for (let level = 1; level <= 4; level += 1) {
-      const rowsAtLevel = industryRows.filter((row) => row.level === level);
-      await manager.query(
-        `
-          INSERT INTO industries (
-            industry_code,
-            industry_name,
-            level,
-            parent_id,
-            is_active,
-            deleted_at
-          )
-          SELECT
-            seed.industry_code,
-            seed.industry_name,
-            seed.level,
-            parent.id,
-            seed.is_active,
-            NULL
-          FROM jsonb_to_recordset($1::jsonb)
-            AS seed(
-              industry_code VARCHAR(50),
-              industry_name VARCHAR(255),
-              parent_code VARCHAR(50),
-              level INT,
-              is_active BOOLEAN
-            )
-          LEFT JOIN industries AS parent
-            ON parent.industry_code = seed.parent_code
-            AND parent.deleted_at IS NULL
-          ON CONFLICT (industry_code) DO UPDATE
-          SET industry_name = EXCLUDED.industry_name,
-              level = EXCLUDED.level,
-              parent_id = EXCLUDED.parent_id,
-              deleted_at = NULL
-        `,
-        [JSON.stringify(rowsAtLevel)],
-      );
-    }
+    await seedIndustryCatalog(manager);
   }
 
   private async seedReportPeriods(manager: EntityManager): Promise<void> {
@@ -938,63 +872,7 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
   }
 
   private async seedOccupations(manager: EntityManager): Promise<void> {
-    for (const level of [1, 2, 3, 4] as const) {
-      const rows = OCCUPATION_CATALOG.filter((row) => row.level === level);
-      await manager.query(
-        `
-          INSERT INTO occupations (
-            occupation_code,
-            occupation_name,
-            level,
-            parent_id,
-            is_active,
-            created_by,
-            updated_by,
-            created_at,
-            updated_at
-          )
-          SELECT
-            seed.occupation_code,
-            seed.occupation_name,
-            seed.level,
-            parent.id,
-            seed.is_active,
-            NULL,
-            NULL,
-            NOW(),
-            NOW()
-          FROM jsonb_to_recordset($1::jsonb)
-            AS seed(
-              occupation_code VARCHAR(4),
-              occupation_name VARCHAR(255),
-              parent_code VARCHAR(4),
-              level SMALLINT,
-              is_active BOOLEAN
-            )
-          LEFT JOIN occupations parent
-            ON parent.occupation_code = seed.parent_code
-            AND parent.deleted_at IS NULL
-          ON CONFLICT (occupation_code) DO UPDATE
-          SET occupation_name = EXCLUDED.occupation_name,
-              level = EXCLUDED.level,
-              parent_id = EXCLUDED.parent_id,
-              is_active = EXCLUDED.is_active,
-              deleted_at = NULL,
-              updated_at = NOW()
-        `,
-        [
-          JSON.stringify(
-            rows.map((row) => ({
-              occupation_code: row.occupationCode,
-              occupation_name: row.occupationName,
-              parent_code: row.parentCode,
-              level: row.level,
-              is_active: row.isActive,
-            })),
-          ),
-        ],
-      );
-    }
+    await seedOccupationCatalog(manager);
   }
 
   private buildEnterprises(

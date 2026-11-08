@@ -1,17 +1,20 @@
 # Dữ liệu mẫu
 
-Các seed trong dự án chỉ dùng cho môi trường development.
+Dữ liệu doanh nghiệp và tài khoản mẫu chỉ dùng cho môi trường development.
+Danh mục ngành là dữ liệu tham chiếu và có lệnh seed riêng cho từng môi trường.
 
 Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ liệu mẫu lúc khởi động. Seed có thể chạy lại an toàn: các bản ghi có cùng mã hoặc username sẽ không bị nhân đôi.
 
 ## Dữ liệu được tạo
 
 - Danh mục vai trò: `ADMIN`, `ENTERPRISE_USER`.
-- 5 loại hình doanh nghiệp.
-- Cây ngành nghề kinh doanh đủ cấp 1-4 cho các ngành doanh nghiệp mẫu sử dụng.
-  Mã cấp 2-4 được lưu kèm tiền tố chữ cái của cấp 1, ví dụ
-  `J → J62 → J620 → J6201`. Trong đó `J6209` là ngành active chưa được sử dụng; `J6312` và nhánh
-  `T → T97 → T970 → T9700` inactive để kiểm thử quy tắc trạng thái.
+- 5 loại hình doanh nghiệp: công ty TNHH một thành viên, công ty TNHH hai thành viên trở lên,
+  công ty cổ phần, công ty hợp danh và doanh nghiệp tư nhân.
+- Danh mục 717 nghề nghiệp cấp 1-4, gồm 10 mã cấp 1, 48 mã cấp 2, 152 mã cấp 3 và
+  507 mã cấp 4. Các mã cấp 5 một-một trong tệp nguồn được thu gọn vào mã cấp 4 tương ứng.
+- Danh mục 863 ngành kinh tế Việt Nam cấp 1-4, gồm 22 mã cấp 1, 87 mã cấp 2,
+  259 mã cấp 3 và 495 mã cấp 4. Mã ngành được lưu theo mã chính thức, ví dụ
+  `K → 62 → 621 → 6219`.
 - Mặc định 30 doanh nghiệp có tên riêng, loại hình và ngành nghề phù hợp, gồm cả trạng thái hoạt động và ngừng hoạt động.
 - Một tài khoản cho mỗi doanh nghiệp mẫu, đủ dữ liệu để kiểm thử nhiều trang với `pageSize=10`.
 - Một tài khoản quản trị mẫu.
@@ -44,5 +47,28 @@ npm run start:dev
 ```
 
 Không sử dụng mật khẩu mẫu ở production. Seed luôn bị bỏ qua khi `NODE_ENV` khác `development`.
+
+Để chỉ nạp danh mục ngành cấp 1-4 mà không tạo doanh nghiệp hoặc tài khoản mẫu:
+
+```powershell
+npm run seed:industries
+```
+
+Lệnh này có thể chạy lại an toàn: bản ghi được upsert theo mã ngành và quan hệ cha-con
+được kiểm tra sau khi nạp.
+
+Để chỉ nạp 5 loại hình kinh doanh:
+
+```powershell
+npm run seed:business-types
+```
+
+Để chỉ nạp danh mục nghề nghiệp cấp 1-4:
+
+```powershell
+npm run seed:occupations
+```
+
+Hai lệnh trên cũng có thể chạy lại an toàn: dữ liệu được upsert theo mã và được kiểm tra sau khi nạp.
 
 File `001_user_example.sql` chỉ được giữ lại cho trường hợp cần tạo riêng tài khoản admin bằng PostgreSQL CLI.
