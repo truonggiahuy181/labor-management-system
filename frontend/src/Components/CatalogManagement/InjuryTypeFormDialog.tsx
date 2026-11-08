@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  InputAdornment,
   MenuItem,
   Stack,
   TextField,
@@ -20,14 +21,14 @@ import { getErrorMessage } from "@/services/user";
 import InjuryTypeParentTreeSelect from "./InjuryTypeParentTreeSelect";
 
 type InjuryTypeForm = {
-  injuryTypeCode: string;
+  codeSegment: string;
   injuryTypeName: string;
   parentId: string;
   isActive: boolean;
 };
 
 const toForm = (injuryType: InjuryType | null): InjuryTypeForm => ({
-  injuryTypeCode: injuryType?.injuryTypeCode ?? "",
+  codeSegment: injuryType?.injuryTypeCode.slice(-1) ?? "",
   injuryTypeName: injuryType?.injuryTypeName ?? "",
   parentId: injuryType?.parentId ? String(injuryType.parentId) : "",
   isActive: injuryType?.isActive ?? true,
@@ -53,6 +54,7 @@ export default function InjuryTypeFormDialog({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { isSubmitting },
   } = useForm<InjuryTypeForm>({ defaultValues: toForm(null) });
 
@@ -64,6 +66,18 @@ export default function InjuryTypeFormDialog({
     () => rows.filter((row) => row.level < 3 && (isEdit || row.isActive)),
     [isEdit, rows],
   );
+  const parentId = useWatch({ control, name: "parentId" });
+  const codeSegment = useWatch({ control, name: "codeSegment" });
+  const selectedParent = useMemo(
+    () =>
+      parentId
+        ? parentOptions.find((row) => row.id === Number(parentId))
+        : undefined,
+    [parentId, parentOptions],
+  );
+  const codePrefix = selectedParent?.injuryTypeCode ?? "";
+  const fullCode = injuryType?.injuryTypeCode ?? `${codePrefix}${codeSegment}`;
+  const newLevel = selectedParent ? selectedParent.level + 1 : 1;
 
   const onSubmit = async (values: InjuryTypeForm) => {
     try {
@@ -76,7 +90,7 @@ export default function InjuryTypeFormDialog({
         }
       } else {
         const created = await injuryTypeApi.create({
-          injuryTypeCode: values.injuryTypeCode.trim(),
+          codeSegment: values.codeSegment.trim(),
           injuryTypeName: values.injuryTypeName.trim(),
           parentId: values.parentId ? Number(values.parentId) : null,
         });
@@ -122,7 +136,36 @@ export default function InjuryTypeFormDialog({
           noValidate
         >
           <Controller
-            name="injuryTypeCode"
+            name="parentId"
+            control={control}
+            render={({ field }) => (
+              <InjuryTypeParentTreeSelect
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  if (!isEdit) {
+                    setValue("codeSegment", "", {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+                options={parentOptions}
+                label={translate("accidentCatalog.parentInjuryType")}
+                noParentLabel={translate("accidentCatalog.noParentInjuryType")}
+                helperText={translate(
+                  isEdit
+                    ? "accidentCatalog.parentImmutableHint"
+                    : "accidentCatalog.parentInjuryTypeHint",
+                )}
+                expandLabel={translate("accidentCatalog.expandInjuryType")}
+                collapseLabel={translate("accidentCatalog.collapseInjuryType")}
+                disabled={isEdit}
+              />
+            )}
+          />
+          <Controller
+            name="codeSegment"
             control={control}
             rules={
               isEdit
@@ -130,7 +173,7 @@ export default function InjuryTypeFormDialog({
                 : {
                     required,
                     pattern: {
-                      value: /^\d{1,3}$/,
+                      value: /^\d$/,
                       message: translate(
                         "accidentCatalog.invalidInjuryTypeCode",
                       ),
@@ -140,6 +183,10 @@ export default function InjuryTypeFormDialog({
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
+                value={isEdit ? fullCode : field.value}
+                onChange={(event) =>
+                  field.onChange(event.target.value.replace(/\D/g, "").slice(0, 1))
+                }
                 label={translate("accidentCatalog.injuryTypeCode")}
                 required
                 disabled={isEdit}
@@ -147,10 +194,21 @@ export default function InjuryTypeFormDialog({
                 error={Boolean(fieldState.error)}
                 helperText={
                   fieldState.error?.message ??
-                  translate("accidentCatalog.injuryTypeCodeHint")
+                  translate("accidentCatalog.injuryTypeCodePreview", {
+                    code: fullCode || "—",
+                    level: newLevel,
+                  })
                 }
                 slotProps={{
-                  htmlInput: { maxLength: 3, inputMode: "numeric" },
+                  input: {
+                    startAdornment:
+                      !isEdit && codePrefix ? (
+                        <InputAdornment position="start">
+                          {codePrefix}
+                        </InputAdornment>
+                      ) : undefined,
+                  },
+                  htmlInput: { maxLength: 1, inputMode: "numeric" },
                 }}
               />
             )}
@@ -168,27 +226,6 @@ export default function InjuryTypeFormDialog({
                 error={Boolean(fieldState.error)}
                 helperText={fieldState.error?.message}
                 slotProps={{ htmlInput: { maxLength: 255 } }}
-              />
-            )}
-          />
-          <Controller
-            name="parentId"
-            control={control}
-            render={({ field }) => (
-              <InjuryTypeParentTreeSelect
-                value={field.value}
-                onChange={field.onChange}
-                options={parentOptions}
-                label={translate("accidentCatalog.parentInjuryType")}
-                noParentLabel={translate("accidentCatalog.noParentInjuryType")}
-                helperText={translate(
-                  isEdit
-                    ? "accidentCatalog.parentImmutableHint"
-                    : "accidentCatalog.parentInjuryTypeHint",
-                )}
-                expandLabel={translate("accidentCatalog.expandInjuryType")}
-                collapseLabel={translate("accidentCatalog.collapseInjuryType")}
-                disabled={isEdit}
               />
             )}
           />

@@ -1,5 +1,6 @@
 import {
   Column,
+  Check,
   Entity,
   Index,
   JoinColumn,
@@ -12,6 +13,7 @@ import type { ProvinceEntity } from './province.entity.js';
 @Index('uq_wards_code_province_code', ['code', 'provinceCode'], {
   unique: true,
 })
+@Check('chk_wards_code_format', "code ~ '^[0-9]{5}$'")
 @Entity('wards')
 export class WardEntity {
   @PrimaryColumn({ name: 'code', type: 'varchar', length: 5 })

@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-@Index(['typeCode'], { unique: true })
+@Index('uq_business_types_type_code', ['typeCode'], { unique: true })
 @Entity('business_types')
 export class BusinessTypeEntity {
   @PrimaryGeneratedColumn()

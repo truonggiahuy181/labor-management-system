@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, IsNull, Repository } from 'typeorm';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
+import { OccupationalAccidentVictimGroupEntity } from '../occupational-accident-report/entities/occupational-accident-victim-group.entity.js';
 import { CreateOccupationDto } from './dto/create-occupation.dto.js';
 import { OccupationQueryDto } from './dto/occupation-query.dto.js';
 import { OccupationResponseDto } from './dto/occupation-response.dto.js';
@@ -18,6 +19,8 @@ export class OccupationService {
   constructor(
     @InjectRepository(OccupationEntity)
     private readonly occupationRepository: Repository<OccupationEntity>,
+    @InjectRepository(OccupationalAccidentVictimGroupEntity)
+    private readonly victimGroupRepository: Repository<OccupationalAccidentVictimGroupEntity>,
   ) {}
 
   async getAll(
@@ -91,6 +94,7 @@ export class OccupationService {
     updaterId?: number,
   ): Promise<OccupationResponseDto> {
     const current = await this.findEntityOrFail(id);
+    await this.assertNotInUse(id);
     const occupationName = this.normalizeName(dto.occupationName);
 
     if (
@@ -120,6 +124,7 @@ export class OccupationService {
     if (isActive) {
       await this.validateStoredHierarchy(current);
     } else {
+      await this.assertNotInUse(id);
       const hasActiveChildren = await this.occupationRepository.exists({
         where: { parentId: id, isActive: true },
       });
@@ -157,6 +162,8 @@ export class OccupationService {
         message: 'Không thể xóa nghề nghiệp đang có nhóm con.',
       });
     }
+
+    await this.assertNotInUse(id);
 
     await this.occupationRepository.softDelete(id);
   }
@@ -295,6 +302,19 @@ export class OccupationService {
       code: ErrorCode.INVALID_OCCUPATION_HIERARCHY,
       message,
     });
+  }
+
+  private async assertNotInUse(id: number): Promise<void> {
+    const inUse = await this.victimGroupRepository.exists({
+      where: { occupationId: id },
+    });
+    if (inUse) {
+      throw new ConflictException({
+        code: ErrorCode.OCCUPATION_IN_USE,
+        message:
+          'Không thể chỉnh sửa, ngừng sử dụng hoặc xóa nghề nghiệp đã được dùng trong báo cáo tai nạn lao động.',
+      });
+    }
   }
 
   private normalizeName(value: string): string {

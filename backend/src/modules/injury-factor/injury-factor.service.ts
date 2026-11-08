@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, ILike, Not, Repository } from 'typeorm';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
+import { OccupationalAccidentCaseEntity } from '../occupational-accident-report/entities/occupational-accident-case.entity.js';
 import { CreateInjuryFactorDto } from './dto/create-injury-factor.dto.js';
 import { InjuryFactorQueryDto } from './dto/injury-factor-query.dto.js';
 import { InjuryFactorResponseDto } from './dto/injury-factor-response.dto.js';
@@ -18,6 +19,8 @@ export class InjuryFactorService {
   constructor(
     @InjectRepository(InjuryFactorEntity)
     private readonly injuryFactorRepository: Repository<InjuryFactorEntity>,
+    @InjectRepository(OccupationalAccidentCaseEntity)
+    private readonly accidentCaseRepository: Repository<OccupationalAccidentCaseEntity>,
   ) {}
 
   async getAll(
@@ -79,6 +82,7 @@ export class InjuryFactorService {
     if (dto.factorCode !== undefined) {
       const factorCode = this.normalizeText(dto.factorCode);
       if (factorCode !== current.factorCode) {
+        await this.assertNotInUse(id);
         await this.assertFactorCodeAvailable(factorCode, id);
         updateData.factorCode = factorCode;
       }
@@ -87,6 +91,9 @@ export class InjuryFactorService {
       updateData.factorName = this.normalizeText(dto.factorName);
     }
     if (dto.isActive !== undefined) {
+      if (current.isActive && !dto.isActive) {
+        await this.assertNotInUse(id);
+      }
       updateData.isActive = dto.isActive;
     }
 
@@ -99,7 +106,13 @@ export class InjuryFactorService {
     isActive: boolean,
     updaterId?: number,
   ): Promise<InjuryFactorResponseDto> {
-    await this.findEntityOrFail(id);
+    const current = await this.findEntityOrFail(id);
+    if (current.isActive === isActive) {
+      return this.toResponse(current);
+    }
+    if (!isActive) {
+      await this.assertNotInUse(id);
+    }
     await this.injuryFactorRepository.update(id, {
       isActive,
       updatedBy: updaterId ?? null,
@@ -115,6 +128,7 @@ export class InjuryFactorService {
         message: 'Phải ngừng sử dụng yếu tố gây chấn thương trước khi xóa.',
       });
     }
+    await this.assertNotInUse(id);
     await this.injuryFactorRepository.softDelete(id);
   }
 
@@ -150,6 +164,19 @@ export class InjuryFactorService {
       throw new ConflictException({
         code: ErrorCode.INJURY_FACTOR_CODE_EXISTS,
         message: 'Mã yếu tố gây chấn thương đã tồn tại.',
+      });
+    }
+  }
+
+  private async assertNotInUse(id: number): Promise<void> {
+    const inUse = await this.accidentCaseRepository.exists({
+      where: { injuryFactorId: id },
+    });
+    if (inUse) {
+      throw new ConflictException({
+        code: ErrorCode.INJURY_FACTOR_IN_USE,
+        message:
+          'Không thể ngừng sử dụng hoặc xóa yếu tố gây chấn thương đã được dùng trong báo cáo tai nạn lao động.',
       });
     }
   }

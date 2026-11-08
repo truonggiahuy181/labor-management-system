@@ -10,27 +10,27 @@ const validationPipe = new ValidationPipe({
 });
 
 describe('Injury type DTO contract', () => {
-  it('accepts create input without level', async () => {
+  it('accepts one code segment and no client-managed level', async () => {
     await expect(
       validationPipe.transform(
         {
-          injuryTypeCode: '110',
+          codeSegment: '0',
           injuryTypeName: 'Chấn thương sọ não',
           parentId: 11,
         },
         { type: 'body', metatype: CreateInjuryTypeDto },
       ),
     ).resolves.toMatchObject({
-      injuryTypeCode: '110',
+      codeSegment: '0',
       injuryTypeName: 'Chấn thương sọ não',
       parentId: 11,
     });
   });
 
-  it.each(['A1', '1.1', '1234'])('rejects invalid code %s', async (code) => {
+  it.each(['A', '10', '', '1.1'])('rejects invalid code segment %s', async (codeSegment) => {
     await expect(
       validationPipe.transform(
-        { injuryTypeCode: code, injuryTypeName: 'Mẫu' },
+        { codeSegment, injuryTypeName: 'Mẫu' },
         { type: 'body', metatype: CreateInjuryTypeDto },
       ),
     ).rejects.toThrow(BadRequestException);
@@ -39,7 +39,11 @@ describe('Injury type DTO contract', () => {
   it.each([
     [
       CreateInjuryTypeDto,
-      { injuryTypeCode: '1', injuryTypeName: 'Mẫu', level: 1 },
+      { codeSegment: '1', injuryTypeName: 'Mẫu', level: 1 },
+    ],
+    [
+      CreateInjuryTypeDto,
+      { injuryTypeCode: '110', codeSegment: '0', injuryTypeName: 'Mẫu' },
     ],
     [UpdateInjuryTypeDto, { injuryTypeName: 'Mẫu', parentId: 1 }],
     [UpdateInjuryTypeDto, { injuryTypeName: 'Mẫu', injuryTypeCode: '2' }],

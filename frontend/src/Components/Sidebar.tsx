@@ -51,7 +51,8 @@ const MENU: MenuGroup[] = [
     roles: [ROLE.ADMIN, ROLE.ENTERPRISE],
     items: [
       { label: 'menu.accidentCategories', href: '/accidents/categories',roles: [ROLE.ADMIN]  },
-      { label: 'menu.accidentLaborContracts', href: '/accidents/labor-contracts' },
+      { label: 'menu.accidentLaborContracts', href: '/admin/occupational-accident-reports', roles: [ROLE.ADMIN] },
+      { label: 'menu.accidentLaborContracts', href: '/accidents/labor-contracts', roles: [ROLE.ENTERPRISE] },
     ],
   },
 ];

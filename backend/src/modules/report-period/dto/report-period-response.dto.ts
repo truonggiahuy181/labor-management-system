@@ -1,4 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type {
+  ReportPeriodCode,
+  ReportTypeCode,
+} from '../report-period.constants.js';
 
 export class ReportPeriodResponseDto {
   @ApiProperty({ example: 1 })
@@ -13,10 +17,16 @@ export class ReportPeriodResponseDto {
   @ApiProperty({ example: 'Cả năm' })
   reportPeriod: string;
 
-  @ApiProperty({ example: '2026-01-01', format: 'date' })
+  @ApiProperty({ example: 'OCCUPATIONAL_ACCIDENT' })
+  reportTypeCode: ReportTypeCode;
+
+  @ApiProperty({ example: 'FIRST_HALF' })
+  periodCode: ReportPeriodCode;
+
+  @ApiProperty({ example: '2027-01-01', format: 'date' })
   startDate: string;
 
-  @ApiProperty({ example: '2026-12-31', format: 'date' })
+  @ApiProperty({ example: '2027-01-09', format: 'date' })
   endDate: string;
 
   @ApiProperty({ example: true })

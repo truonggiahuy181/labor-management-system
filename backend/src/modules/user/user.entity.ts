@@ -1,6 +1,7 @@
 import {
   Entity,
   Column,
+  Check,
   Index,
   JoinColumn,
   ManyToOne,
@@ -9,9 +10,18 @@ import {
 import { Exclude } from 'class-transformer';
 import { BaseEntity } from '../../commons/bases/base.entity.js';
 import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
+import { ProvinceEntity } from '../location/province.entity.js';
+import { WardEntity } from '../location/ward.entity.js';
 import { RoleEntity } from '../role/role.entity.js';
 
 @Index('uq_users_username', ['username'], { unique: true })
+@Index('uq_users_enterprise_id', ['enterpriseId'], { unique: true })
+@Index('idx_users_role_id', ['roleId'])
+@Index('idx_users_is_active', ['isActive'])
+@Check(
+  'chk_users_location',
+  '(province_id IS NULL AND ward_id IS NULL) OR (province_id IS NOT NULL AND ward_id IS NOT NULL)',
+)
 @Entity('users')
 export class UserEntity extends BaseEntity {
   @Column({ name: 'username', type: 'varchar', length: 50 })
@@ -47,14 +57,32 @@ export class UserEntity extends BaseEntity {
   })
   avatarObjectKey: string | null;
 
-  @Column({ name: 'province_id', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'province_id', type: 'varchar', length: 2, nullable: true })
   provinceId: string | null;
+
+  @ManyToOne(() => ProvinceEntity, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'province_id',
+    foreignKeyConstraintName: 'fk_users_province',
+  })
+  province: ProvinceEntity | null;
 
   @Column({ name: 'district_id', type: 'varchar', length: 20, nullable: true })
   districtId: string | null;
 
-  @Column({ name: 'ward_id', type: 'varchar', length: 20, nullable: true })
+  @Column({ name: 'ward_id', type: 'varchar', length: 5, nullable: true })
   wardId: string | null;
+
+  @ManyToOne(() => WardEntity, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn([
+    {
+      name: 'ward_id',
+      referencedColumnName: 'code',
+      foreignKeyConstraintName: 'fk_users_ward_province',
+    },
+    { name: 'province_id', referencedColumnName: 'provinceCode' },
+  ])
+  ward: WardEntity | null;
 
   @Column({ name: 'address', type: 'varchar', length: 255, nullable: true })
   address: string | null;

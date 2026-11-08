@@ -38,7 +38,7 @@ describe('IndustryService', () => {
 
   const industry = {
     id: 1,
-    industryCode: 'J6201',
+    industryCode: '6201',
     industryName: 'Lập trình máy vi tính',
     level: 4,
     parentId: 10,
@@ -133,17 +133,70 @@ describe('IndustryService', () => {
 
     await expect(
       service.create({
-        industryCode: ' abc_1 ',
+        industryCode: ' j ',
         industryName: ' Ngành mẫu ',
       }),
     ).resolves.toEqual({
       id: 2,
-      industryCode: 'ABC_1',
+      industryCode: 'J',
       industryName: 'Ngành mẫu',
       level: 1,
       parentId: null,
       isActive: true,
     });
+  });
+
+  it('rejects a root code with more than one letter', async () => {
+    await expect(
+      service.create({
+        industryCode: 'AA',
+        industryName: 'Ngành không hợp lệ',
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('creates an official two-digit level-two code under its root parent', async () => {
+    repository.findOne
+      .mockResolvedValueOnce({
+        ...industry,
+        id: 3,
+        industryCode: 'J',
+        level: 1,
+        parentId: null,
+      })
+      .mockResolvedValueOnce(null);
+    repository.save.mockImplementation(async (value) => ({ id: 4, ...value }));
+
+    await expect(
+      service.create({
+        industryCode: '62',
+        industryName: 'Công nghệ thông tin',
+        parentId: 3,
+      }),
+    ).resolves.toMatchObject({
+      industryCode: '62',
+      level: 2,
+      parentId: 3,
+    });
+  });
+
+  it('rejects letters in a level-two code', async () => {
+    repository.findOne.mockResolvedValueOnce({
+      ...industry,
+      id: 3,
+      industryCode: 'J',
+      level: 1,
+      parentId: null,
+    });
+
+    await expect(
+      service.create({
+        industryCode: 'AA',
+        industryName: 'Ngành không hợp lệ',
+        parentId: 3,
+      }),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects a duplicate industry code', async () => {
@@ -162,14 +215,14 @@ describe('IndustryService', () => {
       .mockResolvedValueOnce({
         ...industry,
         id: 5,
-        industryCode: 'J620',
+        industryCode: '620',
         level: 3,
         parentId: 4,
       })
       .mockResolvedValueOnce({
         ...industry,
         id: 4,
-        industryCode: 'J62',
+        industryCode: '62',
         level: 2,
         parentId: 3,
       })
@@ -191,20 +244,18 @@ describe('IndustryService', () => {
       }),
     ).resolves.toMatchObject({
       id: 6,
-      industryCode: 'J6201',
+      industryCode: '6201',
       level: 4,
       parentId: 5,
     });
   });
 
   it('rejects creating a child below level four', async () => {
-    repository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ...industry, id: 5, level: 4 });
+    repository.findOne.mockResolvedValueOnce({ ...industry, id: 5, level: 4 });
 
     await expect(
       service.create({
-        industryCode: 'CHILD',
+        industryCode: '62011',
         industryName: 'Ngành con',
         parentId: 5,
       }),
@@ -230,7 +281,12 @@ describe('IndustryService', () => {
 
   it('rejects changing the parent of an industry with children', async () => {
     repository.findOne
-      .mockResolvedValueOnce({ ...industry, level: 2, parentId: 10 })
+      .mockResolvedValueOnce({
+        ...industry,
+        industryCode: '62',
+        level: 2,
+        parentId: 10,
+      })
       .mockResolvedValueOnce({
         ...industry,
         id: 20,
@@ -252,14 +308,14 @@ describe('IndustryService', () => {
       .mockResolvedValueOnce({
         ...industry,
         id: 20,
-        industryCode: 'J620',
+        industryCode: '620',
         level: 3,
         parentId: 30,
       })
       .mockResolvedValueOnce({
         ...industry,
         id: 30,
-        industryCode: 'J62',
+        industryCode: '62',
         level: 2,
         parentId: 40,
       })
@@ -287,13 +343,13 @@ describe('IndustryService', () => {
     expect(repository.update).not.toHaveBeenCalled();
   });
 
-  it('reparents an unused leaf and derives its level', async () => {
+  it('rejects reparenting when the immutable code does not fit the new level', async () => {
     repository.findOne
       .mockResolvedValueOnce(industry)
       .mockResolvedValueOnce({
         ...industry,
         id: 20,
-        industryCode: 'J62',
+        industryCode: '62',
         level: 2,
         parentId: 30,
       })
@@ -303,32 +359,21 @@ describe('IndustryService', () => {
         industryCode: 'J',
         level: 1,
         parentId: null,
-      })
-      .mockResolvedValueOnce({
-        ...industry,
-        level: 3,
-        parentId: 20,
       });
-    repository.exists.mockResolvedValue(false);
-    enterpriseRepository.exists.mockResolvedValue(false);
 
-    await expect(service.update(1, { parentId: 20 })).resolves.toMatchObject({
-      level: 3,
-      parentId: 20,
-    });
-    expect(repository.update).toHaveBeenCalledWith(1, {
-      level: 3,
-      parentId: 20,
-    });
+    await expect(service.update(1, { parentId: 20 })).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
-  it('rejects moving an industry to a different level-one prefix', async () => {
+  it('rejects moving an industry below a different numeric parent code', async () => {
     repository.findOne
       .mockResolvedValueOnce(industry)
       .mockResolvedValueOnce({
         ...industry,
         id: 20,
-        industryCode: 'G46',
+        industryCode: '46',
         level: 2,
         parentId: 30,
       })

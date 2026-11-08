@@ -21,7 +21,8 @@ import {
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import EditIcon from '@mui/icons-material/Edit';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useSnackbar } from 'notistack';
 import ReportPeriodFormDialog from '@/Components/ReportPeriodManagement/ReportPeriodFormDialog';
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
@@ -164,15 +165,30 @@ export default function ReportPeriodsPage() {
 
   return (
     <>
-      <Stack spacing={1.5} sx={{ height: 'calc(100vh - 48px)' }}>
+      <Stack spacing={2} sx={{ height: 'calc(100vh - 48px)' }}>
         <Card
           square
           elevation={1}
-          sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 2 }}
+          sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}
         >
           <Typography sx={{ flex: 1, fontWeight: 700 }}>
             {translate('reportPeriods.title')}
           </Typography>
+          <Tooltip title={translate('common.resetFilters')}>
+            <span>
+              <IconButton
+                color="primary"
+                disabled={!Object.values(filters).some(Boolean)}
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setPage(0);
+                }}
+                aria-label={translate('common.resetFilters')}
+              >
+                <RestartAltIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
             {translate('users.add')}
           </Button>
@@ -283,11 +299,10 @@ export default function ReportPeriodsPage() {
                       <Tooltip title={translate('users.edit')}>
                         <IconButton
                           size="small"
-                          color="primary"
                           onClick={() => openEdit(row)}
                           aria-label={translate('users.edit')}
                         >
-                          <EditOutlinedIcon fontSize="small" />
+                          <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </TableCell>

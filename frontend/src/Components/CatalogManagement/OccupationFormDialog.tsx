@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  InputAdornment,
   MenuItem,
   Stack,
   TextField,
@@ -20,14 +21,14 @@ import { getErrorMessage } from "@/services/user";
 import OccupationParentTreeSelect from "./OccupationParentTreeSelect";
 
 type OccupationForm = {
-  occupationCode: string;
+  codeSegment: string;
   occupationName: string;
   parentId: string;
   isActive: boolean;
 };
 
 const toForm = (occupation: Occupation | null): OccupationForm => ({
-  occupationCode: occupation?.occupationCode ?? "",
+  codeSegment: occupation?.occupationCode.slice(-1) ?? "",
   occupationName: occupation?.occupationName ?? "",
   parentId: occupation?.parentId ? String(occupation.parentId) : "",
   isActive: occupation?.isActive ?? true,
@@ -53,6 +54,7 @@ export default function OccupationFormDialog({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { isSubmitting },
   } = useForm<OccupationForm>({ defaultValues: toForm(null) });
 
@@ -64,6 +66,18 @@ export default function OccupationFormDialog({
     () => rows.filter((row) => row.level < 4 && (isEdit || row.isActive)),
     [isEdit, rows],
   );
+  const parentId = useWatch({ control, name: "parentId" });
+  const codeSegment = useWatch({ control, name: "codeSegment" });
+  const selectedParent = useMemo(
+    () =>
+      parentId
+        ? parentOptions.find((row) => row.id === Number(parentId))
+        : undefined,
+    [parentId, parentOptions],
+  );
+  const codePrefix = selectedParent?.occupationCode ?? "";
+  const fullCode = occupation?.occupationCode ?? `${codePrefix}${codeSegment}`;
+  const newLevel = selectedParent ? selectedParent.level + 1 : 1;
 
   const onSubmit = async (values: OccupationForm) => {
     try {
@@ -76,7 +90,7 @@ export default function OccupationFormDialog({
         }
       } else {
         const created = await occupationApi.create({
-          occupationCode: values.occupationCode.trim(),
+          occupationCode: `${codePrefix}${values.codeSegment.trim()}`,
           occupationName: values.occupationName.trim(),
           parentId: values.parentId ? Number(values.parentId) : null,
         });
@@ -122,7 +136,36 @@ export default function OccupationFormDialog({
           noValidate
         >
           <Controller
-            name="occupationCode"
+            name="parentId"
+            control={control}
+            render={({ field }) => (
+              <OccupationParentTreeSelect
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  if (!isEdit) {
+                    setValue("codeSegment", "", {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+                options={parentOptions}
+                label={translate("accidentCatalog.parentOccupation")}
+                noParentLabel={translate("accidentCatalog.noParentOccupation")}
+                helperText={translate(
+                  isEdit
+                    ? "accidentCatalog.occupationParentImmutableHint"
+                    : "accidentCatalog.parentOccupationHint",
+                )}
+                expandLabel={translate("accidentCatalog.expandOccupation")}
+                collapseLabel={translate("accidentCatalog.collapseOccupation")}
+                disabled={isEdit}
+              />
+            )}
+          />
+          <Controller
+            name="codeSegment"
             control={control}
             rules={
               isEdit
@@ -130,7 +173,7 @@ export default function OccupationFormDialog({
                 : {
                     required,
                     pattern: {
-                      value: /^\d{1,4}$/,
+                      value: /^\d$/,
                       message: translate(
                         "accidentCatalog.invalidOccupationCode",
                       ),
@@ -140,6 +183,12 @@ export default function OccupationFormDialog({
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
+                value={isEdit ? fullCode : field.value}
+                onChange={(event) =>
+                  field.onChange(
+                    event.target.value.replace(/\D/g, "").slice(0, 1),
+                  )
+                }
                 label={translate("accidentCatalog.occupationCode")}
                 required
                 disabled={isEdit}
@@ -147,10 +196,21 @@ export default function OccupationFormDialog({
                 error={Boolean(fieldState.error)}
                 helperText={
                   fieldState.error?.message ??
-                  translate("accidentCatalog.occupationCodeHint")
+                  translate("accidentCatalog.occupationCodePreview", {
+                    code: fullCode || "—",
+                    level: newLevel,
+                  })
                 }
                 slotProps={{
-                  htmlInput: { maxLength: 4, inputMode: "numeric" },
+                  input: {
+                    startAdornment:
+                      !isEdit && codePrefix ? (
+                        <InputAdornment position="start">
+                          {codePrefix}
+                        </InputAdornment>
+                      ) : undefined,
+                  },
+                  htmlInput: { maxLength: 1, inputMode: "numeric" },
                 }}
               />
             )}
@@ -168,27 +228,6 @@ export default function OccupationFormDialog({
                 error={Boolean(fieldState.error)}
                 helperText={fieldState.error?.message}
                 slotProps={{ htmlInput: { maxLength: 255 } }}
-              />
-            )}
-          />
-          <Controller
-            name="parentId"
-            control={control}
-            render={({ field }) => (
-              <OccupationParentTreeSelect
-                value={field.value}
-                onChange={field.onChange}
-                options={parentOptions}
-                label={translate("accidentCatalog.parentOccupation")}
-                noParentLabel={translate("accidentCatalog.noParentOccupation")}
-                helperText={translate(
-                  isEdit
-                    ? "accidentCatalog.occupationParentImmutableHint"
-                    : "accidentCatalog.parentOccupationHint",
-                )}
-                expandLabel={translate("accidentCatalog.expandOccupation")}
-                collapseLabel={translate("accidentCatalog.collapseOccupation")}
-                disabled={isEdit}
               />
             )}
           />

@@ -11,14 +11,20 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateInjuryTypeDto {
-  @ApiProperty({ example: '110', maxLength: 3 })
+  @ApiProperty({
+    example: '0',
+    minLength: 1,
+    maxLength: 1,
+    description:
+      'Một chữ số cuối của mã. Backend tự ghép với mã nhóm cha và tự xác định cấp.',
+  })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{1,3}$/, {
-    message: 'Mã loại chấn thương phải gồm từ 1 đến 3 chữ số',
+  @Matches(/^\d$/, {
+    message: 'Phần mã loại chấn thương phải gồm đúng 1 chữ số',
   })
-  injuryTypeCode: string;
+  codeSegment: string;
 
   @ApiProperty({ example: 'Chấn thương sọ não', maxLength: 255 })
   @IsString()

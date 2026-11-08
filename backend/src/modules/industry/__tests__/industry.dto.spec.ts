@@ -10,7 +10,7 @@ const validationPipe = new ValidationPipe({
 });
 
 describe('Industry DTO contract', () => {
-  it('accepts create input without level', async () => {
+  it('accepts an official full code without client-managed level', async () => {
     await expect(
       validationPipe.transform(
         {
@@ -36,6 +36,15 @@ describe('Industry DTO contract', () => {
   ])('rejects level in %s input', async (metatype, value) => {
     await expect(
       validationPipe.transform(value, { type: 'body', metatype }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects the legacy code-segment field', async () => {
+    await expect(
+      validationPipe.transform(
+        { industryCode: '6201', codeSegment: '1', industryName: 'Mẫu' },
+        { type: 'body', metatype: CreateIndustryDto },
+      ),
     ).rejects.toThrow(BadRequestException);
   });
 });
