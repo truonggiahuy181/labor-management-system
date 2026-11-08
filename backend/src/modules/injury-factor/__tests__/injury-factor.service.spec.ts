@@ -29,6 +29,7 @@ describe('InjuryFactorService', () => {
     softDelete: ReturnType<typeof vi.fn>;
   };
   let service: InjuryFactorService;
+  let accidentCaseRepository: { exists: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     repository = {
@@ -39,7 +40,11 @@ describe('InjuryFactorService', () => {
       update: vi.fn(),
       softDelete: vi.fn(),
     };
-    service = new InjuryFactorService(repository as any);
+    accidentCaseRepository = { exists: vi.fn().mockResolvedValue(false) };
+    service = new InjuryFactorService(
+      repository as any,
+      accidentCaseRepository as any,
+    );
   });
 
   it('returns active factors by default', async () => {
@@ -143,6 +148,16 @@ describe('InjuryFactorService', () => {
       isActive: false,
       updatedBy: 20,
     });
+  });
+
+  it('rejects deactivating a factor used by an accident report', async () => {
+    repository.findOne.mockResolvedValue(makeInjuryFactor());
+    accidentCaseRepository.exists.mockResolvedValue(true);
+
+    await expect(service.updateStatus(1, false, 20)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('rejects deleting an active factor', async () => {

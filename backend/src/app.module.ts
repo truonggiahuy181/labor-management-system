@@ -20,6 +20,8 @@ import { ReportPeriodModule } from './modules/report-period/report-period.module
 import { InjuryFactorModule } from './modules/injury-factor/injury-factor.module.js';
 import { InjuryTypeModule } from './modules/injury-type/injury-type.module.js';
 import { OccupationModule } from './modules/occupation/occupation.module.js';
+import { AccidentCauseModule } from './modules/accident-cause/accident-cause.module.js';
+import { OccupationalAccidentReportModule } from './modules/occupational-accident-report/occupational-accident-report.module.js';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { OccupationModule } from './modules/occupation/occupation.module.js';
     InjuryFactorModule,
     InjuryTypeModule,
     OccupationModule,
+    AccidentCauseModule,
+    OccupationalAccidentReportModule,
     SeedModule,
   ],
   controllers: [AppController],

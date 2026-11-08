@@ -16,11 +16,11 @@ build/
 out/
 .vercel/
 
-# Testing 
+# Testing
 coverage/
 .nyc_output/
 
-# Logs & Runtime Data 
+# Logs & Runtime Data
 logs/
 *.log
 npm-debug.log*
@@ -33,7 +33,7 @@ pids/
 *.pid.lock
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# Environment variables 
+# Environment variables
 .env
 .env.*
 !.env.example
@@ -42,7 +42,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.tsbuildinfo
 next-env.d.ts
 
-# OS & IDEs 
+# OS & IDEs
 .DS_Store
 *.pem
 .idea/
@@ -54,4 +54,17 @@ next-env.d.ts
 
 # Postman
 *.postman_collection.json
-postman/
+postman/
+
+# Local analysis and generated artifacts
+/.codex-tmp/
+/tmp/
+*.py
+*.py[cod]
+__pycache__/
+/*.pdf
+/*.doc
+/*.docx
+/*.xls
+/*.xlsx
+/~$*

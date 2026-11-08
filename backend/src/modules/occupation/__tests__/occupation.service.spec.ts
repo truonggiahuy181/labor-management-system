@@ -32,6 +32,7 @@ describe('OccupationService', () => {
     softDelete: ReturnType<typeof vi.fn>;
   };
   let service: OccupationService;
+  let victimGroupRepository: { exists: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     repository = {
@@ -43,7 +44,11 @@ describe('OccupationService', () => {
       exists: vi.fn().mockResolvedValue(false),
       softDelete: vi.fn(),
     };
-    service = new OccupationService(repository as any);
+    victimGroupRepository = { exists: vi.fn().mockResolvedValue(false) };
+    service = new OccupationService(
+      repository as any,
+      victimGroupRepository as any,
+    );
   });
 
   it('returns active occupations by default in tree-code order', async () => {
@@ -275,6 +280,16 @@ describe('OccupationService', () => {
     });
   });
 
+  it('rejects updating an occupation used by an accident report', async () => {
+    repository.findOne.mockResolvedValue(makeOccupation());
+    victimGroupRepository.exists.mockResolvedValue(true);
+
+    await expect(
+      service.update(1111, { occupationName: 'Tên hiệu chỉnh' }, 20),
+    ).rejects.toThrow(ConflictException);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
   it('rejects deactivating a parent with active children', async () => {
     repository.findOne.mockResolvedValue(
       makeOccupation({ id: 111, level: 3, occupationCode: '111' }),
@@ -282,6 +297,16 @@ describe('OccupationService', () => {
     repository.exists.mockResolvedValue(true);
 
     await expect(service.updateStatus(111, false, 20)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects deactivating an occupation used by an accident report', async () => {
+    repository.findOne.mockResolvedValue(makeOccupation());
+    victimGroupRepository.exists.mockResolvedValue(true);
+
+    await expect(service.updateStatus(1111, false, 20)).rejects.toThrow(
       ConflictException,
     );
     expect(repository.update).not.toHaveBeenCalled();

@@ -10,23 +10,23 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-const INDUSTRY_CODE_RE = /^[A-Z0-9][A-Z0-9_-]*$/;
+const INDUSTRY_CODE_RE = /^[A-V0-9]{1,4}$/;
 
 export class CreateIndustryDto {
   @ApiProperty({
     example: '6201',
-    maxLength: 50,
+    maxLength: 4,
     description:
-      'Với cấp 2-4, backend tự thêm tiền tố chữ cái của ngành cấp 1 (ví dụ 6201 thành J6201).',
+      'Mã ngành chính thức: cấp 1 là chữ cái A-V; cấp 2-4 lần lượt là 2, 3, 4 chữ số. Không ghép mã chữ cái cấp 1 vào mã cấp 2-4.',
   })
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
   @IsString()
   @IsNotEmpty()
-  @MaxLength(50)
+  @MaxLength(4)
   @Matches(INDUSTRY_CODE_RE, {
-    message: 'Mã ngành chỉ gồm chữ in hoa, số, gạch dưới hoặc gạch ngang',
+    message: 'Mã ngành chỉ gồm chữ cái A-V hoặc tối đa 4 chữ số',
   })
   industryCode: string;
 

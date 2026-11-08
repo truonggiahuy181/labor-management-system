@@ -1,7 +1,9 @@
-import { Entity, Column, Index, JoinColumn, ManyToOne } from 'typeorm';
+import { Check, Entity, Column, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { BaseEntity } from '../../commons/bases/base.entity.js';
 import { BusinessTypeEntity } from '../business-type/business-type.entity.js';
 import { IndustryEntity } from '../industry/industry.entity.js';
+import { ProvinceEntity } from '../location/province.entity.js';
+import { WardEntity } from '../location/ward.entity.js';
 
 export interface EnterpriseStoredFile {
   objectKey: string;
@@ -16,6 +18,14 @@ export interface EnterpriseFiles {
 }
 
 @Index('uq_enterprises_tax_code', ['taxCode'], { unique: true })
+@Index('idx_enterprises_business_type_id', ['businessTypeId'])
+@Index('idx_enterprises_industry_id', ['industryId'])
+@Index('idx_enterprises_province_id', ['provinceId'])
+@Index('idx_enterprises_is_active', ['isActive'])
+@Check(
+  'chk_enterprises_operating_location',
+  '(op_province_id IS NULL AND op_ward_id IS NULL) OR (op_province_id IS NOT NULL AND op_ward_id IS NOT NULL)',
+)
 @Entity('enterprises')
 export class EnterpriseEntity extends BaseEntity {
   // ─── Thông tin doanh nghiệp ──────────────────────────────────────
@@ -48,11 +58,29 @@ export class EnterpriseEntity extends BaseEntity {
   @Column({ name: 'registration_date', type: 'date' })
   registrationDate: string;
 
-  @Column({ name: 'province_id', type: 'varchar', length: 20 })
+  @Column({ name: 'province_id', type: 'varchar', length: 2 })
   provinceId: string;
 
-  @Column({ name: 'ward_id', type: 'varchar', length: 20 })
+  @ManyToOne(() => ProvinceEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'province_id',
+    foreignKeyConstraintName: 'fk_enterprises_province',
+  })
+  province: ProvinceEntity;
+
+  @Column({ name: 'ward_id', type: 'varchar', length: 5 })
   wardId: string;
+
+  @ManyToOne(() => WardEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn([
+    {
+      name: 'ward_id',
+      referencedColumnName: 'code',
+      foreignKeyConstraintName: 'fk_enterprises_ward_province',
+    },
+    { name: 'province_id', referencedColumnName: 'provinceCode' },
+  ])
+  ward: WardEntity;
 
   @Column({ name: 'address', type: 'varchar', length: 255 })
   address: string;
@@ -75,13 +103,31 @@ export class EnterpriseEntity extends BaseEntity {
   @Column({
     name: 'op_province_id',
     type: 'varchar',
-    length: 20,
+    length: 2,
     nullable: true,
   })
   operatingProvinceId: string | null;
 
-  @Column({ name: 'op_ward_id', type: 'varchar', length: 20, nullable: true })
+  @ManyToOne(() => ProvinceEntity, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'op_province_id',
+    foreignKeyConstraintName: 'fk_enterprises_operating_province',
+  })
+  operatingProvince: ProvinceEntity | null;
+
+  @Column({ name: 'op_ward_id', type: 'varchar', length: 5, nullable: true })
   operatingWardId: string | null;
+
+  @ManyToOne(() => WardEntity, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn([
+    {
+      name: 'op_ward_id',
+      referencedColumnName: 'code',
+      foreignKeyConstraintName: 'fk_enterprises_operating_ward_province',
+    },
+    { name: 'op_province_id', referencedColumnName: 'provinceCode' },
+  ])
+  operatingWard: WardEntity | null;
 
   @Column({ name: 'op_address', type: 'varchar', length: 255, nullable: true })
   operatingAddress: string | null;
@@ -94,7 +140,12 @@ export class EnterpriseEntity extends BaseEntity {
   })
   representativeName: string | null;
 
-  @Column({ name: 'representative_phone', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'representative_phone',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   representativePhone: string | null;
 
   @Column({

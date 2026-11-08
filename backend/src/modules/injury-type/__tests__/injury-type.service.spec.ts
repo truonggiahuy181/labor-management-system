@@ -68,7 +68,7 @@ describe('InjuryTypeService', () => {
     repository.findOne.mockResolvedValue(null);
 
     const result = await service.create(
-      { injuryTypeCode: ' 1 ', injuryTypeName: ' Đầu,   mặt, cổ ' },
+      { codeSegment: ' 1 ', injuryTypeName: ' Đầu,   mặt, cổ ' },
       9,
     );
 
@@ -86,7 +86,6 @@ describe('InjuryTypeService', () => {
 
   it('derives child level and validates the full active parent chain', async () => {
     repository.findOne
-      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(
         makeInjuryType({
           id: 11,
@@ -108,52 +107,42 @@ describe('InjuryTypeService', () => {
     await expect(
       service.create(
         {
-          injuryTypeCode: '110',
+          codeSegment: '0',
           injuryTypeName: 'Chấn thương sọ não',
           parentId: 11,
         },
         9,
       ),
-    ).resolves.toMatchObject({ level: 3, parentId: 11 });
+    ).resolves.toMatchObject({
+      injuryTypeCode: '110',
+      level: 3,
+      parentId: 11,
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        injuryTypeCode: '110',
+        level: 3,
+        parentId: 11,
+      }),
+    );
   });
 
-  it('rejects a child code that does not extend its parent code', async () => {
-    repository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(
-        makeInjuryType({
-          id: 11,
-          injuryTypeCode: '11',
-          level: 2,
-          parentId: 1,
-        }),
-      )
-      .mockResolvedValueOnce(
-        makeInjuryType({
-          id: 1,
-          injuryTypeCode: '1',
-          level: 1,
-          parentId: null,
-        }),
-      );
-
+  it('rejects a multi-digit code segment even when called outside the controller', async () => {
     await expect(
       service.create({
-        injuryTypeCode: '210',
-        injuryTypeName: 'Sai nhánh',
+        codeSegment: '210',
+        injuryTypeName: 'Sai phần mã',
         parentId: 11,
       }),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('rejects creating a child below level three', async () => {
-    repository.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(makeInjuryType());
+    repository.findOne.mockResolvedValueOnce(makeInjuryType());
 
     await expect(
       service.create({
-        injuryTypeCode: '110',
+        codeSegment: '0',
         injuryTypeName: 'Cấp bốn',
         parentId: 110,
       }),
@@ -162,25 +151,28 @@ describe('InjuryTypeService', () => {
 
   it('rejects a duplicate code including a soft-deleted code', async () => {
     repository.findOne.mockResolvedValue(
-      makeInjuryType({ deletedAt: new Date() }),
+      makeInjuryType({
+        injuryTypeCode: '1',
+        level: 1,
+        parentId: null,
+        deletedAt: new Date(),
+      }),
     );
 
     await expect(
       service.create({
-        injuryTypeCode: '110',
+        codeSegment: '1',
         injuryTypeName: 'Tên khác',
-        parentId: 11,
       }),
     ).rejects.toThrow(ConflictException);
     expect(repository.findOne).toHaveBeenCalledWith({
-      where: { injuryTypeCode: '110' },
+      where: { injuryTypeCode: '1' },
       withDeleted: true,
     });
   });
 
   it('rejects a duplicate normalized name under the same parent', async () => {
     repository.findOne
-      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(
         makeInjuryType({
           id: 11,
@@ -197,11 +189,12 @@ describe('InjuryTypeService', () => {
           parentId: null,
         }),
       )
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(makeInjuryType());
 
     await expect(
       service.create({
-        injuryTypeCode: '111',
+        codeSegment: '1',
         injuryTypeName: 'Chấn thương sọ não',
         parentId: 11,
       }),

@@ -21,6 +21,12 @@ export interface InjuryType {
   updatedAt: string;
 }
 
+export interface CreateInjuryTypeBody {
+  codeSegment: string;
+  injuryTypeName: string;
+  parentId: number | null;
+}
+
 export interface Occupation {
   id: number;
   occupationCode: string;
@@ -88,9 +94,7 @@ export const injuryTypeApi = {
     api
       .get<BackendResponse<InjuryType[]>>("/injury-types/selectable")
       .then((response) => response.data.data ?? []),
-  create: (
-    body: Pick<InjuryType, "injuryTypeCode" | "injuryTypeName" | "parentId">,
-  ) =>
+  create: (body: CreateInjuryTypeBody) =>
     api
       .post<BackendResponse<InjuryType>>("/injury-types", body)
       .then((response) => response.data.data),

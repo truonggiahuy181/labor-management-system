@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import {
   Autocomplete,
   Box,
@@ -20,6 +20,9 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import {
+  getOccupationalAccidentSubmissionWindow,
+  inferReportPeriodCode,
+  inferReportTypeCode,
   reportPeriodApi,
   type ReportPeriod,
   type ReportPeriodBody,
@@ -69,7 +72,9 @@ export default function ReportPeriodFormDialog({
     [item, reportNames],
   );
   const periodOptions = useMemo(
-    () => [...new Set([...reportPeriods, ...(item ? [item.reportPeriod] : [])])],
+    () => [
+      ...new Set([...reportPeriods, ...(item ? [item.reportPeriod] : [])]),
+    ],
     [item, reportPeriods],
   );
   const {
@@ -79,6 +84,24 @@ export default function ReportPeriodFormDialog({
     getValues,
     formState: { isSubmitting },
   } = useForm<ReportPeriodForm>({ defaultValues: toFormValues(null) });
+  const reportName = useWatch({ control, name: 'reportName' });
+  const reportYear = useWatch({ control, name: 'reportYear' });
+  const reportPeriod = useWatch({ control, name: 'reportPeriod' });
+  const reportTypeCode = inferReportTypeCode(reportName);
+  const periodCode = inferReportPeriodCode(reportPeriod, reportTypeCode);
+  const statutoryWindow = getOccupationalAccidentSubmissionWindow(
+    Number(reportYear),
+    periodCode,
+  );
+  const statutoryWindowMessage = statutoryWindow
+    ? translate(statutoryWindow.messageKey)
+    : undefined;
+
+  const validateStatutoryWindow = (value: string) =>
+    !statutoryWindow ||
+    (value >= statutoryWindow.firstSubmissionDate &&
+      value < statutoryWindow.deadlineExclusive) ||
+    statutoryWindowMessage;
 
   useEffect(() => {
     if (open) reset(toFormValues(item));
@@ -100,7 +123,10 @@ export default function ReportPeriodFormDialog({
       enqueueSnackbar(translate('common.saveSuccess'), { variant: 'success' });
       onSaved();
     } catch (error) {
-      enqueueSnackbar(getErrorMessage(error, translate('common.unknownError')), { variant: 'error' });
+      enqueueSnackbar(
+        getErrorMessage(error, translate('common.unknownError')),
+        { variant: 'error' },
+      );
     }
   };
 
@@ -118,9 +144,16 @@ export default function ReportPeriodFormDialog({
         },
       }}
     >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', px: 2.5, py: 1.5 }}>
-        <Typography component="span" sx={{ flex: 1, fontSize: 18, fontWeight: 700 }}>
-          {translate(isEdit ? 'reportPeriods.editTitle' : 'reportPeriods.addTitle')}
+      <DialogTitle
+        sx={{ display: 'flex', alignItems: 'center', px: 2.5, py: 1.5 }}
+      >
+        <Typography
+          component="span"
+          sx={{ flex: 1, fontSize: 18, fontWeight: 700 }}
+        >
+          {translate(
+            isEdit ? 'reportPeriods.editTitle' : 'reportPeriods.addTitle',
+          )}
         </Typography>
         <IconButton
           size="small"
@@ -138,7 +171,11 @@ export default function ReportPeriodFormDialog({
           id="report-period-form"
           noValidate
           onSubmit={handleSubmit(onSubmit)}
-          sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: 2,
+          }}
         >
           <Controller
             name="reportName"
@@ -164,7 +201,10 @@ export default function ReportPeriodFormDialog({
                     helperText={fieldState.error?.message}
                     slotProps={{
                       ...params.slotProps,
-                      htmlInput: { ...params.slotProps.htmlInput, maxLength: 255 },
+                      htmlInput: {
+                        ...params.slotProps.htmlInput,
+                        maxLength: 255,
+                      },
                     }}
                   />
                 )}
@@ -177,8 +217,14 @@ export default function ReportPeriodFormDialog({
             control={control}
             rules={{
               required,
-              min: { value: 2000, message: translate('reportPeriods.invalidYear') },
-              max: { value: 2100, message: translate('reportPeriods.invalidYear') },
+              min: {
+                value: 2000,
+                message: translate('reportPeriods.invalidYear'),
+              },
+              max: {
+                value: 2100,
+                message: translate('reportPeriods.invalidYear'),
+              },
             }}
             render={({ field, fieldState }) => (
               <TextField
@@ -197,7 +243,15 @@ export default function ReportPeriodFormDialog({
           <Controller
             name="reportPeriod"
             control={control}
-            rules={{ required }}
+            rules={{
+              required,
+              validate: (value) =>
+                inferReportTypeCode(getValues('reportName')) !==
+                  'OCCUPATIONAL_ACCIDENT' ||
+                inferReportPeriodCode(value, 'OCCUPATIONAL_ACCIDENT') !==
+                  'CUSTOM' ||
+                translate('reportPeriods.invalidOccupationalAccidentPeriod'),
+            }}
             render={({ field, fieldState }) => (
               <Autocomplete
                 freeSolo
@@ -217,7 +271,10 @@ export default function ReportPeriodFormDialog({
                     helperText={fieldState.error?.message}
                     slotProps={{
                       ...params.slotProps,
-                      htmlInput: { ...params.slotProps.htmlInput, maxLength: 100 },
+                      htmlInput: {
+                        ...params.slotProps.htmlInput,
+                        maxLength: 100,
+                      },
                     }}
                   />
                 )}
@@ -228,7 +285,7 @@ export default function ReportPeriodFormDialog({
           <Controller
             name="startDate"
             control={control}
-            rules={{ required }}
+            rules={{ required, validate: validateStatutoryWindow }}
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
@@ -238,7 +295,15 @@ export default function ReportPeriodFormDialog({
                 label={translate('reportPeriods.startDate')}
                 error={!!fieldState.error}
                 helperText={fieldState.error?.message}
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: statutoryWindow
+                    ? {
+                        min: statutoryWindow.firstSubmissionDate,
+                        max: statutoryWindow.lastSubmissionDate,
+                      }
+                    : undefined,
+                }}
               />
             )}
           />
@@ -249,9 +314,9 @@ export default function ReportPeriodFormDialog({
             rules={{
               required,
               validate: (value) =>
-                !getValues('startDate')
-                || value >= getValues('startDate')
-                || translate('reportPeriods.invalidDateRange'),
+                ((!getValues('startDate') || value >= getValues('startDate')) &&
+                  validateStatutoryWindow(value)) ||
+                translate('reportPeriods.invalidDateRange'),
             }}
             render={({ field, fieldState }) => (
               <TextField
@@ -261,8 +326,16 @@ export default function ReportPeriodFormDialog({
                 type="date"
                 label={translate('reportPeriods.endDate')}
                 error={!!fieldState.error}
-                helperText={fieldState.error?.message}
-                slotProps={{ inputLabel: { shrink: true } }}
+                helperText={fieldState.error?.message ?? statutoryWindowMessage}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: statutoryWindow
+                    ? {
+                        min: statutoryWindow.firstSubmissionDate,
+                        max: statutoryWindow.lastSubmissionDate,
+                      }
+                    : undefined,
+                }}
               />
             )}
           />
@@ -276,11 +349,17 @@ export default function ReportPeriodFormDialog({
                 size="small"
                 label={translate('reportPeriods.status')}
                 value={String(field.value)}
-                onChange={(event) => field.onChange(event.target.value === 'true')}
+                onChange={(event) =>
+                  field.onChange(event.target.value === 'true')
+                }
                 sx={{ gridColumn: '1 / -1' }}
               >
-                <MenuItem value="true">{translate('reportPeriods.active')}</MenuItem>
-                <MenuItem value="false">{translate('reportPeriods.inactive')}</MenuItem>
+                <MenuItem value="true">
+                  {translate('reportPeriods.active')}
+                </MenuItem>
+                <MenuItem value="false">
+                  {translate('reportPeriods.inactive')}
+                </MenuItem>
               </TextField>
             )}
           />

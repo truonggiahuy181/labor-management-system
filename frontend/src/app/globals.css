@@ -24,3 +24,27 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .print-document {
+    gap: 10px !important;
+  }
+
+  .MuiCard-root {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

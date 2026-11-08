@@ -13,14 +13,7 @@ export interface IndustrySeedRow {
   is_active: boolean;
 }
 
-export interface BuildIndustrySeedRowsOptions {
-  includeRootPrefix?: boolean;
-}
-
-interface ResolvedIndustryCatalogEntry extends IndustrySeedRow {
-  source_code: string;
-  root_prefix: string;
-}
+type ResolvedIndustryCatalogEntry = IndustrySeedRow;
 
 const industry = (
   industryCode: string,
@@ -136,6 +129,7 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogDefinition[] = [
     false,
   ),
 
+  industry('0111', 'Trồng lúa', '011'),
   industry('0118', 'Trồng rau, đậu các loại và trồng hoa', '011'),
   industry('1079', 'Sản xuất thực phẩm khác chưa được phân vào đâu', '107'),
   industry('2023', 'Sản xuất mỹ phẩm, xà phòng, chất tẩy rửa, làm bóng', '202'),
@@ -184,96 +178,83 @@ export const INDUSTRY_CATALOG: readonly IndustryCatalogDefinition[] = [
     '970',
     false,
   ),
+
+  // Cấp 5 có trong danh mục chính thức nhưng được giữ ở nguồn chỉ để xác nhận
+  // bộ lọc; buildIndustrySeedRows không đưa bản ghi này vào database.
+  industry('01110', 'Trồng lúa', '0111'),
 ];
 
+function validateOfficialIndustryCode(
+  industryCode: string,
+  level: number,
+  parentCode: string | null,
+): void {
+  const pattern = level === 1 ? /^[A-V]$/ : new RegExp(`^[0-9]{${level}}$`);
+
+  if (!pattern.test(industryCode)) {
+    throw new Error(
+      `Industry ${industryCode} has an invalid level-${level} code.`,
+    );
+  }
+
+  if (level >= 3 && parentCode && !industryCode.startsWith(parentCode)) {
+    throw new Error(
+      `Industry ${industryCode} must extend parent code ${parentCode}.`,
+    );
+  }
+}
+
 function resolveIndustryCatalog(): ResolvedIndustryCatalogEntry[] {
-  const resolvedBySourceCode = new Map<string, ResolvedIndustryCatalogEntry>();
-  const storedCodes = new Set<string>();
+  const resolvedByCode = new Map<string, ResolvedIndustryCatalogEntry>();
+  const rows: ResolvedIndustryCatalogEntry[] = [];
 
-  return INDUSTRY_CATALOG.map((item) => {
-    const sourceCode = item.industryCode.trim().toUpperCase();
-    const sourceParentCode = item.parentCode?.trim().toUpperCase() ?? null;
-    const parent =
-      sourceParentCode === null
-        ? null
-        : resolvedBySourceCode.get(sourceParentCode);
+  for (const item of INDUSTRY_CATALOG) {
+    const industryCode = item.industryCode.trim().toUpperCase();
+    const parentCode = item.parentCode?.trim().toUpperCase() ?? null;
+    const parent = parentCode === null ? null : resolvedByCode.get(parentCode);
 
-    if (sourceParentCode !== null && !parent) {
+    if (parentCode !== null && !parent) {
       throw new Error(
-        `Industry ${sourceCode} references unknown parent ${sourceParentCode}.`,
+        `Industry ${industryCode} references unknown parent ${parentCode}.`,
       );
+    }
+    if (resolvedByCode.has(industryCode)) {
+      throw new Error(`Duplicate industry code ${industryCode}.`);
     }
 
     const level = parent ? parent.level + 1 : 1;
-    if (level > 4) {
-      throw new Error(`Industry ${sourceCode} exceeds level 4.`);
+    if (level > 5) {
+      throw new Error(`Industry ${industryCode} exceeds level 5.`);
     }
-
-    const rootPrefix = parent ? parent.root_prefix : sourceCode.charAt(0);
-    if (!/^[A-Z]$/.test(rootPrefix)) {
-      throw new Error(
-        `Level-one industry ${sourceCode} must start with a letter.`,
-      );
-    }
-
-    if (
-      parent &&
-      /^[A-Z]/.test(sourceCode) &&
-      !sourceCode.startsWith(rootPrefix)
-    ) {
-      throw new Error(
-        `Industry ${sourceCode} must start with root prefix ${rootPrefix}.`,
-      );
-    }
-
-    const storedCode =
-      parent && !sourceCode.startsWith(rootPrefix)
-        ? `${rootPrefix}${sourceCode}`
-        : sourceCode;
-    if (storedCode.length > 50) {
-      throw new Error(`Industry code ${storedCode} exceeds 50 characters.`);
-    }
-    if (storedCodes.has(storedCode)) {
-      throw new Error(`Duplicate stored industry code ${storedCode}.`);
-    }
+    validateOfficialIndustryCode(industryCode, level, parentCode);
 
     const resolved: ResolvedIndustryCatalogEntry = {
-      source_code: sourceCode,
-      industry_code: storedCode,
+      industry_code: industryCode,
       industry_name: item.industryName,
-      parent_code: parent?.industry_code ?? null,
+      parent_code: parentCode,
       level,
       is_active: item.isActive,
-      root_prefix: rootPrefix,
     };
-    resolvedBySourceCode.set(sourceCode, resolved);
-    storedCodes.add(storedCode);
-    return resolved;
-  });
+    resolvedByCode.set(industryCode, resolved);
+
+    // The official catalog has five levels, but this project deliberately
+    // persists and exposes only levels one through four.
+    if (level <= 4) {
+      rows.push(resolved);
+    }
+  }
+
+  return rows;
 }
 
-export function buildIndustrySeedRows(
-  options: BuildIndustrySeedRowsOptions = {},
-): IndustrySeedRow[] {
-  const includeRootPrefix = options.includeRootPrefix ?? true;
-
-  return resolveIndustryCatalog().map((item, index) => ({
-    industry_code: includeRootPrefix ? item.industry_code : item.source_code,
-    industry_name: item.industry_name,
-    parent_code: includeRootPrefix
-      ? item.parent_code
-      : (INDUSTRY_CATALOG[index].parentCode?.trim().toUpperCase() ?? null),
-    level: item.level,
-    is_active: item.is_active,
-  }));
+export function buildIndustrySeedRows(): IndustrySeedRow[] {
+  return resolveIndustryCatalog();
 }
 
 export function getStoredIndustryCode(industryCode: string): string {
   const normalizedCode = industryCode.trim().toUpperCase();
   const resolved = resolveIndustryCatalog().find(
-    (item) =>
-      item.source_code === normalizedCode ||
-      item.industry_code === normalizedCode,
+    (item) => item.industry_code === normalizedCode,
   );
 
   if (!resolved) {

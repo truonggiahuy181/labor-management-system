@@ -38,6 +38,7 @@ export type EnterpriseFileType = keyof BusinessFiles;
 
 export interface BusinessType { id: number; typeCode: string; typeName: string; isActive: boolean }
 export interface Industry { id: number; industryCode: string; industryName: string; level: number; parentId: number | null; isActive: boolean }
+export interface CreateIndustryBody { industryCode: string; industryName: string; parentId: number | null }
 export interface CatalogFilters { search?: string; isActive?: boolean; includeInactive?: boolean }
 export interface IndustryFilters extends CatalogFilters { level?: number; parentId?: number }
 
@@ -160,7 +161,7 @@ export const businessTypeApi = {
 export const industryApi = {
   list: (params: IndustryFilters = {}) =>
     api.get<BackendResponse<Industry[]>>('/industries', { params }).then((r) => r.data.data ?? []),
-  create: (body: Pick<Industry, 'industryCode' | 'industryName' | 'parentId'>) =>
+  create: (body: CreateIndustryBody) =>
     api.post<BackendResponse<Industry>>('/industries', body).then((r) => r.data.data),
   update: (id: number, body: Partial<Pick<Industry, 'industryName' | 'parentId'>>) =>
     api.patch<BackendResponse<Industry>>(`/industries/${id}`, body).then((r) => r.data.data),

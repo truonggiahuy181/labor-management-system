@@ -1,7 +1,8 @@
-import { Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
 import type { WardEntity } from './ward.entity.js';
 
 @Entity('provinces')
+@Check('chk_provinces_code_format', "code ~ '^[0-9]{2}$'")
 export class ProvinceEntity {
   @PrimaryColumn({ name: 'code', type: 'varchar', length: 2 })
   code: string;

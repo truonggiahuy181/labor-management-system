@@ -35,12 +35,12 @@ export class CreateReportPeriodDto {
   @MaxLength(100)
   reportPeriod: string;
 
-  @ApiProperty({ example: '2026-01-01', format: 'date' })
+  @ApiProperty({ example: '2027-01-01', format: 'date' })
   @IsDateString({}, { message: 'Ngày bắt đầu không hợp lệ' })
   @Matches(DATE_ONLY_RE, { message: 'Ngày bắt đầu phải có dạng YYYY-MM-DD' })
   startDate: string;
 
-  @ApiProperty({ example: '2026-12-31', format: 'date' })
+  @ApiProperty({ example: '2027-01-09', format: 'date' })
   @IsDateString({}, { message: 'Ngày kết thúc không hợp lệ' })
   @Matches(DATE_ONLY_RE, { message: 'Ngày kết thúc phải có dạng YYYY-MM-DD' })
   endDate: string;

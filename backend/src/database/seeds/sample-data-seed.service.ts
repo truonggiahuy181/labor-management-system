@@ -8,6 +8,10 @@ import {
 } from '../catalogs/industry-catalog.js';
 import { INJURY_TYPE_CATALOG } from '../catalogs/injury-type-catalog.js';
 import { OCCUPATION_CATALOG } from '../catalogs/occupation-catalog.js';
+import {
+  ReportPeriodCode,
+  ReportTypeCode,
+} from '../../modules/report-period/report-period.constants.js';
 
 interface LocationPair {
   province_code: string;
@@ -290,32 +294,32 @@ const REPORT_PERIODS = [
     reportName: 'Báo cáo tai nạn lao động',
     reportYear: 2025,
     reportPeriod: '6 tháng đầu năm',
-    startDate: '2025-01-01',
-    endDate: '2025-06-30',
+    startDate: '2025-07-01',
+    endDate: '2025-07-04',
     isActive: false,
   },
   {
     reportName: 'Báo cáo tai nạn lao động',
     reportYear: 2025,
     reportPeriod: 'Cả năm',
-    startDate: '2025-01-01',
-    endDate: '2025-12-31',
+    startDate: '2026-01-01',
+    endDate: '2026-01-09',
     isActive: false,
   },
   {
     reportName: 'Báo cáo tai nạn lao động',
     reportYear: 2026,
     reportPeriod: '6 tháng đầu năm',
-    startDate: '2026-01-01',
-    endDate: '2026-06-30',
+    startDate: '2026-07-01',
+    endDate: '2026-07-04',
     isActive: true,
   },
   {
     reportName: 'Báo cáo tai nạn lao động',
     reportYear: 2026,
     reportPeriod: 'Cả năm',
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
+    startDate: '2027-01-01',
+    endDate: '2027-01-09',
     isActive: true,
   },
   {
@@ -769,6 +773,8 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           report_name,
           report_year,
           report_period,
+          report_type_code,
+          period_code,
           start_date,
           end_date,
           is_active,
@@ -781,6 +787,8 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           report_name,
           report_year,
           report_period,
+          report_type_code,
+          period_code,
           start_date::date,
           end_date::date,
           is_active,
@@ -792,22 +800,46 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           report_name VARCHAR(255),
           report_year SMALLINT,
           report_period VARCHAR(100),
+          report_type_code VARCHAR(50),
+          period_code VARCHAR(30),
           start_date VARCHAR(10),
           end_date VARCHAR(10),
           is_active BOOLEAN
         )
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (
+          LOWER(report_name),
+          report_year,
+          LOWER(report_period)
+        ) WHERE deleted_at IS NULL DO UPDATE
+        SET report_type_code = EXCLUDED.report_type_code,
+            period_code = EXCLUDED.period_code,
+            start_date = EXCLUDED.start_date,
+            end_date = EXCLUDED.end_date,
+            is_active = EXCLUDED.is_active,
+            updated_at = NOW()
       `,
       [
         JSON.stringify(
-          REPORT_PERIODS.map((reportPeriod) => ({
-            report_name: reportPeriod.reportName,
-            report_year: reportPeriod.reportYear,
-            report_period: reportPeriod.reportPeriod,
-            start_date: reportPeriod.startDate,
-            end_date: reportPeriod.endDate,
-            is_active: reportPeriod.isActive,
-          })),
+          REPORT_PERIODS.map((reportPeriod) => {
+            const isOccupationalAccident =
+              reportPeriod.reportName === 'Báo cáo tai nạn lao động';
+            return {
+              report_name: reportPeriod.reportName,
+              report_year: reportPeriod.reportYear,
+              report_period: reportPeriod.reportPeriod,
+              report_type_code: isOccupationalAccident
+                ? ReportTypeCode.OCCUPATIONAL_ACCIDENT
+                : ReportTypeCode.OTHER,
+              period_code: isOccupationalAccident
+                ? reportPeriod.reportPeriod === 'Cả năm'
+                  ? ReportPeriodCode.ANNUAL
+                  : ReportPeriodCode.FIRST_HALF
+                : ReportPeriodCode.CUSTOM,
+              start_date: reportPeriod.startDate,
+              end_date: reportPeriod.endDate,
+              is_active: reportPeriod.isActive,
+            };
+          }),
         ),
       ],
     );

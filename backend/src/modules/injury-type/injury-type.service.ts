@@ -62,15 +62,15 @@ export class InjuryTypeService {
     dto: CreateInjuryTypeDto,
     creatorId?: number,
   ): Promise<InjuryTypeResponseDto> {
-    const injuryTypeCode = dto.injuryTypeCode.trim();
+    const codeSegment = dto.codeSegment.trim();
     const injuryTypeName = this.normalizeName(dto.injuryTypeName);
     const parentId = dto.parentId ?? null;
 
-    await this.assertCodeAvailable(injuryTypeCode);
-    const level = await this.deriveAndValidateHierarchy(
-      injuryTypeCode,
+    const { injuryTypeCode, level } = await this.deriveCodeAndLevel(
+      codeSegment,
       parentId,
     );
+    await this.assertCodeAvailable(injuryTypeCode);
     await this.assertNameAvailable(injuryTypeName, parentId);
 
     const entity = this.injuryTypeRepository.create({
@@ -207,17 +207,17 @@ export class InjuryTypeService {
     }
   }
 
-  private async deriveAndValidateHierarchy(
-    injuryTypeCode: string,
+  private async deriveCodeAndLevel(
+    codeSegment: string,
     parentId: number | null,
-  ): Promise<number> {
+  ): Promise<{ injuryTypeCode: string; level: number }> {
+    if (!/^\d$/.test(codeSegment)) {
+      this.throwInvalidHierarchy(
+        'Phần mã loại chấn thương phải gồm đúng 1 chữ số.',
+      );
+    }
     if (parentId === null) {
-      if (injuryTypeCode.length !== 1) {
-        this.throwInvalidHierarchy(
-          'Loại chấn thương cấp 1 phải có mã gồm đúng 1 chữ số.',
-        );
-      }
-      return 1;
+      return { injuryTypeCode: codeSegment, level: 1 };
     }
 
     const parent = await this.injuryTypeRepository.findOne({
@@ -235,9 +235,10 @@ export class InjuryTypeService {
     }
 
     await this.validateStoredHierarchy(parent);
-    const level = parent.level + 1;
-    this.validateCodeForParent(injuryTypeCode, parent, level);
-    return level;
+    return {
+      injuryTypeCode: `${parent.injuryTypeCode}${codeSegment}`,
+      level: parent.level + 1,
+    };
   }
 
   private async validateStoredHierarchy(

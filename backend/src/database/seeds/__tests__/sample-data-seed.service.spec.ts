@@ -101,6 +101,26 @@ describe('SampleDataSeedService', () => {
 
     expect(enterpriseRows).toHaveLength(30);
     expect(reportPeriodRows).toHaveLength(12);
+    expect(reportPeriodRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          report_name: 'Báo cáo tai nạn lao động',
+          report_year: 2026,
+          report_type_code: 'OCCUPATIONAL_ACCIDENT',
+          period_code: 'FIRST_HALF',
+          start_date: '2026-07-01',
+          end_date: '2026-07-04',
+        }),
+        expect.objectContaining({
+          report_name: 'Báo cáo tai nạn lao động',
+          report_year: 2026,
+          report_type_code: 'OCCUPATIONAL_ACCIDENT',
+          period_code: 'ANNUAL',
+          start_date: '2027-01-01',
+          end_date: '2027-01-09',
+        }),
+      ]),
+    );
     expect(injuryFactorRows).toHaveLength(9);
     expect(injuryTypeInserts).toHaveLength(3);
     expect(injuryTypeRows).toEqual(
@@ -158,20 +178,20 @@ describe('SampleDataSeedService', () => {
           is_active: true,
         }),
         expect.objectContaining({
-          industry_code: 'J6201',
-          parent_code: 'J620',
+          industry_code: '6201',
+          parent_code: '620',
           level: 4,
           is_active: true,
         }),
         expect.objectContaining({
-          industry_code: 'J6312',
-          parent_code: 'J631',
+          industry_code: '6312',
+          parent_code: '631',
           level: 4,
           is_active: false,
         }),
         expect.objectContaining({
-          industry_code: 'T9700',
-          parent_code: 'T970',
+          industry_code: '9700',
+          parent_code: '970',
           level: 4,
           is_active: false,
         }),
@@ -181,7 +201,7 @@ describe('SampleDataSeedService', () => {
       tax_code: '0990000001',
       enterprise_name: 'Công ty TNHH Công nghệ Sao Việt',
       business_type_code: 'TNHH2',
-      industry_code: 'J6201',
+      industry_code: '6201',
       province_code: '01',
       ward_code: '00004',
       is_active: true,
@@ -189,12 +209,12 @@ describe('SampleDataSeedService', () => {
     expect(enterpriseRows[7]).toMatchObject({
       enterprise_name: 'Doanh nghiệp Tư nhân Nội thất Gia Bảo',
       business_type_code: 'DNTN',
-      industry_code: 'C3100',
+      industry_code: '3100',
     });
     expect(enterpriseRows[26]).toMatchObject({
       enterprise_name: 'Công ty Hợp danh Luật Minh Tâm',
       business_type_code: 'HD',
-      industry_code: 'M6910',
+      industry_code: '6910',
     });
     expect(enterpriseRows[4].is_active).toBe(false);
     expect(enterpriseInsert?.[0]).toContain('ON CONFLICT (tax_code) DO UPDATE');

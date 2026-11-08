@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  InputAdornment,
   MenuItem,
   Stack,
   TextField,
@@ -68,6 +69,7 @@ export default function IndustryFormDialog({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { isSubmitting },
   } = useForm<IndustryForm>({
     defaultValues: toForm(null),
@@ -89,6 +91,27 @@ export default function IndustryFormDialog({
         (row.isActive || row.id === industry?.parentId),
     );
   }, [industry, rows]);
+  const parentId = useWatch({ control, name: "parentId" });
+  const industryCode = useWatch({ control, name: "industryCode" });
+  const selectedParent = useMemo(
+    () =>
+      parentId
+        ? parentOptions.find((row) => row.id === Number(parentId))
+        : undefined,
+    [parentId, parentOptions],
+  );
+  const newLevel = selectedParent ? selectedParent.level + 1 : 1;
+  const codePrefix = newLevel >= 3 ? (selectedParent?.industryCode ?? "") : "";
+  const codeLength = newLevel === 2 ? 2 : 1;
+  const fullCode = industry?.industryCode ?? `${codePrefix}${industryCode}`;
+  const codePattern =
+    newLevel === 1 ? /^[A-V]$/ : newLevel === 2 ? /^\d{2}$/ : /^\d$/;
+  const codeErrorKey =
+    newLevel === 1
+      ? "catalogManagement.invalidIndustryRootCode"
+      : newLevel === 2
+        ? "catalogManagement.invalidIndustryLevelTwoCode"
+        : "catalogManagement.invalidIndustryChildCode";
 
   const onSubmit = async (values: IndustryForm) => {
     const parentId = values.parentId ? Number(values.parentId) : null;
@@ -107,7 +130,7 @@ export default function IndustryFormDialog({
         }
       } else {
         const created = await industryApi.create({
-          industryCode: values.industryCode.trim().toUpperCase(),
+          industryCode: `${codePrefix}${values.industryCode.trim().toUpperCase()}`,
           industryName: values.industryName.trim(),
           parentId,
         });
@@ -151,6 +174,30 @@ export default function IndustryFormDialog({
           noValidate
         >
           <Controller
+            name="parentId"
+            control={control}
+            render={({ field }) => (
+              <IndustryParentTreeSelect
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  if (!isEdit) {
+                    setValue("industryCode", "", {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    });
+                  }
+                }}
+                options={parentOptions}
+                label={translate("catalogManagement.parentIndustry")}
+                noParentLabel={translate("catalogManagement.noParent")}
+                helperText={translate("catalogManagement.parentIndustryHint")}
+                expandLabel={translate("catalogManagement.expandIndustry")}
+                collapseLabel={translate("catalogManagement.collapseIndustry")}
+              />
+            )}
+          />
+          <Controller
             name="industryCode"
             control={control}
             rules={
@@ -159,24 +206,49 @@ export default function IndustryFormDialog({
                 : {
                     required,
                     pattern: {
-                      value: /^[A-Z0-9][A-Z0-9_-]*$/,
-                      message: translate("catalogManagement.invalidCode"),
+                      value: codePattern,
+                      message: translate(codeErrorKey),
                     },
                   }
             }
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
-                onChange={(event) =>
-                  field.onChange(event.target.value.toUpperCase())
-                }
+                value={isEdit ? fullCode : field.value}
+                onChange={(event) => {
+                  const nextValue = event.target.value.toUpperCase();
+                  field.onChange(
+                    newLevel > 1
+                      ? nextValue.replace(/\D/g, "").slice(0, codeLength)
+                      : nextValue.replace(/[^A-V]/g, "").slice(0, 1),
+                  );
+                }}
                 label={translate("catalogManagement.industryCode")}
                 required
                 disabled={isEdit}
                 size="small"
                 error={!!fieldState.error}
-                helperText={fieldState.error?.message}
-                slotProps={{ htmlInput: { maxLength: 50 } }}
+                helperText={
+                  fieldState.error?.message ??
+                  translate("catalogManagement.industryCodePreview", {
+                    code: fullCode || "—",
+                    level: newLevel,
+                  })
+                }
+                slotProps={{
+                  input: {
+                    startAdornment:
+                      !isEdit && codePrefix ? (
+                        <InputAdornment position="start">
+                          {codePrefix}
+                        </InputAdornment>
+                      ) : undefined,
+                  },
+                  htmlInput: {
+                    maxLength: codeLength,
+                    inputMode: newLevel > 1 ? "numeric" : "text",
+                  },
+                }}
               />
             )}
           />
@@ -193,22 +265,6 @@ export default function IndustryFormDialog({
                 error={!!fieldState.error}
                 helperText={fieldState.error?.message}
                 slotProps={{ htmlInput: { maxLength: 255 } }}
-              />
-            )}
-          />
-          <Controller
-            name="parentId"
-            control={control}
-            render={({ field }) => (
-              <IndustryParentTreeSelect
-                value={field.value}
-                onChange={field.onChange}
-                options={parentOptions}
-                label={translate("catalogManagement.parentIndustry")}
-                noParentLabel={translate("catalogManagement.noParent")}
-                helperText={translate("catalogManagement.parentIndustryHint")}
-                expandLabel={translate("catalogManagement.expandIndustry")}
-                collapseLabel={translate("catalogManagement.collapseIndustry")}
               />
             )}
           />
