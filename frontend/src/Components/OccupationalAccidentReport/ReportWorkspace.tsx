@@ -49,6 +49,7 @@ import {
   type UpdateReportHeaderBody,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
+import { getReportPeriodLabel } from "@/services/reportPeriod";
 import AccidentCaseDialog from "./AccidentCaseDialog";
 import Article39Form from "./Article39Form";
 import OverviewPanel from "./OverviewPanel";
@@ -258,10 +259,10 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
             {report.reportPeriod.reportName}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {report.reportPeriod.reportPeriod} năm{" "}
+            {getReportPeriodLabel(report.reportPeriod.periodCode)} năm{" "}
             {report.reportPeriod.reportYear} · Thời gian nhận:{" "}
-            {formatDate(report.reportPeriod.startDate)} –{" "}
-            {formatDate(report.reportPeriod.endDate)}
+            {formatDate(report.reportPeriod.submissionStartDate)} –{" "}
+            {formatDate(report.reportPeriod.submissionEndDate)}
           </Typography>
         </Box>
         <Chip
@@ -283,7 +284,7 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
             startIcon={
               submitting ? <CircularProgress size={16} /> : <SendOutlinedIcon />
             }
-            disabled={submitting || saving || !report.signedDocument}
+            disabled={submitting || saving || !report.signedDocument?.isDraft}
             onClick={submit}
           >
             Gửi báo cáo

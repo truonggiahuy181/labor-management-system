@@ -595,6 +595,27 @@ export class InitialSchema1800000000000 implements MigrationInterface {
       CREATE INDEX idx_oa_submissions_submitted_at
         ON occupational_accident_report_submissions (submitted_at);
 
+      CREATE TABLE occupational_accident_report_draft_documents (
+        report_id INT PRIMARY KEY,
+        document_object_key VARCHAR(500) NOT NULL,
+        document_original_name VARCHAR(255) NOT NULL,
+        document_content_type VARCHAR(100) NOT NULL,
+        document_size BIGINT NOT NULL,
+        document_sha256 CHAR(64) NOT NULL,
+        uploaded_by INT NOT NULL,
+        uploaded_at TIMESTAMP NOT NULL,
+        CONSTRAINT fk_oa_draft_documents_report
+          FOREIGN KEY (report_id) REFERENCES occupational_accident_reports(id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_oa_draft_documents_user
+          FOREIGN KEY (uploaded_by) REFERENCES users(id)
+          ON DELETE RESTRICT,
+        CONSTRAINT chk_oa_draft_documents_size
+          CHECK (document_size > 0),
+        CONSTRAINT chk_oa_draft_documents_sha256
+          CHECK (document_sha256 ~ '^[0-9a-f]{64}$')
+      );
+
       CREATE TABLE occupational_accident_report_histories (
         id SERIAL PRIMARY KEY,
         report_id INT NOT NULL,
@@ -719,6 +740,7 @@ export class InitialSchema1800000000000 implements MigrationInterface {
       DROP FUNCTION IF EXISTS enforce_industry_hierarchy();
 
       DROP TABLE occupational_accident_report_histories;
+      DROP TABLE occupational_accident_report_draft_documents;
       DROP TABLE occupational_accident_report_submissions;
       DROP TABLE occupational_accident_article39_summaries;
       DROP TABLE occupational_accident_victim_groups;

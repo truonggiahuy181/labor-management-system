@@ -105,10 +105,10 @@ export const mockAuthApi: AuthApi = {
     return ok(null);
   },
 
-  changePassword: ({ oldPassword, newPassword }) => {
+  changePassword: ({ currentPassword, newPassword }) => {
     const me = currentUser();
     if (!me) return fail('UNAUTHORIZED');
-    if (me.password !== oldPassword) return fail('WRONG_OLD_PASSWORD');
+    if (me.password !== currentPassword) return fail('WRONG_OLD_PASSWORD');
 
     saveUsers(loadUsers().map((u) => (u.id === me.id ? { ...u, password: newPassword } : u)));
     return ok(null);

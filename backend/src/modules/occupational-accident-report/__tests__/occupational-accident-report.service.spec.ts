@@ -5,6 +5,7 @@ import {
   OccupationalAccidentReportStatus,
 } from '../occupational-accident-report.constants.js';
 import { OccupationalAccidentReportService } from '../occupational-accident-report.service.js';
+import { OccupationalAccidentReportSubmissionEntity } from '../entities/occupational-accident-report-submission.entity.js';
 
 const makeQueryBuilder = (rows: unknown[]) => ({
   innerJoinAndSelect: vi.fn().mockReturnThis(),
@@ -35,10 +36,26 @@ const makePeriod = (overrides: Record<string, unknown> = {}) => ({
   reportPeriod: 'Cả năm',
   reportTypeCode: 'OCCUPATIONAL_ACCIDENT',
   periodCode: 'ANNUAL',
-  startDate: '2026-01-01',
-  endDate: '2026-12-31',
+  submissionStartDate: '2026-01-01',
+  submissionEndDate: '2026-12-31',
   isActive: true,
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  ...overrides,
+});
+
+const makeSubmission = (overrides: Record<string, unknown> = {}) => ({
+  id: 40,
+  reportId: 20,
+  submissionNo: 1,
+  reportDate: '2026-11-09',
+  submittedBy: 1,
+  submittedAt: new Date('2026-11-09T00:00:00.000Z'),
+  payloadSnapshot: { schemaVersion: 1 },
+  documentObjectKey: 'enterprise-files/2/report.pdf',
+  documentOriginalName: 'report.pdf',
+  documentContentType: 'application/pdf',
+  documentSize: '8',
+  documentSha256: 'a'.repeat(64),
   ...overrides,
 });
 
@@ -53,6 +70,24 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
   totalEmployees: 30,
   femaleEmployees: 12,
   payrollFundVnd: '100000000',
+  article39Summary: {
+    totalCases: 1,
+    fatalCases: 0,
+    multiVictimCases: 1,
+    victimCount: 2,
+    femaleCount: 1,
+    deathCount: 0,
+    severeCount: 1,
+    unmanagedVictimCount: 1,
+    unmanagedFemaleCount: 0,
+    unmanagedDeathCount: 0,
+    unmanagedSevereCount: 1,
+    medicalCostVnd: '10',
+    salaryCostVnd: '20',
+    compensationCostVnd: '30',
+    lostWorkDays: 2,
+    propertyDamageVnd: '40',
+  },
   article39TotalCases: 1,
   article39FatalCases: 0,
   article39MultiVictimCases: 1,
@@ -73,7 +108,7 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
     {
       id: 30,
       accidentDate: '2026-03-15',
-      accidentCause: {
+      primaryCause: {
         id: 1,
         causeCode: '1',
         causeName: 'Thiếu thiết bị an toàn',
@@ -125,6 +160,8 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
   signedDocumentContentType: null,
   signedDocumentSize: null,
   signedDocumentUploadedAt: null,
+  draftDocument: null,
+  submissions: [],
   updatedAt: new Date('2026-03-16T00:00:00.000Z'),
   ...overrides,
 });
@@ -134,9 +171,13 @@ describe('OccupationalAccidentReportService', () => {
   let reportPeriodRepository: Record<string, ReturnType<typeof vi.fn>>;
   let userRepository: Record<string, ReturnType<typeof vi.fn>>;
   let enterpriseRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let article39Repository: Record<string, ReturnType<typeof vi.fn>>;
+  let submissionRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let draftDocumentRepository: Record<string, ReturnType<typeof vi.fn>>;
   let transactionManager: {
     update: ReturnType<typeof vi.fn>;
     getRepository: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
   };
   let historyRepository: {
     create: ReturnType<typeof vi.fn>;
@@ -171,13 +212,32 @@ describe('OccupationalAccidentReportService', () => {
         industry: {},
       }),
     };
+    article39Repository = { save: vi.fn() };
+    submissionRepository = {
+      create: vi.fn((value) => value),
+      save: vi.fn(async (value) => ({ id: 50, ...value })),
+      createQueryBuilder: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        getRawOne: vi.fn().mockResolvedValue({ max: '0' }),
+      })),
+    };
+    draftDocumentRepository = {
+      save: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
+    };
     historyRepository = {
       create: vi.fn((value) => value),
       save: vi.fn().mockResolvedValue(undefined),
     };
     transactionManager = {
       update: vi.fn().mockResolvedValue({ affected: 1 }),
-      getRepository: vi.fn().mockReturnValue(historyRepository),
+      getRepository: vi.fn((entity) =>
+        entity === OccupationalAccidentReportSubmissionEntity
+          ? submissionRepository
+          : historyRepository,
+      ),
+      delete: vi.fn().mockResolvedValue(undefined),
     };
     dataSource = {
       transaction: vi.fn(async (callback) => callback(transactionManager)),
@@ -195,6 +255,9 @@ describe('OccupationalAccidentReportService', () => {
       { findOne: vi.fn() } as never,
       {} as never,
       {} as never,
+      article39Repository as never,
+      submissionRepository as never,
+      draftDocumentRepository as never,
       userRepository as never,
       enterpriseRepository as never,
       reportPeriodRepository as never,
@@ -254,7 +317,7 @@ describe('OccupationalAccidentReportService', () => {
       reportRepository.createQueryBuilder.mockReturnValue(makeQueryBuilder([]));
       reportPeriodRepository.createQueryBuilder.mockReturnValue(
         makeQueryBuilder([
-          makePeriod({ startDate: '2026-12-15', endDate: '2027-01-10' }),
+          makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
         ]),
       );
 
@@ -276,7 +339,7 @@ describe('OccupationalAccidentReportService', () => {
 
   it('derives the statistical range from the year and period code', () => {
     const range = (service as any).getCoverageDateRange(
-      makePeriod({ startDate: '2026-12-15', endDate: '2027-01-10' }),
+      makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
     );
 
     expect(range).toEqual(['2026-01-01', '2026-12-31']);
@@ -364,8 +427,7 @@ describe('OccupationalAccidentReportService', () => {
       makeReport({
         status: OccupationalAccidentReportStatus.SUBMITTED,
         histories: [],
-        signedDocumentObjectKey:
-          'enterprise-files/2/2026/11/550e8400-e29b-41d4-a716-446655440000.pdf',
+        submissions: [makeSubmission()],
       }),
     );
 
@@ -486,7 +548,7 @@ describe('OccupationalAccidentReportService', () => {
 
   it('requires the workforce header before submitting', async () => {
     reportRepository.findOne.mockResolvedValue(
-      makeReport({ headerCompleted: false, noAccidentsDeclared: true }),
+      makeReport({ totalEmployees: 0, noAccidentsDeclared: true }),
     );
 
     await expect(service.submit(1, 20)).rejects.toThrow(BadRequestException);
@@ -499,6 +561,46 @@ describe('OccupationalAccidentReportService', () => {
 
     await expect(service.submit(1, 20)).rejects.toThrow(BadRequestException);
     expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('creates an immutable numbered submission snapshot and consumes the draft PDF', async () => {
+    const document = {
+      reportId: 20,
+      documentObjectKey: 'enterprise-files/2/draft.pdf',
+      documentOriginalName: 'draft.pdf',
+      documentContentType: 'application/pdf',
+      documentSize: '8',
+      documentSha256: 'b'.repeat(64),
+      uploadedBy: 1,
+      uploadedAt: new Date('2026-11-09T00:00:00.000Z'),
+    };
+    reportRepository.findOne.mockResolvedValue(
+      makeReport({ draftDocument: document }),
+    );
+
+    await service.submit(1, 20);
+
+    expect(submissionRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportId: 20,
+        submissionNo: 1,
+        documentObjectKey: document.documentObjectKey,
+        documentSha256: document.documentSha256,
+        payloadSnapshot: expect.objectContaining({
+          schemaVersion: 1,
+          status: OccupationalAccidentReportStatus.SUBMITTED,
+          article39Summary: expect.objectContaining({ totalCases: 1 }),
+        }),
+      }),
+    );
+    expect(historyRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ submissionId: 50 }),
+    );
+    expect(transactionManager.delete).toHaveBeenCalledWith(
+      expect.any(Function),
+      { reportId: 20 },
+    );
+    expect(fileService.deleteEnterpriseFile).not.toHaveBeenCalled();
   });
 
   it('uploads a signed PDF and stores its metadata', async () => {
@@ -526,13 +628,14 @@ describe('OccupationalAccidentReportService', () => {
       'enterprise-files',
       2,
     );
-    expect(reportRepository.update).toHaveBeenCalledWith(
-      20,
+    expect(draftDocumentRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        signedDocumentOriginalName: file.originalname,
-        signedDocumentContentType: 'application/pdf',
-        signedDocumentSize: '8',
-        signedDocumentUploadedAt: uploadedAt,
+        reportId: 20,
+        documentOriginalName: file.originalname,
+        documentContentType: 'application/pdf',
+        documentSize: '8',
+        documentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        uploadedAt,
       }),
     );
   });
@@ -541,7 +644,12 @@ describe('OccupationalAccidentReportService', () => {
     const objectKey =
       'enterprise-files/2/2026/11/550e8400-e29b-41d4-a716-446655440000.pdf';
     reportRepository.findOne.mockResolvedValue(
-      makeReport({ signedDocumentObjectKey: objectKey }),
+      makeReport({
+        draftDocument: {
+          reportId: 20,
+          documentObjectKey: objectKey,
+        },
+      }),
     );
 
     await service.updateHeader(1, 20, {
@@ -551,10 +659,7 @@ describe('OccupationalAccidentReportService', () => {
       noAccidentsDeclared: false,
     });
 
-    expect(reportRepository.update).toHaveBeenCalledWith(
-      20,
-      expect.objectContaining({ signedDocumentObjectKey: null }),
-    );
+    expect(draftDocumentRepository.delete).toHaveBeenCalledWith(20);
     expect(fileService.deleteEnterpriseFile).toHaveBeenCalledWith(objectKey);
   });
 

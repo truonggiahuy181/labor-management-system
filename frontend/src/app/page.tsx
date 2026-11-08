@@ -7,7 +7,7 @@ export default function Home() {
       <Stack spacing={4} sx={{ py: 8 }}>
         <Image src="/next.svg" alt="Next.js logo" width={100} height={20} priority />
 
-        <Typography variant="h4" fontWeight={600}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
           To get started, edit the{' '}
           <Box component="code" sx={{ px: 0.75, borderRadius: 1, bgcolor: 'action.hover', fontFamily: 'monospace' }}>
             page.tsx

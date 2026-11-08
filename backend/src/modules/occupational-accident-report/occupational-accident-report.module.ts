@@ -12,6 +12,7 @@ import { OccupationalAccidentArticle39SummaryEntity } from './entities/occupatio
 import { OccupationalAccidentReportHistoryEntity } from './entities/occupational-accident-report-history.entity.js';
 import { OccupationalAccidentReportEntity } from './entities/occupational-accident-report.entity.js';
 import { OccupationalAccidentReportSubmissionEntity } from './entities/occupational-accident-report-submission.entity.js';
+import { OccupationalAccidentReportDraftDocumentEntity } from './entities/occupational-accident-report-draft-document.entity.js';
 import { OccupationalAccidentVictimGroupEntity } from './entities/occupational-accident-victim-group.entity.js';
 import { OccupationalAccidentReportController } from './occupational-accident-report.controller.js';
 import { OccupationalAccidentReportAdminController } from './occupational-accident-report-admin.controller.js';
@@ -26,6 +27,7 @@ import { OccupationalAccidentReportService } from './occupational-accident-repor
       OccupationalAccidentVictimGroupEntity,
       OccupationalAccidentArticle39SummaryEntity,
       OccupationalAccidentReportSubmissionEntity,
+      OccupationalAccidentReportDraftDocumentEntity,
       OccupationalAccidentReportHistoryEntity,
       UserEntity,
       EnterpriseEntity,

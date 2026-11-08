@@ -29,24 +29,28 @@ import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
 import { ROLE } from '@/constants/roles';
-import { reportPeriodApi, type ReportPeriod } from '@/services/reportPeriod';
+import {
+  getReportPeriodLabel,
+  reportPeriodApi,
+  type ReportPeriod,
+} from '@/services/reportPeriod';
 import { getErrorMessage } from '@/services/user';
 
 type Filters = {
   reportYear: string;
   reportName: string;
-  reportPeriod: string;
-  startDate: string;
-  endDate: string;
+  periodCode: string;
+  submissionStartDate: string;
+  submissionEndDate: string;
   isActive: string;
 };
 
 const EMPTY_FILTERS: Filters = {
   reportYear: '',
   reportName: '',
-  reportPeriod: '',
-  startDate: '',
-  endDate: '',
+  periodCode: '',
+  submissionStartDate: '',
+  submissionEndDate: '',
   isActive: '',
 };
 
@@ -96,18 +100,12 @@ export default function ReportPeriodsPage() {
     [rows],
   );
 
-  const reportPeriods = useMemo(
-    () => [...new Set(rows.map((row) => row.reportPeriod))]
-      .sort((a, b) => a.localeCompare(b, 'vi')),
-    [rows],
-  );
-
   const filteredRows = useMemo(() => rows.filter((row) => (
     (!filters.reportYear || String(row.reportYear).includes(filters.reportYear.trim()))
     && (!filters.reportName || row.reportName === filters.reportName)
-    && (!filters.reportPeriod || row.reportPeriod === filters.reportPeriod)
-    && (!filters.startDate || row.startDate.slice(0, 10) === filters.startDate)
-    && (!filters.endDate || row.endDate.slice(0, 10) === filters.endDate)
+    && (!filters.periodCode || row.periodCode === filters.periodCode)
+    && (!filters.submissionStartDate || row.submissionStartDate.slice(0, 10) === filters.submissionStartDate)
+    && (!filters.submissionEndDate || row.submissionEndDate.slice(0, 10) === filters.submissionEndDate)
     && (!filters.isActive || String(row.isActive) === filters.isActive)
   )), [filters, rows]);
 
@@ -246,10 +244,14 @@ export default function ReportPeriodsPage() {
                   </TableCell>
                   <TableCell sx={{ px: 1, py: 1, top: 37 }}>
                     <TableFilterAutocomplete
-                      value={filters.reportPeriod}
-                      options={reportPeriods.map((period) => ({ value: period, label: period }))}
+                      value={filters.periodCode}
+                      options={[
+                        { value: 'FIRST_HALF', label: getReportPeriodLabel('FIRST_HALF') },
+                        { value: 'ANNUAL', label: getReportPeriodLabel('ANNUAL') },
+                        { value: 'CUSTOM', label: getReportPeriodLabel('CUSTOM') },
+                      ]}
                       ariaLabel={translate('reportPeriods.reportPeriod')}
-                      onChange={(value) => setFilter('reportPeriod', value)}
+                      onChange={(value) => setFilter('periodCode', value)}
                     />
                   </TableCell>
                   <TableCell sx={{ px: 1, py: 1, top: 37 }}>
@@ -257,8 +259,8 @@ export default function ReportPeriodsPage() {
                       fullWidth
                       size="small"
                       type="date"
-                      value={filters.startDate}
-                      onChange={(event) => setFilter('startDate', event.target.value)}
+                      value={filters.submissionStartDate}
+                      onChange={(event) => setFilter('submissionStartDate', event.target.value)}
                       slotProps={{ htmlInput: { 'aria-label': translate('reportPeriods.startDate') } }}
                       sx={filterFieldSx}
                     />
@@ -268,8 +270,8 @@ export default function ReportPeriodsPage() {
                       fullWidth
                       size="small"
                       type="date"
-                      value={filters.endDate}
-                      onChange={(event) => setFilter('endDate', event.target.value)}
+                      value={filters.submissionEndDate}
+                      onChange={(event) => setFilter('submissionEndDate', event.target.value)}
                       slotProps={{ htmlInput: { 'aria-label': translate('reportPeriods.endDate') } }}
                       sx={filterFieldSx}
                     />
@@ -308,9 +310,9 @@ export default function ReportPeriodsPage() {
                     </TableCell>
                     <TableCell>{row.reportYear}</TableCell>
                     <TableCell>{row.reportName}</TableCell>
-                    <TableCell>{row.reportPeriod}</TableCell>
-                    <TableCell>{formatDate(row.startDate)}</TableCell>
-                    <TableCell>{formatDate(row.endDate)}</TableCell>
+                    <TableCell>{getReportPeriodLabel(row.periodCode)}</TableCell>
+                    <TableCell>{formatDate(row.submissionStartDate)}</TableCell>
+                    <TableCell>{formatDate(row.submissionEndDate)}</TableCell>
                     <TableCell>
                       <Switch
                         size="small"
@@ -355,7 +357,6 @@ export default function ReportPeriodsPage() {
         open={formOpen}
         item={editing}
         reportNames={reportNames}
-        reportPeriods={reportPeriods}
         onClose={closeForm}
         onSaved={handleSaved}
       />

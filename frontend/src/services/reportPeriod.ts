@@ -13,26 +13,6 @@ export interface OccupationalAccidentSubmissionWindow {
     | 'reportPeriods.annualSubmissionWindow';
 }
 
-export const inferReportTypeCode = (reportName: string): ReportTypeCode => {
-  const normalized = reportName.trim().toLocaleLowerCase('vi');
-  return normalized.includes('tai nạn lao động') ||
-    normalized.includes('tnlđ') ||
-    normalized.includes('tnld')
-    ? 'OCCUPATIONAL_ACCIDENT'
-    : 'OTHER';
-};
-
-export const inferReportPeriodCode = (
-  reportPeriod: string,
-  reportTypeCode: ReportTypeCode,
-): ReportPeriodCode => {
-  if (reportTypeCode !== 'OCCUPATIONAL_ACCIDENT') return 'CUSTOM';
-  const normalized = reportPeriod.trim().toLocaleLowerCase('vi');
-  if (normalized.includes('6 tháng đầu')) return 'FIRST_HALF';
-  if (normalized.includes('cả năm')) return 'ANNUAL';
-  return 'CUSTOM';
-};
-
 export const getOccupationalAccidentSubmissionWindow = (
   reportYear: number,
   periodCode: ReportPeriodCode,
@@ -40,8 +20,7 @@ export const getOccupationalAccidentSubmissionWindow = (
   if (!Number.isInteger(reportYear) || reportYear < 2000 || reportYear > 2100) {
     return null;
   }
-  // Khoản 1 Điều 24 Nghị định 39/2016/NĐ-CP quy định các hạn gửi này
-  // theo dạng "trước ngày", nên ngày 05/07 và 10/01 không được tính.
+  // Điều 24 Nghị định 39/2016/NĐ-CP quy định hạn theo dạng "trước ngày".
   if (periodCode === 'FIRST_HALF') {
     return {
       firstSubmissionDate: `${reportYear}-07-01`,
@@ -62,15 +41,25 @@ export const getOccupationalAccidentSubmissionWindow = (
   return null;
 };
 
+export const getReportPeriodLabel = (periodCode: ReportPeriodCode) => {
+  if (periodCode === 'FIRST_HALF') return '6 tháng đầu năm';
+  if (periodCode === 'ANNUAL') return 'Cả năm';
+  return 'Kỳ tùy chỉnh';
+};
+
+export const getReportTypeLabel = (reportTypeCode: ReportTypeCode) =>
+  reportTypeCode === 'OCCUPATIONAL_ACCIDENT'
+    ? 'Báo cáo tai nạn lao động'
+    : 'Báo cáo khác';
+
 export interface ReportPeriod {
   id: number;
   reportName: string;
   reportYear: number;
-  reportPeriod: string;
   reportTypeCode: ReportTypeCode;
   periodCode: ReportPeriodCode;
-  startDate: string;
-  endDate: string;
+  submissionStartDate: string;
+  submissionEndDate: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -80,9 +69,10 @@ export type ReportPeriodBody = Pick<
   ReportPeriod,
   | 'reportName'
   | 'reportYear'
-  | 'reportPeriod'
-  | 'startDate'
-  | 'endDate'
+  | 'reportTypeCode'
+  | 'periodCode'
+  | 'submissionStartDate'
+  | 'submissionEndDate'
   | 'isActive'
 >;
 

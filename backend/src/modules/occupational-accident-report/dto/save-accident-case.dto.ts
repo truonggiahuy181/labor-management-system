@@ -27,7 +27,7 @@ export class SaveAccidentCaseDto {
   @IsInt()
   @Min(1)
   @Max(2_147_483_647)
-  accidentCauseId: number;
+  primaryCauseId: number;
 
   @ApiProperty({ example: 4 })
   @Type(() => Number)

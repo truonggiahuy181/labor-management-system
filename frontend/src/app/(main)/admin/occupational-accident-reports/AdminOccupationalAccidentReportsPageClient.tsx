@@ -37,7 +37,7 @@ import {
   type AdminOccupationalAccidentReportListItem,
   type ReviewableOccupationalAccidentReportStatus,
 } from '@/services/occupationalAccidentReport';
-import { reportPeriodApi, type ReportPeriod } from '@/services/reportPeriod';
+import { getReportPeriodLabel, reportPeriodApi, type ReportPeriod } from '@/services/reportPeriod';
 import { getErrorMessage } from '@/services/user';
 
 export default function AdminOccupationalAccidentReportsPage() {
@@ -66,7 +66,7 @@ export default function AdminOccupationalAccidentReportsPage() {
         if (cancelled) return;
         const occupationalAccidentPeriods = data
           .filter((item) => item.reportTypeCode === 'OCCUPATIONAL_ACCIDENT')
-          .sort((left, right) => right.reportYear - left.reportYear || right.startDate.localeCompare(left.startDate));
+          .sort((left, right) => right.reportYear - left.reportYear || right.submissionStartDate.localeCompare(left.submissionStartDate));
         setPeriods(occupationalAccidentPeriods);
         setYear((current) => current || String(occupationalAccidentPeriods[0]?.reportYear ?? ''));
       })
@@ -201,7 +201,7 @@ export default function AdminOccupationalAccidentReportsPage() {
           >
             <MenuItem value="">Tất cả</MenuItem>
             {selectablePeriods.map((item) => (
-              <MenuItem key={item.id} value={item.id}>{item.reportPeriod}</MenuItem>
+              <MenuItem key={item.id} value={item.id}>{getReportPeriodLabel(item.periodCode)}</MenuItem>
             ))}
           </TextField>
           <TextField
@@ -250,7 +250,7 @@ export default function AdminOccupationalAccidentReportsPage() {
                     </TableCell>
                     <TableCell>{row.enterpriseName}</TableCell>
                     <TableCell>{row.taxCode}</TableCell>
-                    <TableCell>{row.reportPeriod} {row.reportYear}</TableCell>
+                    <TableCell>{getReportPeriodLabel(row.periodCode)} {row.reportYear}</TableCell>
                     <TableCell>{formatReportDateTime(row.submittedAt)}</TableCell>
                     <TableCell>
                       <Chip size="small" variant="outlined" label={statusMeta.label} color={statusMeta.color} />

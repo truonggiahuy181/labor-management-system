@@ -35,7 +35,7 @@ const realAuthApi = {
   resetPassword: (body: { email: string; otp: string; newPassword: string }) =>
     api.post<ApiResponse<null>>('/auth/reset-password', body).then((r) => r.data),
 
-  changePassword: (body: { oldPassword: string; newPassword: string }) =>
+  changePassword: (body: { currentPassword: string; newPassword: string; confirmNewPassword: string }) =>
     api.post<ApiResponse<null>>('/auth/change-password', body).then((r) => r.data),
 
   me: () => api.get<ApiResponse<User>>('/auth/me').then((r) => r.data),

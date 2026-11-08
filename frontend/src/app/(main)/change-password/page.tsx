@@ -41,7 +41,7 @@ export default function ChangePasswordPage() {
     <Card sx={{ maxWidth: 480, mx: 'auto' }}>
       <CardContent sx={{ p: 4 }}>
         <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Typography variant="h5" fontWeight={700}>{translate('changePassword.title')}</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>{translate('changePassword.title')}</Typography>
 
           <Controller name="oldPassword" control={control} rules={{ required }}
             render={({ field, fieldState }) => (
