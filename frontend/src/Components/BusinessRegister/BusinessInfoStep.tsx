@@ -17,7 +17,7 @@ import { ensureUploadedPublicDocument, type BusinessFiles, type BusinessFileValu
 import { getLocalToday, isNotFutureDate } from '@/services/date';
 import { fileAccessUrl } from '@/services/enterprise';
 import { notBlank, stripSpaces } from '@/services/text';
-import { DEFAULT_CATALOG, type CatalogOptions, type Option } from './options';
+import { type CatalogOptions, type Option } from './options';
 import IndustryTreeSelect from './IndustryTreeSelect';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -52,14 +52,14 @@ type Props = {
   form: UseFormReturn<BusinessInfo>;
   files: BusinessFiles;
   onFilesChange: (files: BusinessFiles) => void;
-  catalog?: CatalogOptions;
+  catalog: CatalogOptions;
   locations: LocationCatalog;
   isEdit?: boolean;     // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
   lockEmail?: boolean;  // doanh nghiệp tự cập nhật: email chỉ đổi qua OTP ở trang Thông tin tài khoản
   accept?: string;      // đuôi file cho phép, mặc định theo luồng đăng ký công khai
 };
 
-export default function BusinessInfoStep({ form, files, onFilesChange, catalog = DEFAULT_CATALOG, locations, isEdit = false, lockEmail = false, accept = DOCUMENT_ACCEPT }: Props) {
+export default function BusinessInfoStep({ form, files, onFilesChange, catalog, locations, isEdit = false, lockEmail = false, accept = DOCUMENT_ACCEPT }: Props) {
   const { translate } = useLocales();
   const { control, watch, setValue } = form;
   const t = (key: string) => translate(`businessRegister.${key}`);

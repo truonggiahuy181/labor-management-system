@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { Alert, Box, Button, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
+import { Alert, Box, Button, LinearProgress, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import Check from '@mui/icons-material/Check';
 import { useSnackbar } from 'notistack';
@@ -31,7 +31,7 @@ export default function BusinessRegisterForm() {
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
   // Danh mục thật từ API: backend nhận businessTypeId / industryId dạng số
-  const { catalog, locations } = useCatalogs();
+  const { catalog, locations, loading: catalogLoading, loadError: catalogLoadError, retry: retryCatalogs } = useCatalogs();
 
   const form = useForm<BusinessInfo>({ defaultValues: EMPTY_BUSINESS_INFO, mode: 'onTouched' });
   const [files, setFiles] = useState<BusinessFiles>(EMPTY_BUSINESS_FILES);
@@ -131,6 +131,16 @@ export default function BusinessRegisterForm() {
         <Step><StepLabel>{t('stepConfirm')}</StepLabel></Step>
       </Stepper>
 
+      {catalogLoading && <LinearProgress />}
+      {catalogLoadError && (
+        <Alert
+          severity="error"
+          action={<Button color="inherit" size="small" onClick={retryCatalogs}>{t('retry')}</Button>}
+        >
+          {t('catalogLoadError')}
+        </Alert>
+      )}
+
       {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
 
       <Box>
@@ -143,7 +153,7 @@ export default function BusinessRegisterForm() {
         {step === 0 ? (
           <>
             <Button color="inherit" component={Link} href={LOGIN_PATH}>{t('cancel')}</Button>
-            <Button variant="contained" startIcon={<ChevronRight />} onClick={goNext} disabled={busy}>
+            <Button variant="contained" startIcon={<ChevronRight />} onClick={goNext} disabled={busy || catalogLoading || catalogLoadError}>
               {t('next')}
             </Button>
           </>

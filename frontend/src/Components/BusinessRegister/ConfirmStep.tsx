@@ -6,16 +6,16 @@ import useLocales from '@/Hooks/useLocales';
 import type { LocationCatalog } from '@/Hooks/useLocations';
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
 import { FilesTable } from './BusinessInfoStep';
-import { DEFAULT_CATALOG, labelOf, type CatalogOptions } from './options';
+import { labelOf, type CatalogOptions } from './options';
 
 const formatDate = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
 
 // "162 đường số 2, Phường X, Thành phố Y" – bỏ phần trống
 const joinAddress = (...parts: string[]) => parts.filter(Boolean).join(', ');
 
-type Props = { info: BusinessInfo; files?: BusinessFiles; catalog?: CatalogOptions; locations: LocationCatalog };   // files bỏ trống = không hiện bảng file
+type Props = { info: BusinessInfo; files?: BusinessFiles; catalog: CatalogOptions; locations: LocationCatalog };   // files bỏ trống = không hiện bảng file
 
-export default function ConfirmStep({ info, files, catalog = DEFAULT_CATALOG, locations }: Props) {
+export default function ConfirmStep({ info, files, catalog, locations }: Props) {
   const { translate } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
 

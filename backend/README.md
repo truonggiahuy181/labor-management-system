@@ -57,6 +57,14 @@ Backend dùng TypeORM migration và lưu lịch sử trong bảng
 `typeorm_migrations`. Khi `DB_MIGRATIONS_RUN=true`, các migration còn thiếu
 sẽ tự chạy trước khi ứng dụng nhận request.
 
+Với môi trường mới, dùng một lệnh để chạy migration rồi upsert và kiểm chứng
+toàn bộ dữ liệu tham chiếu bắt buộc (roles, địa giới, loại hình kinh doanh,
+ngành kinh tế và nghề nghiệp):
+
+```bash
+npm run db:setup
+```
+
 ```bash
 # Xem trạng thái
 npm run migration:show
@@ -84,6 +92,9 @@ npx vitest run src/modules/user
 
 # Chạy toàn bộ test trong dự án
 npm test
+
+# Chạy E2E trên database riêng được cấu hình bởi TEST_DB_NAME
+npm run test:e2e
 ```
 
 ---

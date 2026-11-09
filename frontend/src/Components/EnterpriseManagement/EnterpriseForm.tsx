@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { Alert, Box, Button, Card, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, LinearProgress, Stack, Step, StepLabel, Stepper, Typography } from '@mui/material';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import Check from '@mui/icons-material/Check';
 import { useSnackbar } from 'notistack';
@@ -162,7 +162,7 @@ export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
           {step === 0 ? (
             <>
               <Button onClick={cancel}>{t('cancel')}</Button>
-              <Button variant="contained" startIcon={<ChevronRight />} onClick={goNext}>{t('next')}</Button>
+              <Button variant="contained" startIcon={<ChevronRight />} onClick={goNext} disabled={catalogs.loading || catalogs.loadError}>{t('next')}</Button>
             </>
           ) : (
             <>
@@ -174,6 +174,16 @@ export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
       </Card>
 
       <Card sx={{ ...PROFILE_CARD_SX, p: 3 }}>
+        {catalogs.loading && <LinearProgress sx={{ mb: 2 }} />}
+        {catalogs.loadError && (
+          <Alert
+            severity="error"
+            action={<Button color="inherit" size="small" onClick={catalogs.retry}>{t('retry')}</Button>}
+            sx={{ mb: 2 }}
+          >
+            {t('catalogLoadError')}
+          </Alert>
+        )}
         {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
         {step === 0
           ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalogs.catalog}

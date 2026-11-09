@@ -4,9 +4,14 @@ import { RoleEntity } from '../../modules/role/role.entity.js';
 import { UserEntity } from '../../modules/user/user.entity.js';
 import { SampleDataSeedService } from './sample-data-seed.service.js';
 import { UserSeedService } from './user-seed.service.js';
+import { AdminBootstrapService } from './admin-bootstrap.service.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserEntity, RoleEntity])],
-  providers: [SampleDataSeedService, UserSeedService],
+  providers: [
+    SampleDataSeedService,
+    UserSeedService,
+    AdminBootstrapService,
+  ],
 })
 export class SeedModule {}

@@ -164,6 +164,8 @@
     "businessType": "Loại hình kinh doanh",
     "mainIndustry": "Ngành nghề kinh doanh chính",
     "industryLevel": "Cấp {{level}}",
+    "catalogLoadError": "Không thể tải danh mục dùng cho biểu mẫu. Vui lòng kiểm tra kết nối và thử lại.",
+    "retry": "Thử lại",
     "expandIndustry": "Mở nhóm ngành",
     "collapseIndustry": "Thu gọn nhóm ngành",
     "licenseDate": "Ngày cấp GPKD",

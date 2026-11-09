@@ -162,6 +162,8 @@
     "businessType": "Business type",
     "mainIndustry": "Main business line",
     "industryLevel": "Level {{level}}",
+    "catalogLoadError": "Unable to load the form catalogs. Check your connection and try again.",
+    "retry": "Retry",
     "expandIndustry": "Expand business line group",
     "collapseIndustry": "Collapse business line group",
     "licenseDate": "License issue date",

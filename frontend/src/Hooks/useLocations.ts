@@ -14,6 +14,8 @@ export type LocationCatalog = {
   wardLabel: (provinceCode?: string | null, wardCode?: string | null) => string;
   loadingProvinces: boolean;
   isLoadingWards: (provinceCode?: string | null) => boolean;
+  loadError: boolean;
+  retry: () => void;
 };
 
 export default function useLocations(): LocationCatalog {
@@ -25,6 +27,8 @@ export default function useLocations(): LocationCatalog {
   const [loadingWardCodes, setLoadingWardCodes] = useState<Set<string>>(
     () => new Set(),
   );
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const wardCache = useRef<Record<string, LocationOption[]>>({});
   const pendingRequests = useRef<
     Partial<Record<string, Promise<LocationOption[]>>>
@@ -42,7 +46,10 @@ export default function useLocations(): LocationCatalog {
         }
       })
       .catch(() => {
-        if (!cancelled) setProvinceOptions([]);
+        if (!cancelled) {
+          setProvinceOptions([]);
+          setLoadError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingProvinces(false);
@@ -51,7 +58,7 @@ export default function useLocations(): LocationCatalog {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const ensureWards = useCallback(
     async (provinceCode?: string | null): Promise<LocationOption[]> => {
@@ -79,7 +86,10 @@ export default function useLocations(): LocationCatalog {
           }));
           return options;
         })
-        .catch(() => [])
+        .catch(() => {
+          setLoadError(true);
+          return [];
+        })
         .finally(() => {
           delete pendingRequests.current[provinceCode];
           setLoadingWardCodes((current) => {
@@ -115,6 +125,15 @@ export default function useLocations(): LocationCatalog {
       loadingProvinces,
       isLoadingWards: (provinceCode?: string | null) =>
         !!provinceCode && loadingWardCodes.has(provinceCode),
+      loadError,
+      retry: () => {
+        setLoadError(false);
+        setLoadingProvinces(true);
+        wardCache.current = {};
+        pendingRequests.current = {};
+        setWardsByProvince({});
+        setReloadKey((current) => current + 1);
+      },
     };
-  }, [ensureWards, loadingProvinces, loadingWardCodes, provinceOptions, wardsByProvince]);
+  }, [ensureWards, loadError, loadingProvinces, loadingWardCodes, provinceOptions, wardsByProvince]);
 }
