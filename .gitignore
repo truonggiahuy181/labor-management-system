@@ -61,6 +61,7 @@ postman/
 /tmp/
 /outputs/
 /tmp_spreadsheet_filter_levels/
+/PROJECT_COMPLETION_CHECKLIST.md
 *.py
 *.py[cod]
 __pycache__/
