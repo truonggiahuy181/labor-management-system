@@ -8,10 +8,32 @@ vi.mock('argon2', () => ({
 describe('SampleDataSeedService', () => {
   let manager: { query: ReturnType<typeof vi.fn> };
   let dataSource: { transaction: ReturnType<typeof vi.fn> };
+  let seededBusinessTypeRows: Array<{
+    type_code: string;
+    type_name: string;
+    is_active: boolean;
+    deleted_at: null;
+  }>;
+  let seededOccupationRows: Array<{
+    occupation_code: string;
+    occupation_name: string;
+    parent_code: string | null;
+    level: number;
+    is_active: boolean;
+  }>;
+  let seededIndustryRows: Array<{
+    industry_code: string;
+    industry_name: string;
+    parent_code: string | null;
+    level: number;
+  }>;
 
   beforeEach(() => {
+    seededBusinessTypeRows = [];
+    seededOccupationRows = [];
+    seededIndustryRows = [];
     manager = {
-      query: vi.fn(async (sql: string) => {
+      query: vi.fn(async (sql: string, parameters?: unknown[]) => {
         if (sql.includes('SELECT DISTINCT ON')) {
           return [{ province_code: '01', ward_code: '00004' }];
         }
@@ -23,6 +45,37 @@ describe('SampleDataSeedService', () => {
         }
         if (sql.includes('COUNT(*)::text')) {
           return [{ count: '30' }];
+        }
+        if (sql.includes('INSERT INTO business_types')) {
+          const rows = JSON.parse(parameters?.[0] as string);
+          seededBusinessTypeRows.push(
+            ...rows.map((row: { type_code: string; type_name: string }) => ({
+              ...row,
+              is_active: true,
+              deleted_at: null,
+            })),
+          );
+          return [];
+        }
+        if (sql.includes('FROM business_types')) {
+          return seededBusinessTypeRows;
+        }
+        if (sql.includes('INSERT INTO occupations')) {
+          seededOccupationRows.push(...JSON.parse(parameters?.[0] as string));
+          return [];
+        }
+        if (sql.includes('FROM occupations AS occupation')) {
+          return seededOccupationRows;
+        }
+        if (sql.includes('INSERT INTO industries')) {
+          seededIndustryRows.push(...JSON.parse(parameters?.[0] as string));
+          return [];
+        }
+        if (
+          sql.includes('FROM industries AS industry') &&
+          sql.includes('parent.industry_code AS parent_code')
+        ) {
+          return seededIndustryRows;
         }
         return [];
       }),
@@ -80,6 +133,9 @@ describe('SampleDataSeedService', () => {
     const injuryTypeInserts = manager.query.mock.calls.filter(([sql]) =>
       sql.includes('INSERT INTO injury_types'),
     );
+    const businessTypeInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO business_types'),
+    );
     const occupationInserts = manager.query.mock.calls.filter(([sql]) =>
       sql.includes('INSERT INTO occupations'),
     );
@@ -92,6 +148,7 @@ describe('SampleDataSeedService', () => {
     const injuryTypeRows = injuryTypeInserts.flatMap(([, parameters]) =>
       JSON.parse(parameters?.[0] as string),
     );
+    const businessTypeRows = JSON.parse(businessTypeInsert?.[1]?.[0] as string);
     const occupationRows = occupationInserts.flatMap(([, parameters]) =>
       JSON.parse(parameters?.[0] as string),
     );
@@ -122,6 +179,19 @@ describe('SampleDataSeedService', () => {
       ]),
     );
     expect(injuryFactorRows).toHaveLength(9);
+    expect(businessTypeRows).toEqual([
+      {
+        type_code: 'TNHH1',
+        type_name: 'Công ty TNHH một thành viên',
+      },
+      {
+        type_code: 'TNHH2',
+        type_name: 'Công ty TNHH hai thành viên trở lên',
+      },
+      { type_code: 'CTCP', type_name: 'Công ty cổ phần' },
+      { type_code: 'HD', type_name: 'Công ty hợp danh' },
+      { type_code: 'DNTN', type_name: 'Doanh nghiệp tư nhân' },
+    ]);
     expect(injuryTypeInserts).toHaveLength(3);
     expect(injuryTypeRows).toEqual(
       expect.arrayContaining([
@@ -146,6 +216,15 @@ describe('SampleDataSeedService', () => {
       ]),
     );
     expect(occupationInserts).toHaveLength(4);
+    expect(occupationRows).toHaveLength(717);
+    expect(
+      Object.fromEntries(
+        [1, 2, 3, 4].map((level) => [
+          level,
+          occupationRows.filter((row) => row.level === level).length,
+        ]),
+      ),
+    ).toEqual({ 1: 10, 2: 48, 3: 152, 4: 507 });
     expect(occupationRows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -164,11 +243,20 @@ describe('SampleDataSeedService', () => {
           occupation_code: '9629',
           parent_code: '962',
           level: 4,
-          is_active: false,
+          is_active: true,
         }),
       ]),
     );
     expect(industryInserts).toHaveLength(4);
+    expect(industryRows).toHaveLength(863);
+    expect(
+      Object.fromEntries(
+        [1, 2, 3, 4].map((level) => [
+          level,
+          industryRows.filter((row) => row.level === level).length,
+        ]),
+      ),
+    ).toEqual({ 1: 22, 2: 87, 3: 259, 4: 495 });
     expect(industryRows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -178,22 +266,22 @@ describe('SampleDataSeedService', () => {
           is_active: true,
         }),
         expect.objectContaining({
-          industry_code: '6201',
-          parent_code: '620',
+          industry_code: '6219',
+          parent_code: '621',
           level: 4,
           is_active: true,
         }),
         expect.objectContaining({
-          industry_code: '6312',
+          industry_code: '6310',
           parent_code: '631',
           level: 4,
-          is_active: false,
+          is_active: true,
         }),
         expect.objectContaining({
           industry_code: '9700',
           parent_code: '970',
           level: 4,
-          is_active: false,
+          is_active: true,
         }),
       ]),
     );
@@ -201,7 +289,7 @@ describe('SampleDataSeedService', () => {
       tax_code: '0990000001',
       enterprise_name: 'Công ty TNHH Công nghệ Sao Việt',
       business_type_code: 'TNHH2',
-      industry_code: '6201',
+      industry_code: '6219',
       province_code: '01',
       ward_code: '00004',
       is_active: true,
@@ -209,7 +297,7 @@ describe('SampleDataSeedService', () => {
     expect(enterpriseRows[7]).toMatchObject({
       enterprise_name: 'Doanh nghiệp Tư nhân Nội thất Gia Bảo',
       business_type_code: 'DNTN',
-      industry_code: '3100',
+      industry_code: '3101',
     });
     expect(enterpriseRows[26]).toMatchObject({
       enterprise_name: 'Công ty Hợp danh Luật Minh Tâm',

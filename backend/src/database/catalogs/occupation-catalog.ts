@@ -1,3 +1,5 @@
+import { OCCUPATION_CATALOG_DATA } from './occupation-catalog.data.js';
+
 export interface OccupationSeedRow {
   occupationCode: string;
   occupationName: string;
@@ -6,401 +8,78 @@ export interface OccupationSeedRow {
   isActive: boolean;
 }
 
-export const OCCUPATION_CATALOG: readonly OccupationSeedRow[] = [
-  {
-    occupationCode: '0',
-    occupationName: 'Nghề nghiệp trong lực lượng vũ trang',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '01',
-    occupationName: 'Sĩ quan lực lượng vũ trang',
-    parentCode: '0',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '011',
-    occupationName: 'Sĩ quan lực lượng vũ trang',
-    parentCode: '01',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '0110',
-    occupationName: 'Sĩ quan lực lượng vũ trang',
-    parentCode: '011',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '1',
-    occupationName: 'Nhà lãnh đạo trong các ngành, các cấp và các đơn vị',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '11',
-    occupationName:
-      'Nhà lãnh đạo của Đảng Cộng sản Việt Nam, cơ quan nhà nước và tổ chức chính trị - xã hội',
-    parentCode: '1',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '111',
-    occupationName:
-      'Nhà lãnh đạo cơ quan Đảng Cộng sản Việt Nam cấp Trung ương',
-    parentCode: '11',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '1111',
-    occupationName:
-      'Trưởng ban, Phó Trưởng ban và tương đương trở lên thuộc cấp Trung ương',
-    parentCode: '111',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '112',
-    occupationName: 'Nhà lãnh đạo cơ quan nhà nước cấp Trung ương',
-    parentCode: '11',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '1121',
-    occupationName: 'Bộ trưởng, Thứ trưởng và tương đương',
-    parentCode: '112',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '12',
-    occupationName: 'Giám đốc điều hành của đơn vị, doanh nghiệp',
-    parentCode: '1',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '121',
-    occupationName: 'Giám đốc điều hành đơn vị, doanh nghiệp',
-    parentCode: '12',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '1211',
-    occupationName: 'Giám đốc điều hành doanh nghiệp',
-    parentCode: '121',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '2',
-    occupationName: 'Nhà chuyên môn bậc cao',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '21',
-    occupationName: 'Nhà chuyên môn về khoa học và kỹ thuật',
-    parentCode: '2',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '211',
-    occupationName: 'Nhà vật lý, hóa học và các chuyên môn liên quan',
-    parentCode: '21',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '2111',
-    occupationName: 'Nhà vật lý học và thiên văn học',
-    parentCode: '211',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '212',
-    occupationName: 'Nhà toán học, thống kê học và chuyên môn liên quan',
-    parentCode: '21',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '2121',
-    occupationName: 'Nhà toán học và phân tích dữ liệu',
-    parentCode: '212',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '22',
-    occupationName: 'Nhà chuyên môn về sức khỏe',
-    parentCode: '2',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '221',
-    occupationName: 'Bác sĩ y khoa',
-    parentCode: '22',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '2211',
-    occupationName: 'Bác sĩ đa khoa',
-    parentCode: '221',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '23',
-    occupationName: 'Nhà chuyên môn về giảng dạy',
-    parentCode: '2',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '231',
-    occupationName: 'Giảng viên đại học và cao đẳng',
-    parentCode: '23',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '2311',
-    occupationName: 'Giảng viên đại học',
-    parentCode: '231',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '3',
-    occupationName: 'Nhà chuyên môn bậc trung',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '31',
-    occupationName: 'Kỹ thuật viên khoa học và kỹ thuật',
-    parentCode: '3',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '311',
-    occupationName: 'Kỹ thuật viên khoa học vật lý và kỹ thuật',
-    parentCode: '31',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '3111',
-    occupationName: 'Kỹ thuật viên khoa học hóa học và vật lý',
-    parentCode: '311',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '4',
-    occupationName: 'Nhân viên trợ lý văn phòng',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '41',
-    occupationName: 'Nhân viên tổng hợp và nhân viên làm việc với bàn phím',
-    parentCode: '4',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '411',
-    occupationName: 'Nhân viên văn phòng tổng hợp',
-    parentCode: '41',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '4110',
-    occupationName: 'Nhân viên văn phòng tổng hợp',
-    parentCode: '411',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '5',
-    occupationName: 'Nhân viên dịch vụ và bán hàng',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '51',
-    occupationName: 'Nhân viên dịch vụ cá nhân',
-    parentCode: '5',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '511',
-    occupationName: 'Nhân viên phục vụ du lịch và liên quan',
-    parentCode: '51',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '5111',
-    occupationName: 'Tiếp viên du lịch và hướng dẫn viên',
-    parentCode: '511',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '6',
-    occupationName:
-      'Lao động có kỹ năng trong nông nghiệp, lâm nghiệp và thủy sản',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '61',
-    occupationName: 'Lao động có kỹ năng trong nông nghiệp',
-    parentCode: '6',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '611',
-    occupationName: 'Người trồng trọt và làm vườn',
-    parentCode: '61',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '6111',
-    occupationName: 'Người trồng cây lương thực và rau',
-    parentCode: '611',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '7',
-    occupationName: 'Thợ thủ công và các thợ khác có liên quan',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '71',
-    occupationName: 'Thợ xây dựng và thợ có liên quan',
-    parentCode: '7',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '711',
-    occupationName: 'Thợ xây dựng khung và thợ có liên quan',
-    parentCode: '71',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '7111',
-    occupationName: 'Thợ xây nhà',
-    parentCode: '711',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '8',
-    occupationName: 'Thợ lắp ráp và vận hành máy móc, thiết bị',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '81',
-    occupationName: 'Thợ vận hành máy và thiết bị cố định',
-    parentCode: '8',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '811',
-    occupationName: 'Thợ vận hành thiết bị khai thác mỏ và chế biến khoáng sản',
-    parentCode: '81',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '8111',
-    occupationName: 'Thợ khai thác mỏ và đá',
-    parentCode: '811',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '9',
-    occupationName: 'Lao động giản đơn',
-    parentCode: null,
-    level: 1,
-    isActive: true,
-  },
-  {
-    occupationCode: '91',
-    occupationName: 'Người quét dọn và giúp việc',
-    parentCode: '9',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '911',
-    occupationName: 'Người giúp việc và quét dọn tại gia đình, khách sạn',
-    parentCode: '91',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '9111',
-    occupationName: 'Người giúp việc gia đình',
-    parentCode: '911',
-    level: 4,
-    isActive: true,
-  },
-  {
-    occupationCode: '96',
-    occupationName: 'Lao động giản đơn khác',
-    parentCode: '9',
-    level: 2,
-    isActive: true,
-  },
-  {
-    occupationCode: '962',
-    occupationName: 'Lao động giản đơn khác chưa được phân vào đâu',
-    parentCode: '96',
-    level: 3,
-    isActive: true,
-  },
-  {
-    occupationCode: '9629',
-    occupationName: 'Lao động giản đơn khác',
-    parentCode: '962',
-    level: 4,
-    isActive: false,
-  },
-];
+function resolveOccupationCatalog(): OccupationSeedRow[] {
+  const resolvedByCode = new Map<string, OccupationSeedRow>();
+  const rows: OccupationSeedRow[] = [];
+
+  for (const [rawCode, rawName, rawParentCode] of OCCUPATION_CATALOG_DATA) {
+    const occupationCode = rawCode.trim();
+    const occupationName = rawName.trim().replace(/\s+/g, ' ');
+    const parentCode = rawParentCode?.trim() ?? null;
+    const level = occupationCode.length as OccupationSeedRow['level'];
+
+    if (!/^[0-9]{1,4}$/.test(occupationCode) || level < 1 || level > 4) {
+      throw new Error(`Occupation ${occupationCode} has an invalid code.`);
+    }
+    if (!occupationName) {
+      throw new Error(`Occupation ${occupationCode} has no name.`);
+    }
+    if (resolvedByCode.has(occupationCode)) {
+      throw new Error(`Duplicate occupation code ${occupationCode}.`);
+    }
+
+    const parent = parentCode === null ? null : resolvedByCode.get(parentCode);
+    if (level === 1 && parentCode !== null) {
+      throw new Error(
+        `Level-1 occupation ${occupationCode} cannot have a parent.`,
+      );
+    }
+    if (level > 1) {
+      if (parentCode === null || !parent || parent.level !== level - 1) {
+        throw new Error(
+          `Occupation ${occupationCode} references invalid parent ${parentCode}.`,
+        );
+      }
+      if (!occupationCode.startsWith(parentCode)) {
+        throw new Error(
+          `Occupation ${occupationCode} must extend parent ${parentCode}.`,
+        );
+      }
+    }
+
+    const resolved: OccupationSeedRow = {
+      occupationCode,
+      occupationName,
+      parentCode,
+      level,
+      isActive: true,
+    };
+    resolvedByCode.set(occupationCode, resolved);
+    rows.push(resolved);
+  }
+
+  const counts = Object.fromEntries(
+    [1, 2, 3, 4].map((currentLevel) => [
+      currentLevel,
+      rows.filter((row) => row.level === currentLevel).length,
+    ]),
+  );
+  const expectedCounts: Record<number, number> = {
+    1: 10,
+    2: 48,
+    3: 152,
+    4: 507,
+  };
+  for (const currentLevel of [1, 2, 3, 4]) {
+    if (counts[currentLevel] !== expectedCounts[currentLevel]) {
+      throw new Error(
+        `Occupation level ${currentLevel} has ${counts[currentLevel]} records; expected ${expectedCounts[currentLevel]}.`,
+      );
+    }
+  }
+
+  return rows;
+}
+
+export const OCCUPATION_CATALOG: readonly OccupationSeedRow[] =
+  resolveOccupationCatalog();

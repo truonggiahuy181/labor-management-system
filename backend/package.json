@@ -29,6 +29,9 @@
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "migration:generate": "npm run build && typeorm migration:generate src/database/migrations/AutoMigration.migration -d dist/database/data-source.js --esm",
     "migration:create": "typeorm migration:create src/database/migrations/Migration.migration --esm",
+    "seed:industries": "npm run build && node dist/database/seeds/industry-seed.cli.js",
+    "seed:business-types": "npm run build && node dist/database/seeds/business-type-seed.cli.js",
+    "seed:occupations": "npm run build && node dist/database/seeds/occupation-seed.cli.js",
     "locations:refresh": "node scripts/refresh-location-catalog.mjs"
   },
   "dependencies": {
