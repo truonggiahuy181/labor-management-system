@@ -40,7 +40,7 @@ export function createDatabaseOptions(
     // Schema changes must be represented by a migration. Never combine
     // synchronize with migrations because synchronize has no audit trail.
     synchronize: false,
-    logging: environment === 'development',
+    logging: isEnabled(readEnvironment('DB_LOGGING', 'false')),
   };
 }
 

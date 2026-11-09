@@ -35,6 +35,7 @@ import type {
   MultipartFile,
   UploadedFileResponse,
 } from './file.types.js';
+import { DEMO_REPORT_DOCUMENT_OBJECT_KEY } from './demo-report-document.js';
 
 const CONTENT_TYPES_BY_EXTENSION: Record<string, readonly string[]> = {
   '.jpg': ['image/jpeg'],
@@ -59,6 +60,8 @@ export class FileService {
   private readonly publicBucket: string;
   private readonly publicBaseUrl: string;
   private readonly isClientConfigured: boolean;
+  private readonly environment: string;
+  private readonly localApiBaseUrl: string;
   private readonly uploadedMetadata = new Map<
     string,
     {
@@ -83,6 +86,12 @@ export class FileService {
       this.configService.get<string>('R2_BUCKET')?.trim() || '';
     this.publicBaseUrl = (
       this.configService.get<string>('R2_PUBLIC_BASE_URL')?.trim() || ''
+    ).replace(/\/+$/, '');
+    this.environment =
+      this.configService.get<string>('NODE_ENV')?.trim() || 'development';
+    this.localApiBaseUrl = (
+      this.configService.get<string>('LOCAL_API_BASE_URL')?.trim() ||
+      `http://localhost:${this.configService.get<string>('PORT', '3000')}`
     ).replace(/\/+$/, '');
     this.isClientConfigured = Boolean(
       accountId && accessKeyId && secretAccessKey,
@@ -159,6 +168,13 @@ export class FileService {
     _user: AuthenticatedFileUser,
   ): Promise<FileAccessResponse> {
     const { folder } = this.getObjectKeyOwnership(objectKey);
+    if (this.isDemoReportDocument(objectKey)) {
+      return {
+        objectKey,
+        accessUrl: this.buildDemoReportUrl(),
+        accessUrlExpiresIn: null,
+      };
+    }
     this.assertStorageConfigured(folder);
 
     return {
@@ -172,6 +188,13 @@ export class FileService {
     objectKey: string,
   ): Promise<FileAccessResponse> {
     const { folder, ownerId } = this.getObjectKeyOwnership(objectKey);
+    if (this.isDemoReportDocument(objectKey)) {
+      return {
+        objectKey,
+        accessUrl: this.buildDemoReportUrl(),
+        accessUrlExpiresIn: null,
+      };
+    }
     this.assertStorageConfigured(folder);
 
     if (
@@ -224,6 +247,9 @@ export class FileService {
         message: 'objectKey không phải là tệp của doanh nghiệp.',
       });
     }
+    if (this.isDemoReportDocument(objectKey)) {
+      return this.buildDemoReportUrl();
+    }
     this.assertStorageConfigured(ownership.folder);
     return this.buildPublicUrl(objectKey);
   }
@@ -267,6 +293,7 @@ export class FileService {
     ) {
       return;
     }
+    if (this.isDemoReportDocument(objectKey)) return;
 
     try {
       await this.r2Client.send(
@@ -468,6 +495,17 @@ export class FileService {
 
   private buildPublicUrl(objectKey: string): string {
     return `${this.publicBaseUrl}/${objectKey}`;
+  }
+
+  private isDemoReportDocument(objectKey: string): boolean {
+    return (
+      this.environment === 'development' &&
+      objectKey === DEMO_REPORT_DOCUMENT_OBJECT_KEY
+    );
+  }
+
+  private buildDemoReportUrl(): string {
+    return `${this.localApiBaseUrl}/api/v1/files/demo-report.pdf`;
   }
 
   private storageUnavailable(): ServiceUnavailableException {

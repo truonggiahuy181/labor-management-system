@@ -34,6 +34,7 @@
     "seed:occupations": "npm run build && node dist/database/seeds/occupation-seed.cli.js",
     "seed:reference-data": "npm run build && node dist/database/seeds/reference-data-seed.cli.js",
     "db:setup": "npm run build && node dist/database/seeds/database-setup.cli.js",
+    "demo:verify": "npm run build && node dist/database/seeds/demo-data-verify.cli.js",
     "locations:refresh": "node scripts/refresh-location-catalog.mjs"
   },
   "dependencies": {

@@ -1,5 +1,10 @@
 # Backend - Hệ Thống Quản Lý Lao Động
 
+> Với môi trường local của team, ưu tiên chạy `npm run dev` tại thư mục gốc
+> repository. Lệnh này tự tạo file cấu hình còn thiếu, khởi động Docker,
+> migration, dữ liệu demo, backend và frontend. Các bước bên dưới dành cho
+> trường hợp cần chạy hoặc kiểm tra riêng backend.
+
 ## 1. Yêu cầu môi trường
 
 - **Node.js**: v18+ hoặc v20+
@@ -15,7 +20,8 @@ Sao chép file cấu hình mẫu:
 cp .env.example .env
 ```
 
-_(Nếu cần, chỉnh sửa cổng hoặc mật khẩu trong file `.env`)_
+_(Nếu cần, chỉnh sửa cổng hoặc mật khẩu trong file `.env`. File đã tồn tại sẽ
+không bị lệnh chạy chung ghi đè.)_
 
 ---
 
@@ -56,6 +62,10 @@ npm run start:dev
 Backend dùng TypeORM migration và lưu lịch sử trong bảng
 `typeorm_migrations`. Khi `DB_MIGRATIONS_RUN=true`, các migration còn thiếu
 sẽ tự chạy trước khi ứng dụng nhận request.
+
+Ở development, `SEED_SAMPLE_DATA=true` còn tự upsert danh mục, admin, doanh
+nghiệp, tài khoản doanh nghiệp, kỳ báo cáo và các catalog phục vụ demo. Seed
+không chạy ngoài development và có thể chạy lại mà không nhân đôi dữ liệu.
 
 Với môi trường mới, dùng một lệnh để chạy migration rồi upsert và kiểm chứng
 toàn bộ dữ liệu tham chiếu bắt buộc (roles, địa giới, loại hình kinh doanh,

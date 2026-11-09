@@ -3,6 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -19,17 +20,21 @@ export type ResponseData<T = any> = ApiResponse<T>;
 
 @Injectable()
 export class ResponseInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
+  implements NestInterceptor<T, ApiResponse<T> | StreamableFile>
 {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<ApiResponse<T>> {
+  ): Observable<ApiResponse<T> | StreamableFile> {
     const res = context.switchToHttp().getResponse();
     const statusCode = res?.statusCode ?? 200;
 
     return next.handle().pipe(
       map((data) => {
+        // File/stream responses must be passed through unchanged so Nest can
+        // write their bytes instead of serializing their internal state.
+        if (data instanceof StreamableFile) return data;
+
         // 1. Tránh bọc response nhiều lần nếu dữ liệu đã có format ApiResponse
         if (
           data &&

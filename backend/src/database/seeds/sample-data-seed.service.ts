@@ -5,13 +5,19 @@ import { DataSource, EntityManager } from 'typeorm';
 import type { BusinessTypeCode } from '../catalogs/business-type-catalog.js';
 import { getStoredIndustryCode } from '../catalogs/industry-catalog.js';
 import { INJURY_TYPE_CATALOG } from '../catalogs/injury-type-catalog.js';
-import { seedBusinessTypeCatalog } from './business-type-seed.js';
-import { seedIndustryCatalog } from './industry-seed.js';
-import { seedOccupationCatalog } from './occupation-seed.js';
+import { bootstrapAdmin, type AdminBootstrapInput } from './admin-bootstrap.js';
+import { seedReferenceData } from './reference-data-seed.js';
 import {
   ReportPeriodCode,
   ReportTypeCode,
 } from '../../modules/report-period/report-period.constants.js';
+import {
+  DEMO_REPORT_DOCUMENT_BUFFER,
+  DEMO_REPORT_DOCUMENT_CONTENT_TYPE,
+  DEMO_REPORT_DOCUMENT_OBJECT_KEY,
+  DEMO_REPORT_DOCUMENT_ORIGINAL_NAME,
+  DEMO_REPORT_DOCUMENT_SHA256,
+} from '../../modules/file/demo-report-document.js';
 
 interface LocationPair {
   province_code: string;
@@ -43,9 +49,39 @@ interface CompanyProfile {
   industryCode: string;
 }
 
+interface DemoReportPeriodRow {
+  report_name: string;
+  report_type_code: string;
+  report_year: number;
+  period_code: string;
+  submission_start_date: string;
+  submission_end_date: string;
+  is_active: boolean;
+}
+
+interface DemoReportSeedRow {
+  tax_code: string;
+  status: 'DRAFT' | 'SUBMITTED' | 'RECEIVED' | 'RETURNED';
+  total_employees: number;
+  female_employees: number;
+  payroll_fund_vnd: string;
+  no_accidents_declared: boolean;
+  returned_reason: string | null;
+}
+
+interface DemoReportHistorySeedRow {
+  tax_code: string;
+  from_status: DemoReportSeedRow['status'] | null;
+  to_status: DemoReportSeedRow['status'];
+  reason: string | null;
+  actor: 'ADMIN' | 'ENTERPRISE';
+  age_days: number;
+}
+
 const DEFAULT_PAGINATION_RECORDS = 30;
 const MAX_PAGINATION_RECORDS = 100;
 const DEFAULT_ENTERPRISE_PASSWORD = '12345678';
+const DEFAULT_ADMIN_PASSWORD = 'Admin@123456';
 
 const REPRESENTATIVE_NAMES = [
   'Nguyễn Minh Anh',
@@ -395,6 +431,21 @@ const INJURY_FACTORS = [
   ['Mã 9', 'Sập lò, sập đất đá'],
 ] as const;
 
+const ACCIDENT_CAUSES = [
+  [
+    'NSDL-01',
+    'Không xây dựng hoặc thực hiện đầy đủ biện pháp an toàn',
+    'EMPLOYER',
+  ],
+  ['NSDL-02', 'Thiết bị, máy móc không bảo đảm an toàn', 'EMPLOYER'],
+  ['NSDL-03', 'Không huấn luyện hoặc hướng dẫn an toàn đầy đủ', 'EMPLOYER'],
+  ['NLD-01', 'Vi phạm quy trình, quy chuẩn an toàn lao động', 'EMPLOYEE'],
+  ['NLD-02', 'Không sử dụng phương tiện bảo vệ cá nhân', 'EMPLOYEE'],
+  ['NLD-03', 'Thao tác sai hoặc thiếu tập trung khi làm việc', 'EMPLOYEE'],
+  ['KQ-01', 'Điều kiện thời tiết hoặc thiên tai bất thường', 'OBJECTIVE'],
+  ['KQ-02', 'Sự cố khách quan ngoài khả năng kiểm soát', 'OBJECTIVE'],
+] as const;
+
 @Injectable()
 export class SampleDataSeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SampleDataSeedService.name);
@@ -425,14 +476,40 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
       );
     }
 
+    const admin = this.getAdminInput();
+
     const passwordHash = await argon2.hash(password);
     const result = await this.dataSource.transaction((manager) =>
-      this.seed(manager, recordCount, passwordHash),
+      this.seed(manager, recordCount, passwordHash, admin),
     );
 
     this.logger.log(
-      `Sample data ready: ${result.enterpriseCount} enterprises and ${result.enterpriseUserCount} enterprise users.`,
+      `Demo data ready: ${result.enterpriseCount} enterprises, ${result.enterpriseUserCount} enterprise users, ${result.reportCount} accident reports and admin '${result.adminUsername}'.`,
     );
+  }
+
+  private getAdminInput(): AdminBootstrapInput {
+    const password = this.configService.get<string>(
+      'SEED_ADMIN_PASSWORD',
+      DEFAULT_ADMIN_PASSWORD,
+    );
+    if (password.length < 12) {
+      throw new Error(
+        'SEED_ADMIN_PASSWORD must contain at least 12 characters.',
+      );
+    }
+
+    return {
+      username: this.configService
+        .get<string>('SEED_ADMIN_USERNAME', 'admin_demo')
+        .trim(),
+      password,
+      email: this.configService
+        .get<string>('SEED_ADMIN_EMAIL', 'admin.demo@example.com')
+        .trim()
+        .toLowerCase(),
+      fullName: 'Quản trị viên demo',
+    };
   }
 
   private getRecordCount(): number {
@@ -453,12 +530,18 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
     manager: EntityManager,
     recordCount: number,
     passwordHash: string,
-  ): Promise<{ enterpriseCount: number; enterpriseUserCount: number }> {
-    await this.seedReferenceData(manager);
+    admin: AdminBootstrapInput,
+  ): Promise<{
+    enterpriseCount: number;
+    enterpriseUserCount: number;
+    reportCount: number;
+    adminUsername: string;
+  }> {
+    await seedReferenceData(manager);
     await this.seedReportPeriods(manager);
     await this.seedInjuryFactors(manager);
     await this.seedInjuryTypes(manager);
-    await this.seedOccupations(manager);
+    await this.seedAccidentCauses(manager);
 
     const locations = await manager.query<LocationPair[]>(`
       SELECT DISTINCT ON (province.code)
@@ -677,40 +760,28 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
       [taxCodes],
     );
 
+    const adminResult = await bootstrapAdmin(manager, admin);
+    const reportCount = await this.seedDemoReports(manager);
+
     return {
       enterpriseCount: Number(enterpriseCountRow.count),
       enterpriseUserCount: Number(enterpriseUserCountRow.count),
+      reportCount,
+      adminUsername: adminResult.username,
     };
   }
 
-  private async seedReferenceData(manager: EntityManager): Promise<void> {
-    await manager.query(`
-      INSERT INTO roles (role_code, role_name, is_active, deleted_at)
-      VALUES
-        ('ADMIN', 'Quản trị viên', TRUE, NULL),
-        ('ENTERPRISE_USER', 'Người dùng doanh nghiệp', TRUE, NULL)
-      ON CONFLICT (role_code) DO UPDATE
-      SET role_name = EXCLUDED.role_name,
-          is_active = TRUE,
-          deleted_at = NULL
-    `);
-
-    await seedBusinessTypeCatalog(manager);
-
-    await seedIndustryCatalog(manager);
-  }
-
   private async seedReportPeriods(manager: EntityManager): Promise<void> {
+    const rows = this.buildReportPeriods(new Date());
     await manager.query(
       `
         INSERT INTO report_periods (
           report_name,
-          report_year,
-          report_period,
           report_type_code,
+          report_year,
           period_code,
-          start_date,
-          end_date,
+          submission_start_date,
+          submission_end_date,
           is_active,
           created_by,
           updated_by,
@@ -719,12 +790,11 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
         )
         SELECT
           report_name,
-          report_year,
-          report_period,
           report_type_code,
+          report_year,
           period_code,
-          start_date::date,
-          end_date::date,
+          submission_start_date::date,
+          submission_end_date::date,
           is_active,
           NULL,
           NULL,
@@ -732,51 +802,93 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
           NOW()
         FROM jsonb_to_recordset($1::jsonb) AS seed(
           report_name VARCHAR(255),
-          report_year SMALLINT,
-          report_period VARCHAR(100),
           report_type_code VARCHAR(50),
+          report_year SMALLINT,
           period_code VARCHAR(30),
-          start_date VARCHAR(10),
-          end_date VARCHAR(10),
+          submission_start_date VARCHAR(10),
+          submission_end_date VARCHAR(10),
           is_active BOOLEAN
         )
-        ON CONFLICT (
-          LOWER(report_name),
-          report_year,
-          LOWER(report_period)
-        ) WHERE deleted_at IS NULL DO UPDATE
-        SET report_type_code = EXCLUDED.report_type_code,
-            period_code = EXCLUDED.period_code,
-            start_date = EXCLUDED.start_date,
-            end_date = EXCLUDED.end_date,
+        ON CONFLICT (report_type_code, report_year, period_code) DO UPDATE
+        SET report_name = EXCLUDED.report_name,
+            submission_start_date = EXCLUDED.submission_start_date,
+            submission_end_date = EXCLUDED.submission_end_date,
             is_active = EXCLUDED.is_active,
+            deleted_at = NULL,
             updated_at = NOW()
       `,
-      [
-        JSON.stringify(
-          REPORT_PERIODS.map((reportPeriod) => {
-            const isOccupationalAccident =
-              reportPeriod.reportName === 'Báo cáo tai nạn lao động';
-            return {
-              report_name: reportPeriod.reportName,
-              report_year: reportPeriod.reportYear,
-              report_period: reportPeriod.reportPeriod,
-              report_type_code: isOccupationalAccident
-                ? ReportTypeCode.OCCUPATIONAL_ACCIDENT
-                : ReportTypeCode.OTHER,
-              period_code: isOccupationalAccident
-                ? reportPeriod.reportPeriod === 'Cả năm'
-                  ? ReportPeriodCode.ANNUAL
-                  : ReportPeriodCode.FIRST_HALF
-                : ReportPeriodCode.CUSTOM,
-              start_date: reportPeriod.startDate,
-              end_date: reportPeriod.endDate,
-              is_active: reportPeriod.isActive,
-            };
-          }),
-        ),
-      ],
+      [JSON.stringify(rows)],
     );
+  }
+
+  private buildReportPeriods(now: Date): DemoReportPeriodRow[] {
+    const currentYear = now.getFullYear();
+    const previousYear = currentYear - 1;
+    const today = this.toDateOnly(now);
+    const demoWindowStart = this.toDateOnly(this.addDays(now, -30));
+    const demoWindowEnd = this.toDateOnly(this.addDays(now, 30));
+    const occupationalReportName = REPORT_PERIODS[0].reportName;
+
+    return [
+      {
+        report_name: occupationalReportName,
+        report_type_code: ReportTypeCode.OCCUPATIONAL_ACCIDENT,
+        report_year: previousYear,
+        period_code: ReportPeriodCode.FIRST_HALF,
+        submission_start_date: `${previousYear}-07-01`,
+        submission_end_date: `${previousYear}-07-04`,
+        is_active: false,
+      },
+      {
+        report_name: occupationalReportName,
+        report_type_code: ReportTypeCode.OCCUPATIONAL_ACCIDENT,
+        report_year: previousYear,
+        period_code: ReportPeriodCode.ANNUAL,
+        submission_start_date: `${currentYear}-01-01`,
+        submission_end_date: `${currentYear}-01-09`,
+        is_active: false,
+      },
+      {
+        report_name: occupationalReportName,
+        report_type_code: ReportTypeCode.OCCUPATIONAL_ACCIDENT,
+        report_year: currentYear,
+        period_code: ReportPeriodCode.FIRST_HALF,
+        submission_start_date: `${currentYear}-07-01`,
+        submission_end_date: `${currentYear}-07-04`,
+        is_active: true,
+      },
+      {
+        report_name: `${occupationalReportName} (demo local)`,
+        report_type_code: ReportTypeCode.OCCUPATIONAL_ACCIDENT,
+        report_year: currentYear,
+        period_code: ReportPeriodCode.ANNUAL,
+        submission_start_date: demoWindowStart,
+        submission_end_date: demoWindowEnd,
+        is_active: true,
+      },
+      {
+        report_name: `${REPORT_PERIODS[4].reportName} (demo ${today})`,
+        report_type_code: ReportTypeCode.OTHER,
+        report_year: currentYear,
+        period_code: ReportPeriodCode.CUSTOM,
+        submission_start_date: `${currentYear}-01-01`,
+        submission_end_date: `${currentYear}-12-31`,
+        is_active: true,
+      },
+    ];
+  }
+
+  private addDays(value: Date, days: number): Date {
+    const result = new Date(value);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
+  private toDateOnly(value: Date): string {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private async seedInjuryFactors(manager: EntityManager): Promise<void> {
@@ -871,8 +983,640 @@ export class SampleDataSeedService implements OnApplicationBootstrap {
     }
   }
 
-  private async seedOccupations(manager: EntityManager): Promise<void> {
-    await seedOccupationCatalog(manager);
+  private async seedAccidentCauses(manager: EntityManager): Promise<void> {
+    await manager.query(
+      `
+        INSERT INTO accident_causes (
+          cause_code,
+          cause_name,
+          cause_group,
+          display_order,
+          is_active,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        )
+        SELECT
+          cause_code,
+          cause_name,
+          cause_group,
+          display_order,
+          TRUE,
+          NULL,
+          NULL,
+          NOW(),
+          NOW()
+        FROM jsonb_to_recordset($1::jsonb) AS seed(
+          cause_code VARCHAR(20),
+          cause_name VARCHAR(255),
+          cause_group VARCHAR(20),
+          display_order SMALLINT
+        )
+        ON CONFLICT (cause_code) DO UPDATE
+        SET cause_name = EXCLUDED.cause_name,
+            cause_group = EXCLUDED.cause_group,
+            display_order = EXCLUDED.display_order,
+            is_active = TRUE,
+            deleted_at = NULL,
+            updated_at = NOW()
+      `,
+      [
+        JSON.stringify(
+          ACCIDENT_CAUSES.map(([causeCode, causeName, causeGroup], index) => ({
+            cause_code: causeCode,
+            cause_name: causeName,
+            cause_group: causeGroup,
+            display_order: index + 1,
+          })),
+        ),
+      ],
+    );
+  }
+
+  private async seedDemoReports(manager: EntityManager): Promise<number> {
+    const currentYear = new Date().getFullYear();
+    const reports: DemoReportSeedRow[] = [
+      {
+        tax_code: '0990000001',
+        status: 'DRAFT',
+        total_employees: 86,
+        female_employees: 39,
+        payroll_fund_vnd: '12400000000',
+        no_accidents_declared: false,
+        returned_reason: null,
+      },
+      {
+        tax_code: '0990000002',
+        status: 'DRAFT',
+        total_employees: 142,
+        female_employees: 61,
+        payroll_fund_vnd: '21800000000',
+        no_accidents_declared: false,
+        returned_reason: null,
+      },
+      {
+        tax_code: '0990000003',
+        status: 'SUBMITTED',
+        total_employees: 234,
+        female_employees: 128,
+        payroll_fund_vnd: '35600000000',
+        no_accidents_declared: false,
+        returned_reason: null,
+      },
+      {
+        tax_code: '0990000004',
+        status: 'RECEIVED',
+        total_employees: 65,
+        female_employees: 27,
+        payroll_fund_vnd: '9300000000',
+        no_accidents_declared: true,
+        returned_reason: null,
+      },
+      {
+        tax_code: '0990000006',
+        status: 'RETURNED',
+        total_employees: 318,
+        female_employees: 174,
+        payroll_fund_vnd: '48700000000',
+        no_accidents_declared: false,
+        returned_reason:
+          'Vui lòng kiểm tra lại số liệu nạn nhân và bổ sung thông tin chi phí.',
+      },
+      {
+        tax_code: '0990000007',
+        status: 'DRAFT',
+        total_employees: 48,
+        female_employees: 19,
+        payroll_fund_vnd: '6800000000',
+        no_accidents_declared: true,
+        returned_reason: null,
+      },
+    ];
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_reports (
+          enterprise_id,
+          report_period_id,
+          status,
+          enterprise_name,
+          tax_code,
+          enterprise_address,
+          business_type_code,
+          business_type_name,
+          industry_code,
+          industry_name,
+          administrative_unit_code,
+          administrative_unit_name,
+          administrative_unit_level,
+          recipient_agency_name,
+          total_employees,
+          female_employees,
+          payroll_fund_vnd,
+          no_accidents_declared,
+          submitted_at,
+          received_at,
+          returned_at,
+          returned_reason,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        )
+        SELECT
+          enterprise.id,
+          period.id,
+          seed.status,
+          enterprise.enterprise_name,
+          enterprise.tax_code,
+          enterprise.address,
+          business_type.type_code,
+          business_type.type_name,
+          industry.industry_code,
+          industry.industry_name,
+          province.code,
+          province.name,
+          'PROVINCE',
+          'Sở Nội vụ',
+          seed.total_employees,
+          seed.female_employees,
+          seed.payroll_fund_vnd::bigint,
+          seed.no_accidents_declared,
+          CASE WHEN seed.status IN ('SUBMITTED', 'RECEIVED', 'RETURNED')
+            THEN NOW() - INTERVAL '3 days' ELSE NULL END,
+          CASE WHEN seed.status = 'RECEIVED'
+            THEN NOW() - INTERVAL '2 days' ELSE NULL END,
+          CASE WHEN seed.status = 'RETURNED'
+            THEN NOW() - INTERVAL '2 days' ELSE NULL END,
+          seed.returned_reason,
+          enterprise_user.id,
+          enterprise_user.id,
+          NOW() - INTERVAL '10 days',
+          NOW() - INTERVAL '1 day'
+        FROM jsonb_to_recordset($1::jsonb) AS seed(
+          tax_code VARCHAR(50),
+          status VARCHAR(20),
+          total_employees INT,
+          female_employees INT,
+          payroll_fund_vnd VARCHAR(30),
+          no_accidents_declared BOOLEAN,
+          returned_reason VARCHAR(1000)
+        )
+        INNER JOIN enterprises enterprise ON enterprise.tax_code = seed.tax_code
+        INNER JOIN users enterprise_user
+          ON enterprise_user.enterprise_id = enterprise.id
+        INNER JOIN business_types business_type
+          ON business_type.id = enterprise.business_type_id
+        INNER JOIN industries industry ON industry.id = enterprise.industry_id
+        INNER JOIN provinces province ON province.code = enterprise.province_id
+        INNER JOIN report_periods period
+          ON period.report_type_code = $2
+          AND period.report_year = $3
+          AND period.period_code = $4
+        ON CONFLICT (enterprise_id, report_period_id) DO NOTHING
+      `,
+      [
+        JSON.stringify(reports),
+        ReportTypeCode.OCCUPATIONAL_ACCIDENT,
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+      ],
+    );
+
+    await manager.query(
+      `
+        WITH target AS (
+          SELECT
+            report.id AS report_id,
+            report.created_by AS user_id,
+            seed.tax_code,
+            seed.accident_date,
+            seed.cause_code,
+            seed.factor_code,
+            seed.medical_cost_vnd,
+            seed.salary_cost_vnd,
+            seed.compensation_cost_vnd,
+            seed.lost_work_days,
+            seed.property_damage_vnd
+          FROM jsonb_to_recordset($1::jsonb) AS seed(
+            tax_code VARCHAR(50),
+            accident_date VARCHAR(10),
+            cause_code VARCHAR(20),
+            factor_code VARCHAR(50),
+            medical_cost_vnd VARCHAR(30),
+            salary_cost_vnd VARCHAR(30),
+            compensation_cost_vnd VARCHAR(30),
+            lost_work_days INT,
+            property_damage_vnd VARCHAR(30)
+          )
+          INNER JOIN occupational_accident_reports report
+            ON report.tax_code = seed.tax_code
+          INNER JOIN report_periods period
+            ON period.id = report.report_period_id
+            AND period.report_year = $2
+            AND period.period_code = $3
+        )
+        INSERT INTO occupational_accident_cases (
+          report_id,
+          accident_date,
+          primary_cause_id,
+          injury_factor_id,
+          medical_cost_vnd,
+          salary_cost_vnd,
+          compensation_cost_vnd,
+          lost_work_days,
+          property_damage_vnd,
+          created_by,
+          updated_by
+        )
+        SELECT
+          target.report_id,
+          target.accident_date::date,
+          cause.id,
+          factor.id,
+          target.medical_cost_vnd::bigint,
+          target.salary_cost_vnd::bigint,
+          target.compensation_cost_vnd::bigint,
+          target.lost_work_days,
+          target.property_damage_vnd::bigint,
+          target.user_id,
+          target.user_id
+        FROM target
+        INNER JOIN accident_causes cause
+          ON cause.cause_code = target.cause_code
+        INNER JOIN injury_factors factor
+          ON factor.factor_code = target.factor_code
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM occupational_accident_cases existing
+          WHERE existing.report_id = target.report_id
+            AND existing.deleted_at IS NULL
+        )
+      `,
+      [
+        JSON.stringify([
+          {
+            tax_code: '0990000002',
+            accident_date: `${currentYear}-03-14`,
+            cause_code: 'NLD-01',
+            factor_code: 'Mã 4',
+            medical_cost_vnd: '18000000',
+            salary_cost_vnd: '9000000',
+            compensation_cost_vnd: '25000000',
+            lost_work_days: 21,
+            property_damage_vnd: '12000000',
+          },
+          {
+            tax_code: '0990000003',
+            accident_date: `${currentYear}-04-22`,
+            cause_code: 'NSDL-02',
+            factor_code: 'Mã 5',
+            medical_cost_vnd: '32000000',
+            salary_cost_vnd: '15000000',
+            compensation_cost_vnd: '48000000',
+            lost_work_days: 37,
+            property_damage_vnd: '85000000',
+          },
+          {
+            tax_code: '0990000006',
+            accident_date: `${currentYear}-05-09`,
+            cause_code: 'NLD-02',
+            factor_code: 'Mã 7',
+            medical_cost_vnd: '24000000',
+            salary_cost_vnd: '11000000',
+            compensation_cost_vnd: '36000000',
+            lost_work_days: 29,
+            property_damage_vnd: '7000000',
+          },
+        ]),
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+      ],
+    );
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_victim_groups (
+          accident_case_id,
+          occupation_id,
+          is_under_enterprise_management,
+          victim_count,
+          female_count,
+          death_count,
+          severe_count,
+          created_by,
+          updated_by
+        )
+        SELECT
+          accident_case.id,
+          occupation.id,
+          TRUE,
+          CASE WHEN report.tax_code = '0990000003' THEN 2 ELSE 1 END,
+          CASE WHEN report.tax_code = '0990000006' THEN 1 ELSE 0 END,
+          CASE WHEN report.tax_code = '0990000003' THEN 1 ELSE 0 END,
+          CASE WHEN report.tax_code = '0990000003' THEN 1 ELSE 1 END,
+          report.created_by,
+          report.created_by
+        FROM occupational_accident_reports report
+        INNER JOIN report_periods period
+          ON period.id = report.report_period_id
+          AND period.report_year = $1
+          AND period.period_code = $2
+        INNER JOIN occupational_accident_cases accident_case
+          ON accident_case.report_id = report.id
+          AND accident_case.deleted_at IS NULL
+        INNER JOIN occupations occupation
+          ON occupation.occupation_code = '1111'
+        WHERE report.tax_code = ANY($3::text[])
+        ON CONFLICT (
+          accident_case_id,
+          occupation_id,
+          is_under_enterprise_management
+        ) DO NOTHING
+      `,
+      [
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+        ['0990000002', '0990000003', '0990000006'],
+      ],
+    );
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_article39_summaries (
+          report_id,
+          total_cases,
+          fatal_cases,
+          multi_victim_cases,
+          victim_count,
+          female_count,
+          death_count,
+          severe_count,
+          unmanaged_victim_count,
+          unmanaged_female_count,
+          unmanaged_death_count,
+          unmanaged_severe_count,
+          medical_cost_vnd,
+          salary_cost_vnd,
+          compensation_cost_vnd,
+          lost_work_days,
+          property_damage_vnd,
+          created_by,
+          updated_by
+        )
+        SELECT
+          report.id,
+          1,
+          0,
+          0,
+          1,
+          CASE WHEN report.tax_code = '0990000006' THEN 1 ELSE 0 END,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          6000000,
+          3000000,
+          8000000,
+          8,
+          2000000,
+          report.created_by,
+          report.created_by
+        FROM occupational_accident_reports report
+        INNER JOIN report_periods period
+          ON period.id = report.report_period_id
+          AND period.report_year = $1
+          AND period.period_code = $2
+        WHERE report.tax_code = ANY($3::text[])
+        ON CONFLICT (report_id) DO NOTHING
+      `,
+      [currentYear, ReportPeriodCode.ANNUAL, ['0990000003', '0990000006']],
+    );
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_report_submissions (
+          report_id,
+          submission_no,
+          report_date,
+          submitted_by,
+          submitted_at,
+          payload_snapshot,
+          document_object_key,
+          document_original_name,
+          document_content_type,
+          document_size,
+          document_sha256
+        )
+        SELECT
+          report.id,
+          1,
+          CURRENT_DATE,
+          enterprise_user.id,
+          COALESCE(report.submitted_at, NOW() - INTERVAL '3 days'),
+          jsonb_build_object(
+            'schemaVersion', 1,
+            'seededDemo', TRUE,
+            'status', 'SUBMITTED',
+            'taxCode', report.tax_code
+          ),
+          $4,
+          $5,
+          $6,
+          $7,
+          $8
+        FROM occupational_accident_reports report
+        INNER JOIN report_periods period
+          ON period.id = report.report_period_id
+          AND period.report_year = $1
+          AND period.period_code = $2
+        INNER JOIN users enterprise_user
+          ON enterprise_user.enterprise_id = report.enterprise_id
+        WHERE report.tax_code = ANY($3::text[])
+        ON CONFLICT (report_id, submission_no) DO NOTHING
+      `,
+      [
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+        ['0990000003', '0990000004', '0990000006'],
+        DEMO_REPORT_DOCUMENT_OBJECT_KEY,
+        DEMO_REPORT_DOCUMENT_ORIGINAL_NAME,
+        DEMO_REPORT_DOCUMENT_CONTENT_TYPE,
+        DEMO_REPORT_DOCUMENT_BUFFER.length,
+        DEMO_REPORT_DOCUMENT_SHA256,
+      ],
+    );
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_report_draft_documents (
+          report_id,
+          document_object_key,
+          document_original_name,
+          document_content_type,
+          document_size,
+          document_sha256,
+          uploaded_by,
+          uploaded_at
+        )
+        SELECT
+          report.id,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          enterprise_user.id,
+          NOW() - INTERVAL '1 day'
+        FROM occupational_accident_reports report
+        INNER JOIN report_periods period
+          ON period.id = report.report_period_id
+          AND period.report_year = $1
+          AND period.period_code = $2
+        INNER JOIN users enterprise_user
+          ON enterprise_user.enterprise_id = report.enterprise_id
+        WHERE report.tax_code = ANY($3::text[])
+          AND report.status IN ('DRAFT', 'RETURNED')
+        ON CONFLICT (report_id) DO NOTHING
+      `,
+      [
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+        ['0990000002', '0990000006'],
+        DEMO_REPORT_DOCUMENT_OBJECT_KEY,
+        DEMO_REPORT_DOCUMENT_ORIGINAL_NAME,
+        DEMO_REPORT_DOCUMENT_CONTENT_TYPE,
+        DEMO_REPORT_DOCUMENT_BUFFER.length,
+        DEMO_REPORT_DOCUMENT_SHA256,
+      ],
+    );
+
+    await manager.query(
+      `
+        INSERT INTO occupational_accident_report_histories (
+          report_id,
+          submission_id,
+          from_status,
+          to_status,
+          reason,
+          created_by,
+          created_at
+        )
+        SELECT
+          report.id,
+          CASE WHEN seed.to_status = 'DRAFT' THEN NULL ELSE submission.id END,
+          seed.from_status,
+          seed.to_status,
+          seed.reason,
+          CASE WHEN seed.actor = 'ADMIN'
+            THEN admin_user.id ELSE enterprise_user.id END,
+          NOW() - (seed.age_days || ' days')::interval
+        FROM jsonb_to_recordset($1::jsonb) AS seed(
+          tax_code VARCHAR(50),
+          from_status VARCHAR(20),
+          to_status VARCHAR(20),
+          reason VARCHAR(1000),
+          actor VARCHAR(20),
+          age_days INT
+        )
+        INNER JOIN occupational_accident_reports report
+          ON report.tax_code = seed.tax_code
+        INNER JOIN report_periods period
+          ON period.id = report.report_period_id
+          AND period.report_year = $2
+          AND period.period_code = $3
+        INNER JOIN users enterprise_user
+          ON enterprise_user.enterprise_id = report.enterprise_id
+        LEFT JOIN users admin_user ON admin_user.username = $4
+        LEFT JOIN occupational_accident_report_submissions submission
+          ON submission.report_id = report.id
+          AND submission.submission_no = 1
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM occupational_accident_report_histories existing
+          WHERE existing.report_id = report.id
+            AND existing.from_status IS NOT DISTINCT FROM seed.from_status
+            AND existing.to_status = seed.to_status
+            AND existing.reason IS NOT DISTINCT FROM seed.reason
+        )
+      `,
+      [
+        JSON.stringify(this.buildDemoReportHistories(reports)),
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+        this.configService
+          .get<string>('SEED_ADMIN_USERNAME', 'admin_demo')
+          .trim(),
+      ],
+    );
+
+    const [countRow] = await manager.query<Array<{ count: string }>>(
+      `
+        SELECT COUNT(*)::text AS count
+        FROM occupational_accident_reports report
+        INNER JOIN report_periods period ON period.id = report.report_period_id
+        WHERE report.tax_code = ANY($1::text[])
+          AND period.report_year = $2
+          AND period.period_code = $3
+      `,
+      [
+        reports.map((report) => report.tax_code),
+        currentYear,
+        ReportPeriodCode.ANNUAL,
+      ],
+    );
+    return Number(countRow.count);
+  }
+
+  private buildDemoReportHistories(
+    reports: DemoReportSeedRow[],
+  ): DemoReportHistorySeedRow[] {
+    return reports.flatMap((report) => {
+      const rows: DemoReportHistorySeedRow[] = [
+        {
+          tax_code: report.tax_code,
+          from_status: null,
+          to_status: 'DRAFT',
+          reason: null,
+          actor: 'ENTERPRISE',
+          age_days: 10,
+        },
+      ];
+      if (report.status === 'DRAFT') return rows;
+
+      rows.push({
+        tax_code: report.tax_code,
+        from_status: 'DRAFT',
+        to_status: 'SUBMITTED',
+        reason: null,
+        actor: 'ENTERPRISE',
+        age_days: 3,
+      });
+      if (report.status === 'RECEIVED') {
+        rows.push({
+          tax_code: report.tax_code,
+          from_status: 'SUBMITTED',
+          to_status: 'RECEIVED',
+          reason: null,
+          actor: 'ADMIN',
+          age_days: 2,
+        });
+      }
+      if (report.status === 'RETURNED') {
+        rows.push({
+          tax_code: report.tax_code,
+          from_status: 'SUBMITTED',
+          to_status: 'RETURNED',
+          reason: report.returned_reason,
+          actor: 'ADMIN',
+          age_days: 2,
+        });
+      }
+      return rows;
+    });
   }
 
   private buildEnterprises(

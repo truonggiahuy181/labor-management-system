@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoleCode } from '../../../commons/constants/role-codes.js';
 import { MAX_IMAGE_FILE_SIZE } from '../file.constants.js';
 import { FileService } from '../file.service.js';
+import { DEMO_REPORT_DOCUMENT_OBJECT_KEY } from '../demo-report-document.js';
 import type { MultipartFile } from '../file.types.js';
 
 const PNG_SIGNATURE = Buffer.from([
@@ -132,6 +133,21 @@ describe('FileService', () => {
       Bucket: 'labor-public-images',
       Key: objectKey,
     });
+  });
+
+  it('serves the bundled demo report without R2 in development', async () => {
+    service = createService(send, {
+      NODE_ENV: 'development',
+      PORT: '3000',
+      R2_BUCKET: '',
+    });
+
+    expect(
+      service.getEnterpriseFileAccessUrl(DEMO_REPORT_DOCUMENT_OBJECT_KEY),
+    ).toBe('http://localhost:3000/api/v1/files/demo-report.pdf');
+
+    await service.deleteEnterpriseFile(DEMO_REPORT_DOCUMENT_OBJECT_KEY);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('từ chối ảnh giả mạo bằng phần mở rộng', async () => {
