@@ -169,6 +169,7 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
 describe('OccupationalAccidentReportService', () => {
   let reportRepository: Record<string, ReturnType<typeof vi.fn>>;
   let reportPeriodRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let causeRepository: Record<string, ReturnType<typeof vi.fn>>;
   let userRepository: Record<string, ReturnType<typeof vi.fn>>;
   let enterpriseRepository: Record<string, ReturnType<typeof vi.fn>>;
   let article39Repository: Record<string, ReturnType<typeof vi.fn>>;
@@ -200,6 +201,10 @@ describe('OccupationalAccidentReportService', () => {
     reportPeriodRepository = {
       findOne: vi.fn(),
       createQueryBuilder: vi.fn(),
+    };
+    causeRepository = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
     };
     userRepository = {
       findOne: vi.fn().mockResolvedValue({ id: 1, enterpriseId: 2 }),
@@ -261,7 +266,7 @@ describe('OccupationalAccidentReportService', () => {
       userRepository as never,
       enterpriseRepository as never,
       reportPeriodRepository as never,
-      {} as never,
+      causeRepository as never,
       {} as never,
       {} as never,
       dataSource as never,
@@ -271,6 +276,22 @@ describe('OccupationalAccidentReportService', () => {
 
   it('aggregates regular accidents, article 39 and every breakdown', async () => {
     reportRepository.findOne.mockResolvedValue(makeReport());
+    causeRepository.find.mockResolvedValue([
+      {
+        id: 1,
+        causeCode: 'NSDL-01',
+        causeName: 'Thiếu thiết bị an toàn',
+        displayOrder: 1,
+        isActive: true,
+      },
+      {
+        id: 2,
+        causeCode: 'NSDL-02',
+        causeName: 'Thiếu phương tiện bảo vệ',
+        displayOrder: 2,
+        isActive: true,
+      },
+    ]);
 
     const result = await service.getOverview(1, 20);
 
@@ -300,7 +321,18 @@ describe('OccupationalAccidentReportService', () => {
       propertyDamageVnd: '540',
     });
     expect(result.byCause).toEqual([
-      expect.objectContaining({ id: 1, totalCases: 1, victimCount: 3 }),
+      expect.objectContaining({
+        id: 1,
+        code: '1',
+        totalCases: 1,
+        victimCount: 3,
+      }),
+      expect.objectContaining({
+        id: 2,
+        code: '2',
+        totalCases: 0,
+        victimCount: 0,
+      }),
     ]);
     expect(result.byInjuryFactor).toEqual([
       expect.objectContaining({ id: 3, totalCases: 1, victimCount: 3 }),
@@ -310,6 +342,39 @@ describe('OccupationalAccidentReportService', () => {
     ]);
   });
 
+  it('allows one case to be both fatal and multi-victim in article 39', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport());
+
+    await service.updateArticle39Summary(1, 20, {
+      totalCases: 1,
+      fatalCases: 1,
+      multiVictimCases: 1,
+      victimCount: 2,
+      femaleCount: 0,
+      deathCount: 1,
+      severeCount: 0,
+      unmanagedVictimCount: 0,
+      unmanagedFemaleCount: 0,
+      unmanagedDeathCount: 0,
+      unmanagedSevereCount: 0,
+      medicalCostVnd: '0',
+      salaryCostVnd: '0',
+      compensationCostVnd: '0',
+      lostWorkDays: 0,
+      propertyDamageVnd: '0',
+    });
+
+    expect(article39Repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        totalCases: 1,
+        fatalCases: 1,
+        multiVictimCases: 1,
+        victimCount: 2,
+        deathCount: 1,
+      }),
+    );
+  });
+
   it('returns active periods that have not been started yet', async () => {
     vi.useFakeTimers();
     try {
@@ -317,7 +382,10 @@ describe('OccupationalAccidentReportService', () => {
       reportRepository.createQueryBuilder.mockReturnValue(makeQueryBuilder([]));
       reportPeriodRepository.createQueryBuilder.mockReturnValue(
         makeQueryBuilder([
-          makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
+          makePeriod({
+            submissionStartDate: '2026-12-15',
+            submissionEndDate: '2027-01-10',
+          }),
         ]),
       );
 
@@ -339,7 +407,10 @@ describe('OccupationalAccidentReportService', () => {
 
   it('derives the statistical range from the year and period code', () => {
     const range = (service as any).getCoverageDateRange(
-      makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
+      makePeriod({
+        submissionStartDate: '2026-12-15',
+        submissionEndDate: '2027-01-10',
+      }),
     );
 
     expect(range).toEqual(['2026-01-01', '2026-12-31']);

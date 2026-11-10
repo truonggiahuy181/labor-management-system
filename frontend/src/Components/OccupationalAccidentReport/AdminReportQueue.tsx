@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Box,
   Card,
   Chip,
   IconButton,
   LinearProgress,
-  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -24,6 +24,7 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { useSnackbar } from "notistack";
 import useLocales from "@/Hooks/useLocales";
+import TableFilterAutocomplete from "@/Components/TableFilterAutocomplete";
 import {
   adminOccupationalAccidentReportApi,
   type AdminOccupationalAccidentReportListItem,
@@ -49,12 +50,16 @@ export default function AdminReportQueue() {
   const { enqueueSnackbar } = useSnackbar();
   const { translate } = useLocales();
   const currentYear = new Date().getFullYear();
-  const [rows, setRows] = useState<AdminOccupationalAccidentReportListItem[]>([]);
+  const [rows, setRows] = useState<AdminOccupationalAccidentReportListItem[]>(
+    [],
+  );
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [year, setYear] = useState<number | "">(currentYear);
-  const [status, setStatus] = useState<ReviewableOccupationalAccidentReportStatus | "">("");
+  const [status, setStatus] = useState<
+    ReviewableOccupationalAccidentReportStatus | ""
+  >("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
 
@@ -116,42 +121,42 @@ export default function AdminReportQueue() {
             }}
             sx={{ minWidth: { md: 340 } }}
           />
-          <TextField
-            select
-            size="small"
-            label="Năm báo cáo"
-            value={year}
-            onChange={(event) => {
-              setYear(event.target.value === "" ? "" : Number(event.target.value));
-              setPage(0);
-            }}
-            sx={{ width: 160 }}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {years.map((value) => (
-              <MenuItem key={value} value={value}>
-                {value}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            size="small"
-            label="Trạng thái"
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as ReviewableOccupationalAccidentReportStatus | "");
-              setPage(0);
-            }}
-            sx={{ width: 190 }}
-          >
-            <MenuItem value="">Tất cả</MenuItem>
-            {Object.entries(STATUS).map(([value, config]) => (
-              <MenuItem key={value} value={value}>
-                {config.label}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ width: 160 }}>
+            <TableFilterAutocomplete
+              value={String(year)}
+              ariaLabel="Năm báo cáo"
+              options={[
+                { value: "", label: "Tất cả" },
+                ...years.map((value) => ({
+                  value: String(value),
+                  label: String(value),
+                })),
+              ]}
+              onChange={(value) => {
+                setYear(value === "" ? "" : Number(value));
+                setPage(0);
+              }}
+            />
+          </Box>
+          <Box sx={{ width: 190 }}>
+            <TableFilterAutocomplete
+              value={status}
+              ariaLabel="Trạng thái"
+              options={[
+                { value: "", label: "Tất cả" },
+                ...Object.entries(STATUS).map(([value, config]) => ({
+                  value,
+                  label: config.label,
+                })),
+              ]}
+              onChange={(value) => {
+                setStatus(
+                  value as ReviewableOccupationalAccidentReportStatus | "",
+                );
+                setPage(0);
+              }}
+            />
+          </Box>
           <Tooltip title={translate("common.resetFilters")}>
             <span>
               <IconButton
@@ -172,19 +177,42 @@ export default function AdminReportQueue() {
         </Stack>
       </Card>
 
-      <Card square sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        {loading && <LinearProgress sx={{ position: "absolute", inset: "0 0 auto", zIndex: 3 }} />}
+      <Card
+        square
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}
+      >
+        {loading && (
+          <LinearProgress
+            sx={{ position: "absolute", inset: "0 0 auto", zIndex: 3 }}
+          />
+        )}
         <TableContainer sx={{ flex: 1 }}>
           <Table stickyHeader size="small" sx={{ minWidth: 1050 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 80, fontWeight: 600 }}>Thao tác</TableCell>
+                <TableCell sx={{ width: 80, fontWeight: 600 }}>
+                  Thao tác
+                </TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Tên doanh nghiệp</TableCell>
-                <TableCell sx={{ width: 140, fontWeight: 600 }}>Mã số thuế</TableCell>
+                <TableCell sx={{ width: 140, fontWeight: 600 }}>
+                  Mã số thuế
+                </TableCell>
                 <TableCell sx={{ width: 120, fontWeight: 600 }}>Năm</TableCell>
-                <TableCell sx={{ width: 170, fontWeight: 600 }}>Kỳ báo cáo</TableCell>
-                <TableCell sx={{ width: 190, fontWeight: 600 }}>Thời điểm gửi</TableCell>
-                <TableCell sx={{ width: 160, fontWeight: 600 }}>Trạng thái</TableCell>
+                <TableCell sx={{ width: 170, fontWeight: 600 }}>
+                  Kỳ báo cáo
+                </TableCell>
+                <TableCell sx={{ width: 190, fontWeight: 600 }}>
+                  Thời điểm gửi
+                </TableCell>
+                <TableCell sx={{ width: 160, fontWeight: 600 }}>
+                  Trạng thái
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -195,7 +223,9 @@ export default function AdminReportQueue() {
                       <IconButton
                         size="small"
                         color="primary"
-                        onClick={() => router.push(`/accidents/labor-contracts/${row.id}`)}
+                        onClick={() =>
+                          router.push(`/accidents/labor-contracts/${row.id}`)
+                        }
                         aria-label="Xem báo cáo"
                       >
                         <VisibilityOutlinedIcon fontSize="small" />
@@ -219,7 +249,11 @@ export default function AdminReportQueue() {
               ))}
               {!loading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 7, color: "text.secondary" }}>
+                  <TableCell
+                    colSpan={7}
+                    align="center"
+                    sx={{ py: 7, color: "text.secondary" }}
+                  >
                     Không có báo cáo phù hợp.
                   </TableCell>
                 </TableRow>

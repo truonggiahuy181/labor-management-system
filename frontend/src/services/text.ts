@@ -8,3 +8,7 @@ export const stripSpaces = (value: string) => value.replace(/\s/g, '');
 
 /** Còn chữ sau khi bỏ khoảng trắng đầu / cuối (dùng cho ô bắt buộc: "   " không hợp lệ) */
 export const notBlank = (value: unknown) => String(value ?? '').trim() !== '';
+
+/** Tên/mã danh mục phải bắt đầu bằng chữ Unicode hoặc chữ số sau khi bỏ khoảng trắng hai đầu. */
+export const startsWithLetterOrNumber = (value: unknown) =>
+  /^[\p{L}\p{N}]/u.test(String(value ?? '').trim());

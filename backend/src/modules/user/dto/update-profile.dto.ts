@@ -1,5 +1,6 @@
 import {
   IsString,
+  IsNotEmpty,
   IsOptional,
   IsDateString,
   IsInt,
@@ -21,6 +22,8 @@ export class UpdateProfileDto {
   })
   @IsOptional()
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Họ và tên không được để trống' })
+  @Matches(/\S/u, { message: 'Họ và tên không được chỉ gồm khoảng trắng' })
   @MaxLength(100, { message: 'Họ và tên không được vượt quá 100 ký tự' })
   fullName?: string;
 

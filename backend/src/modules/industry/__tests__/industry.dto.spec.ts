@@ -47,4 +47,34 @@ describe('Industry DTO contract', () => {
       ),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it.each([
+    [CreateIndustryDto, { industryCode: '12', industryName: '_Ngành nghề' }],
+    [UpdateIndustryDto, { industryName: '@Ngành nghề' }],
+  ])(
+    'rejects a name starting with a special character',
+    async (metatype, value) => {
+      await expect(
+        validationPipe.transform(value, { type: 'body', metatype }),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
+
+  it.each([
+    [CreateIndustryDto, { industryCode: '12', industryName: '' }],
+    [UpdateIndustryDto, { industryName: '' }],
+  ])(
+    'returns a Vietnamese message when industryName is empty',
+    async (metatype, value) => {
+      await expect(
+        validationPipe.transform(value, { type: 'body', metatype }),
+      ).rejects.toMatchObject({
+        response: {
+          message: expect.arrayContaining([
+            'Tên ngành nghề không được để trống',
+          ]),
+        },
+      });
+    },
+  );
 });

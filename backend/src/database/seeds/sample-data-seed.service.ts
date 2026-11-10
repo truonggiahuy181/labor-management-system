@@ -434,16 +434,33 @@ const INJURY_FACTORS = [
 const ACCIDENT_CAUSES = [
   [
     'NSDL-01',
-    'Không xây dựng hoặc thực hiện đầy đủ biện pháp an toàn',
+    'Không có thiết bị an toàn hoặc thiết bị không đảm bảo an toàn',
     'EMPLOYER',
   ],
-  ['NSDL-02', 'Thiết bị, máy móc không bảo đảm an toàn', 'EMPLOYER'],
-  ['NSDL-03', 'Không huấn luyện hoặc hướng dẫn an toàn đầy đủ', 'EMPLOYER'],
-  ['NLD-01', 'Vi phạm quy trình, quy chuẩn an toàn lao động', 'EMPLOYEE'],
-  ['NLD-02', 'Không sử dụng phương tiện bảo vệ cá nhân', 'EMPLOYEE'],
-  ['NLD-03', 'Thao tác sai hoặc thiếu tập trung khi làm việc', 'EMPLOYEE'],
-  ['KQ-01', 'Điều kiện thời tiết hoặc thiên tai bất thường', 'OBJECTIVE'],
-  ['KQ-02', 'Sự cố khách quan ngoài khả năng kiểm soát', 'OBJECTIVE'],
+  [
+    'NSDL-02',
+    'Không có phương tiện bảo vệ cá nhân hoặc phương tiện bảo vệ cá nhân không tốt',
+    'EMPLOYER',
+  ],
+  ['NSDL-03', 'Tổ chức lao động không hợp lý', 'EMPLOYER'],
+  [
+    'NLD-01',
+    'Chưa huấn luyện hoặc huấn luyện an toàn vệ sinh lao động chưa đầy đủ',
+    'EMPLOYER',
+  ],
+  [
+    'NLD-02',
+    'Không có quy trình an toàn hoặc biện pháp làm việc an toàn',
+    'EMPLOYER',
+  ],
+  ['NLD-03', 'Điều kiện làm việc không tốt', 'EMPLOYER'],
+  [
+    'KQ-01',
+    'Quy phạm, nội quy, quy trình, quy chuẩn, biện pháp làm việc an toàn',
+    'EMPLOYEE',
+  ],
+  ['KQ-02', 'Không sử dụng phương tiện bảo vệ cá nhân', 'EMPLOYEE'],
+  ['KQ-03', 'Khách quan khó tránh hoặc nguyên nhân chưa kể đến', 'EMPLOYEE'],
 ] as const;
 
 @Injectable()

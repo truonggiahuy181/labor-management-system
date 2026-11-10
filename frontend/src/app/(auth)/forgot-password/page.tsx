@@ -9,6 +9,7 @@ import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import { authApi, getErrorCode } from '@/services/auth';
+import { notBlank } from '@/services/text';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
@@ -83,6 +84,7 @@ export default function ForgotPasswordPage() {
   };
 
   const missing = translate('common.missingInfo');
+  const requiredText = (value: string) => notBlank(value) || missing;
 
   const heading = (
     <Typography sx={{ variant: "subtitle1", color: "primary", fontWeight: 700, textAlign: "center", textTransform: "uppercase" }}>
@@ -114,7 +116,8 @@ export default function ForgotPasswordPage() {
           rules={{ required: missing, pattern: { value: EMAIL_RE, message: translate('signup.invalidEmail') } }}
           render={({ field, fieldState }) => (
             <TextField {...field} required size="small" type="email" label="Email"
-              autoComplete="email" autoFocus error={!!fieldState.error} />
+              autoComplete="email" autoFocus error={!!fieldState.error}
+              helperText={fieldState.error?.message} />
           )}
         />
         <Button type="submit" variant="contained" disabled={emailForm.formState.isSubmitting}>
@@ -139,10 +142,14 @@ export default function ForgotPasswordPage() {
       <Controller
         name="newPassword"
         control={resetForm.control}
-        rules={{ required: missing, minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) } }}
+        rules={{
+          required: missing,
+          validate: requiredText,
+          minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
+        }}
         render={({ field, fieldState }) => (
           <PasswordField {...field} required size="small" label={translate('forgotPassword.newPassword')}
-            autoComplete="new-password" error={!!fieldState.error} />
+            autoComplete="new-password" error={!!fieldState.error} helperText={fieldState.error?.message} />
         )}
       />
       <Controller
@@ -150,20 +157,27 @@ export default function ForgotPasswordPage() {
         control={resetForm.control}
         rules={{
           required: missing,
-          validate: (v) => v === resetForm.getValues('newPassword') || translate('signup.passwordMismatch'),
+          validate: {
+            notBlank: requiredText,
+            matches: (v) => v === resetForm.getValues('newPassword') || translate('signup.passwordMismatch'),
+          },
         }}
         render={({ field, fieldState }) => (
           <PasswordField {...field} required size="small" label={translate('forgotPassword.confirmPassword')}
-            autoComplete="new-password" error={!!fieldState.error} />
+            autoComplete="new-password" error={!!fieldState.error} helperText={fieldState.error?.message} />
         )}
       />
       <Controller
         name="otp"
         control={resetForm.control}
-        rules={{ required: missing }}
+        rules={{
+          required: missing,
+          pattern: { value: /^\d{6}$/, message: translate('forgotPassword.invalidOtp') },
+        }}
         render={({ field, fieldState }) => (
           <TextField {...field} required size="small" label="OTP" autoComplete="one-time-code"
-            slotProps={{ htmlInput: { inputMode: 'numeric' } }} error={!!fieldState.error} />
+            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6 } }}
+            error={!!fieldState.error} helperText={fieldState.error?.message} />
         )}
       />
 

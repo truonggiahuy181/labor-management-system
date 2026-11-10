@@ -9,14 +9,15 @@ import {
   DialogContent,
   DialogTitle,
   InputAdornment,
-  MenuItem,
   Stack,
   TextField,
 } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import { useSnackbar } from "notistack";
 import useLocales from "@/Hooks/useLocales";
+import SearchableSelectField from "@/Components/SearchableSelectField";
 import { occupationApi, type Occupation } from "@/services/accidentCatalog";
+import { notBlank, startsWithLetterOrNumber } from "@/services/text";
 import { getErrorMessage } from "@/services/user";
 import OccupationParentTreeSelect from "./OccupationParentTreeSelect";
 
@@ -218,7 +219,19 @@ export default function OccupationFormDialog({
           <Controller
             name="occupationName"
             control={control}
-            rules={{ required, maxLength: 255 }}
+            rules={{
+              required,
+              validate: {
+                notBlank: (value) => notBlank(value) || required,
+                validStart: (value) =>
+                  startsWithLetterOrNumber(value) ||
+                  translate("common.invalidNameStart"),
+              },
+              maxLength: {
+                value: 255,
+                message: translate("common.maxLength", { max: 255 }),
+              },
+            }}
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
@@ -235,22 +248,21 @@ export default function OccupationFormDialog({
             name="isActive"
             control={control}
             render={({ field }) => (
-              <TextField
-                select
-                size="small"
+              <SearchableSelectField
                 label={translate("catalogManagement.status")}
                 value={String(field.value)}
-                onChange={(event) =>
-                  field.onChange(event.target.value === "true")
-                }
-              >
-                <MenuItem value="true">
-                  {translate("catalogManagement.inUse")}
-                </MenuItem>
-                <MenuItem value="false">
-                  {translate("catalogManagement.notInUse")}
-                </MenuItem>
-              </TextField>
+                onChange={(value) => field.onChange(value === "true")}
+                options={[
+                  {
+                    value: "true",
+                    label: translate("catalogManagement.inUse"),
+                  },
+                  {
+                    value: "false",
+                    label: translate("catalogManagement.notInUse"),
+                  },
+                ]}
+              />
             )}
           />
         </Stack>

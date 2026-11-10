@@ -27,14 +27,29 @@ describe('Injury type DTO contract', () => {
     });
   });
 
-  it.each(['A', '10', '', '1.1'])('rejects invalid code segment %s', async (codeSegment) => {
-    await expect(
-      validationPipe.transform(
-        { codeSegment, injuryTypeName: 'Mẫu' },
-        { type: 'body', metatype: CreateInjuryTypeDto },
-      ),
-    ).rejects.toThrow(BadRequestException);
-  });
+  it.each(['A', '10', '', '1.1'])(
+    'rejects invalid code segment %s',
+    async (codeSegment) => {
+      await expect(
+        validationPipe.transform(
+          { codeSegment, injuryTypeName: 'Mẫu' },
+          { type: 'body', metatype: CreateInjuryTypeDto },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
+
+  it.each([
+    [CreateInjuryTypeDto, { codeSegment: '1', injuryTypeName: '_Chấn thương' }],
+    [UpdateInjuryTypeDto, { injuryTypeName: '-Chấn thương' }],
+  ])(
+    'rejects a name starting with a special character',
+    async (metatype, value) => {
+      await expect(
+        validationPipe.transform(value, { type: 'body', metatype }),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
 
   it.each([
     [

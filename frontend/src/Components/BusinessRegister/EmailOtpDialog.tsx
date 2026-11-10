@@ -44,7 +44,7 @@ export default function EmailOtpDialog({ open, email, taxCode, onClose, onVerifi
   };
 
   const verify = async () => {
-    if (!otp.trim()) return setError(t('enterOtp'));
+    if (otp.length !== 6) return setError(t('invalidOtp'));
     setSubmitting(true);
     setError('');
     try {
@@ -93,7 +93,7 @@ export default function EmailOtpDialog({ open, email, taxCode, onClose, onVerifi
             </Typography>
           )}
 
-          <Button variant="contained" onClick={verify} disabled={submitting}>{t('confirm')}</Button>
+          <Button variant="contained" onClick={verify} disabled={submitting || otp.length !== 6}>{t('confirm')}</Button>
           <Button onClick={onClose} color="inherit">{t('cancel')}</Button>
         </Stack>
       </DialogContent>

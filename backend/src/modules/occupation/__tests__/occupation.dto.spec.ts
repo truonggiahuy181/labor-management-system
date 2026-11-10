@@ -48,6 +48,21 @@ describe('Occupation DTO contract', () => {
   it.each([
     [
       CreateOccupationDto,
+      { occupationCode: '1', occupationName: '_Nghề nghiệp' },
+    ],
+    [UpdateOccupationDto, { occupationName: '.Nghề nghiệp' }],
+  ])(
+    'rejects a name starting with a special character',
+    async (metatype, value) => {
+      await expect(
+        validationPipe.transform(value, { type: 'body', metatype }),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
+
+  it.each([
+    [
+      CreateOccupationDto,
       { occupationCode: '1', occupationName: 'Mẫu', level: 1 },
     ],
     [UpdateOccupationDto, { occupationName: 'Mẫu', parentId: 1 }],

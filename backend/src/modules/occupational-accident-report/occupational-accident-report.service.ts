@@ -262,14 +262,17 @@ export class OccupationalAccidentReportService {
       });
     }
 
-    const reports = await builder
-      .orderBy('report.enterprise_name', 'ASC')
-      .addOrderBy('report.id', 'ASC')
-      .getMany();
+    const [reports, causes] = await Promise.all([
+      builder
+        .orderBy('report.enterprise_name', 'ASC')
+        .addOrderBy('report.id', 'ASC')
+        .getMany(),
+      this.getActiveAccidentCauses(),
+    ]);
     const regular = this.emptySummary();
     const article39 = this.emptySummary();
     const grandTotal = this.emptySummary();
-    const byCause = new Map<number, BreakdownValue>();
+    const byCause = this.createCauseBreakdownMap(causes);
     const byInjuryFactor = new Map<number, BreakdownValue>();
     const byOccupation = new Map<number, BreakdownValue>();
     const enterpriseIds = new Set<number>();
@@ -310,7 +313,7 @@ export class OccupationalAccidentReportService {
       for (const accidentCase of report.cases) {
         accidentCase.victimGroups ??= [];
       }
-      const overview = this.buildOverview(report);
+      const overview = this.buildOverview(report, causes);
       enterpriseIds.add(report.enterpriseId);
       totalEmployees += report.totalEmployees;
       femaleEmployees += report.femaleEmployees;
@@ -397,7 +400,11 @@ export class OccupationalAccidentReportService {
   async getAdminOverview(
     reportId: number,
   ): Promise<OccupationalAccidentOverview> {
-    return this.buildOverview(await this.findAdminReport(reportId));
+    const [report, causes] = await Promise.all([
+      this.findAdminReport(reportId),
+      this.getActiveAccidentCauses(),
+    ]);
+    return this.buildOverview(report, causes);
   }
 
   async receiveReport(userId: number, reportId: number): Promise<any> {
@@ -792,8 +799,11 @@ export class OccupationalAccidentReportService {
     reportId: number,
   ): Promise<OccupationalAccidentOverview> {
     const enterprise = await this.resolveEnterprise(userId);
-    const report = await this.findOwnedReport(enterprise.id, reportId);
-    return this.buildOverview(report);
+    const [report, causes] = await Promise.all([
+      this.findOwnedReport(enterprise.id, reportId),
+      this.getActiveAccidentCauses(),
+    ]);
+    return this.buildOverview(report, causes);
   }
 
   async submit(userId: number, reportId: number): Promise<any> {
@@ -1391,9 +1401,10 @@ export class OccupationalAccidentReportService {
 
   private buildOverview(
     report: OccupationalAccidentReportEntity,
+    causes: AccidentCauseEntity[] = [],
   ): OccupationalAccidentOverview {
     const regular = this.emptySummary();
-    const byCause = new Map<number, BreakdownValue>();
+    const byCause = this.createCauseBreakdownMap(causes);
     const byFactor = new Map<number, BreakdownValue>();
     const byOccupation = new Map<number, BreakdownValue>();
 
@@ -1476,6 +1487,29 @@ export class OccupationalAccidentReportService {
       byInjuryFactor: sortRows(byFactor),
       byOccupation: sortRows(byOccupation),
     };
+  }
+
+  private async getActiveAccidentCauses(): Promise<AccidentCauseEntity[]> {
+    return this.causeRepository.find({
+      where: { isActive: true },
+      order: { displayOrder: 'ASC', causeCode: 'ASC' },
+    });
+  }
+
+  private createCauseBreakdownMap(
+    causes: AccidentCauseEntity[],
+  ): Map<number, BreakdownValue> {
+    return new Map(
+      causes.map((cause) => [
+        cause.id,
+        {
+          id: cause.id,
+          code: String(cause.displayOrder),
+          name: cause.causeName,
+          ...this.emptyCounts(),
+        },
+      ]),
+    );
   }
 
   private countVictimGroups(

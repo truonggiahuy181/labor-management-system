@@ -4,31 +4,26 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
   Chip,
   CircularProgress,
-  IconButton,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   LinearProgress,
   Stack,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Tabs,
-  Tooltip,
+  TextField,
   Typography,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
+import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import { useSnackbar } from "notistack";
 import {
   injuryFactorApi,
@@ -48,11 +43,13 @@ import {
   type OccupationalAccidentReport,
   type UpdateReportHeaderBody,
 } from "@/services/occupationalAccidentReport";
-import { getErrorMessage } from "@/services/user";
 import { getReportPeriodLabel } from "@/services/reportPeriod";
+import { getErrorMessage } from "@/services/user";
 import AccidentCaseDialog from "./AccidentCaseDialog";
+import AccidentCasePanel from "./AccidentCasePanel";
 import Article39Form from "./Article39Form";
 import OverviewPanel from "./OverviewPanel";
+import RegularAccidentSummary from "./RegularAccidentSummary";
 import ReportHeaderForm from "./ReportHeaderForm";
 import SignedDocumentPanel from "./SignedDocumentPanel";
 import { printOccupationalAccidentReport } from "./reportPrint";
@@ -64,13 +61,12 @@ const STATUS = {
   RETURNED: { label: "Yêu cầu bổ sung", color: "warning" as const },
 };
 
-const formatDate = (value: string) => {
-  const [year, month, day] = value.slice(0, 10).split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
-};
-
-const formatMoney = (value: string) =>
-  new Intl.NumberFormat("vi-VN").format(BigInt(value || "0"));
+const REPORT_SECTIONS = [
+  "Thông tin doanh nghiệp",
+  "1. Tai nạn lao động",
+  "2. Tai nạn được hưởng trợ cấp theo Khoản 2 Điều 39 Luật ATVSLĐ",
+  "Xem tổng quan báo cáo tai nạn lao động",
+] as const;
 
 export default function ReportWorkspace({ reportId }: { reportId: number }) {
   const router = useRouter();
@@ -85,8 +81,10 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [tab, setTab] = useState(0);
+  const [section, setSection] = useState(0);
+  const [regularTab, setRegularTab] = useState(0);
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [editingCase, setEditingCase] =
     useState<OccupationalAccidentCase | null>(null);
 
@@ -202,9 +200,8 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
       !window.confirm(
         "Gửi báo cáo? Sau khi gửi, doanh nghiệp không thể chỉnh sửa.",
       )
-    ) {
+    )
       return;
-    }
     setSubmitting(true);
     try {
       const nextReport = await occupationalAccidentReportApi.submit(reportId);
@@ -221,9 +218,8 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
   };
 
   if (loading) return <LinearProgress />;
-  if (!report || !overview) {
+  if (!report || !overview)
     return <Alert severity="error">Không tìm thấy báo cáo.</Alert>;
-  }
 
   const readOnly =
     report.status === "SUBMITTED" ||
@@ -233,6 +229,17 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
     report.reportPeriod.reportYear,
     report.reportPeriod.periodCode,
   );
+
+  const moveNext = () => {
+    if (section === 1 && regularTab === 0) {
+      setRegularTab(1);
+      return;
+    }
+    if (section < REPORT_SECTIONS.length - 1) {
+      setSection((current) => current + 1);
+      setRegularTab(0);
+    }
+  };
 
   return (
     <Stack spacing={1.5}>
@@ -244,25 +251,17 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           py: 1.25,
           display: "flex",
           alignItems: "center",
-          gap: 1.5,
+          gap: 1.25,
+          flexWrap: "wrap",
         }}
       >
-        <IconButton
-          size="small"
-          onClick={() => router.push("/accidents/labor-contracts")}
-          aria-label="Quay lại"
-        >
-          <ArrowBackIcon />
-        </IconButton>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 260 }}>
           <Typography sx={{ fontWeight: 700 }}>
-            {report.reportPeriod.reportName}
+            Báo cáo định kỳ Tai nạn lao động
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {getReportPeriodLabel(report.reportPeriod.periodCode)} năm{" "}
-            {report.reportPeriod.reportYear} · Thời gian nhận:{" "}
-            {formatDate(report.reportPeriod.submissionStartDate)} –{" "}
-            {formatDate(report.reportPeriod.submissionEndDate)}
+          <Typography variant="caption" color="text.secondary">
+            {getReportPeriodLabel(report.reportPeriod.periodCode)} ·{" "}
+            {report.reportPeriod.reportName}
           </Typography>
         </Box>
         <Chip
@@ -271,14 +270,35 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           label={STATUS[report.status].label}
           color={STATUS[report.status].color}
         />
-        <Button
-          variant="outlined"
-          startIcon={<PrintOutlinedIcon />}
-          onClick={() => printOccupationalAccidentReport(report, overview)}
-        >
-          In báo cáo
+        <TextField
+          size="small"
+          value={report.reportPeriod.reportYear}
+          aria-label="Năm báo cáo"
+          slotProps={{ input: { readOnly: true } }}
+          sx={{ width: 92 }}
+        />
+        <Button color="inherit" onClick={() => setCancelDialogOpen(true)}>
+          Hủy bỏ
         </Button>
-        {!readOnly && (
+        {section < REPORT_SECTIONS.length - 1 && (
+          <Button
+            variant="outlined"
+            endIcon={<NavigateNextIcon />}
+            onClick={moveNext}
+          >
+            Tiếp tục
+          </Button>
+        )}
+        {section === REPORT_SECTIONS.length - 1 && (
+          <Button
+            variant="outlined"
+            startIcon={<PrintOutlinedIcon />}
+            onClick={() => printOccupationalAccidentReport(report, overview)}
+          >
+            In báo cáo
+          </Button>
+        )}
+        {!readOnly && section === REPORT_SECTIONS.length - 1 && (
           <Button
             variant="contained"
             startIcon={
@@ -300,165 +320,92 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           </Alert>
         )}
 
-      <SignedDocumentPanel
-        report={report}
-        mode="enterprise"
-        readOnly={readOnly}
-        onReportChange={setReport}
-      />
-
-      <Card square>
-        <Tabs
-          value={tab}
-          onChange={(_, value) => setTab(value)}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Thông tin doanh nghiệp" />
-          <Tab label={`Tai nạn lao động (${report.cases.length})`} />
-          <Tab label="Khoản 2 Điều 39" />
-          <Tab label="Xem tổng quan" />
-        </Tabs>
+      <Card square variant="outlined" sx={{ p: 1.5 }}>
+        <Autocomplete
+          size="small"
+          options={[...REPORT_SECTIONS]}
+          value={REPORT_SECTIONS[section]}
+          autoHighlight
+          openOnFocus
+          selectOnFocus
+          onChange={(_, option) => {
+            if (!option) return;
+            setSection(REPORT_SECTIONS.indexOf(option));
+            setRegularTab(0);
+          }}
+          sx={{ maxWidth: 620 }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Chọn mục báo cáo"
+              placeholder="Nhập tên mục để tìm"
+            />
+          )}
+        />
+        {section === 1 && (
+          <Tabs
+            value={regularTab}
+            onChange={(_, value) => setRegularTab(value)}
+            sx={{ mt: 1, borderBottom: 1, borderColor: "divider" }}
+          >
+            <Tab label="(1) Tổng số vụ tai nạn lao động" />
+            <Tab label="(2) Chi tiết các vụ tai nạn lao động" />
+          </Tabs>
+        )}
       </Card>
 
-      <Box>
-        {tab === 0 && (
-          <ReportHeaderForm
-            key={`header-${report.version}`}
+      {section === 0 && (
+        <ReportHeaderForm
+          key={`header-${report.version}`}
+          report={report}
+          readOnly={readOnly}
+          saving={saving}
+          onSave={saveHeader}
+        />
+      )}
+
+      {section === 1 && regularTab === 0 && (
+        <RegularAccidentSummary summary={overview.regular} />
+      )}
+
+      {section === 1 && regularTab === 1 && (
+        <AccidentCasePanel
+          cases={report.cases}
+          noAccidentsDeclared={report.noAccidentsDeclared}
+          readOnly={readOnly}
+          onAdd={() => {
+            setEditingCase(null);
+            setCaseDialogOpen(true);
+          }}
+          onEdit={(item) => {
+            setEditingCase(item);
+            setCaseDialogOpen(true);
+          }}
+          onRemove={removeCase}
+        />
+      )}
+
+      {section === 2 && (
+        <Article39Form
+          key={`article39-${report.version}`}
+          report={report}
+          readOnly={readOnly}
+          saving={saving}
+          onSave={saveArticle39}
+        />
+      )}
+
+      {section === 3 && (
+        <Stack spacing={1.5}>
+          <OverviewPanel overview={overview} />
+          <SignedDocumentPanel
             report={report}
+            mode="enterprise"
             readOnly={readOnly}
-            saving={saving}
-            onSave={saveHeader}
+            onReportChange={setReport}
           />
-        )}
-
-        {tab === 1 && (
-          <Card variant="outlined">
-            <Stack direction="row" sx={{ p: 2, alignItems: "center" }}>
-              <Typography sx={{ flex: 1, fontWeight: 700 }}>
-                Chi tiết các vụ tai nạn lao động
-              </Typography>
-              {!readOnly && !report.noAccidentsDeclared && (
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => {
-                    setEditingCase(null);
-                    setCaseDialogOpen(true);
-                  }}
-                >
-                  Thêm vụ tai nạn
-                </Button>
-              )}
-            </Stack>
-            {report.noAccidentsDeclared && (
-              <Alert severity="info" sx={{ mx: 2, mb: 2 }}>
-                Doanh nghiệp đã xác nhận không phát sinh tai nạn trong kỳ.
-              </Alert>
-            )}
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ width: 100, fontWeight: 600 }}>
-                      Thao tác
-                    </TableCell>
-                    <TableCell sx={{ width: 130, fontWeight: 600 }}>
-                      Ngày tai nạn
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Nguyên nhân</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
-                      Yếu tố chấn thương
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Nạn nhân
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Tử vong
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Tổng chi phí
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {report.cases.map((item) => {
-                    const victims = item.victimGroups.reduce(
-                      (sum, group) => sum + group.victimCount,
-                      0,
-                    );
-                    const deaths = item.victimGroups.reduce(
-                      (sum, group) => sum + group.deathCount,
-                      0,
-                    );
-                    return (
-                      <TableRow key={item.id} hover>
-                        <TableCell>
-                          {!readOnly && (
-                            <>
-                              <Tooltip title="Chỉnh sửa">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    setEditingCase(item);
-                                    setCaseDialogOpen(true);
-                                  }}
-                                >
-                                  <EditOutlinedIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Xóa">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => removeCase(item)}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-                        </TableCell>
-                        <TableCell>{formatDate(item.accidentDate)}</TableCell>
-                        <TableCell>{item.accidentCause.name}</TableCell>
-                        <TableCell>{item.injuryFactor.name}</TableCell>
-                        <TableCell align="right">{victims}</TableCell>
-                        <TableCell align="right">{deaths}</TableCell>
-                        <TableCell align="right">
-                          {formatMoney(item.totalCostVnd)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {report.cases.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        align="center"
-                        sx={{ py: 5, color: "text.secondary" }}
-                      >
-                        Chưa có vụ tai nạn nào.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
-        )}
-
-        {tab === 2 && (
-          <Article39Form
-            key={`article39-${report.version}`}
-            report={report}
-            readOnly={readOnly}
-            saving={saving}
-            onSave={saveArticle39}
-          />
-        )}
-
-        {tab === 3 && <OverviewPanel overview={overview} />}
-      </Box>
+        </Stack>
+      )}
 
       {caseDialogOpen && (
         <AccidentCaseDialog
@@ -477,6 +424,36 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           onSave={saveCase}
         />
       )}
+
+      <Dialog
+        open={cancelDialogOpen}
+        onClose={() => setCancelDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{
+            bgcolor: "primary.main",
+            color: "primary.contrastText",
+            textAlign: "center",
+          }}
+        >
+          Cảnh báo
+        </DialogTitle>
+        <DialogContent sx={{ pt: "24px !important", textAlign: "center" }}>
+          Dữ liệu chưa lưu trong biểu mẫu hiện tại sẽ không được giữ lại.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelDialogOpen(false)}>Hủy bỏ</Button>
+          <Button
+            variant="contained"
+            onClick={() => router.push("/accidents/labor-contracts")}
+          >
+            {" "}
+            Đồng ý{" "}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

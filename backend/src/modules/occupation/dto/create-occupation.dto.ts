@@ -10,6 +10,8 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+const NAME_START_RE = /^[\p{L}\p{N}]/u;
+
 export class CreateOccupationDto {
   @ApiProperty({ example: '1111', maxLength: 4 })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -24,6 +26,9 @@ export class CreateOccupationDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
+  @Matches(NAME_START_RE, {
+    message: 'Tên nghề nghiệp phải bắt đầu bằng chữ cái hoặc chữ số',
+  })
   occupationName: string;
 
   @ApiPropertyOptional({ example: 111, nullable: true })

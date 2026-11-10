@@ -5,6 +5,7 @@ import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack } from
 import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
+import { notBlank } from '@/services/text';
 import { getErrorMessage, userApi } from '@/services/user';
 
 type Form = { currentPassword: string; newPassword: string; confirmNewPassword: string };
@@ -19,6 +20,7 @@ export default function ChangePasswordDialog({ open, onClose, onSuccess }: { ope
   });
 
   const required = translate('common.required');
+  const requiredText = (value: string) => notBlank(value) || required;
   const close = () => { reset(); onClose(); };
 
   const onSubmit = async (values: Form) => {
@@ -40,7 +42,8 @@ export default function ChangePasswordDialog({ open, onClose, onSuccess }: { ope
       </DialogTitle>
       <DialogContent>
         <Stack component="form" id="change-password-form" spacing={2} sx={{ pt: 2 }} onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Controller name="currentPassword" control={control} rules={{ required }}
+          <Controller name="currentPassword" control={control}
+            rules={{ required, validate: requiredText }}
             render={({ field, fieldState }) => (
               <PasswordField {...field} required size="small" label={translate('changePassword.oldPassword')} autoComplete="current-password"
                 error={!!fieldState.error} helperText={fieldState.error?.message} />
@@ -49,14 +52,23 @@ export default function ChangePasswordDialog({ open, onClose, onSuccess }: { ope
             rules={{
               required,
               minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
-              validate: (v) => v !== getValues('currentPassword') || translate('changePassword.sameAsOld'),
+              validate: {
+                notBlank: requiredText,
+                different: (v) => v !== getValues('currentPassword') || translate('changePassword.sameAsOld'),
+              },
             }}
             render={({ field, fieldState }) => (
               <PasswordField {...field} required size="small" label={translate('changePassword.newPassword')} autoComplete="new-password"
                 error={!!fieldState.error} helperText={fieldState.error?.message} />
             )} />
           <Controller name="confirmNewPassword" control={control}
-            rules={{ required, validate: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch') }}
+            rules={{
+              required,
+              validate: {
+                notBlank: requiredText,
+                matches: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch'),
+              },
+            }}
             render={({ field, fieldState }) => (
               <PasswordField {...field} required size="small" label={translate('changePassword.confirmNewPassword')} autoComplete="new-password"
                 error={!!fieldState.error} helperText={fieldState.error?.message} />

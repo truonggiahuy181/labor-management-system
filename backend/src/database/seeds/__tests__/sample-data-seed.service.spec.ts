@@ -237,7 +237,7 @@ describe('SampleDataSeedService', () => {
         }),
       ]),
     );
-    expect(accidentCauseRows).toHaveLength(8);
+    expect(accidentCauseRows).toHaveLength(9);
     expect(demoReportRows).toHaveLength(6);
     expect(demoReportRows.map((row: { status: string }) => row.status)).toEqual(
       expect.arrayContaining(['DRAFT', 'SUBMITTED', 'RECEIVED', 'RETURNED']),

@@ -10,6 +10,7 @@ import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import useAuth from '@/Hooks/useAuth';
 import { authApi, getErrorCode } from '@/services/auth';
+import { notBlank } from '@/services/text';
 
 type LoginForm = { username: string; password: string; remember: boolean };
 
@@ -78,20 +79,28 @@ export default function LoginPage() {
       <Controller
         name="username"
         control={control}
-        rules={{ required: true }}
+        rules={{
+          required: translate('common.required'),
+          validate: (value) => notBlank(value) || translate('common.required'),
+        }}
         render={({ field, fieldState }) => (
           <TextField {...field} required size="small" label={translate('login.username')}
-            autoComplete="username" autoFocus error={!!fieldState.error} />
+            autoComplete="username" autoFocus error={!!fieldState.error}
+            helperText={fieldState.error?.message} />
         )}
       />
 
       <Controller
         name="password"
         control={control}
-        rules={{ required: true }}
+        rules={{
+          required: translate('common.required'),
+          validate: (value) => notBlank(value) || translate('common.required'),
+        }}
         render={({ field, fieldState }) => (
           <PasswordField {...field} required size="small" label={translate('login.password')}
-            autoComplete="current-password" error={!!fieldState.error} />
+            autoComplete="current-password" error={!!fieldState.error}
+            helperText={fieldState.error?.message} />
         )}
       />
 

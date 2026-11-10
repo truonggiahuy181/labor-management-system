@@ -37,6 +37,7 @@ export class CreateUserDto {
   })
   @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
+  @Matches(/\S/u, { message: 'Mật khẩu không được chỉ gồm khoảng trắng' })
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   password: string;
 
@@ -47,6 +48,7 @@ export class CreateUserDto {
   })
   @IsString({ message: 'Họ và tên phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Họ và tên không được để trống' })
+  @Matches(/\S/u, { message: 'Họ và tên không được chỉ gồm khoảng trắng' })
   @MaxLength(100, { message: 'Họ và tên không được vượt quá 100 ký tự' })
   fullName: string;
 

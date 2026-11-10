@@ -4,6 +4,7 @@ import { Alert, Button, Stack, TextField, Typography, type AlertColor } from '@m
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import { authApi, getErrorCode } from '@/services/auth';
+import { notBlank } from '@/services/text';
 
 const PASSWORD_MIN = 8;
 const RESEND_SECONDS = 60;
@@ -68,6 +69,7 @@ export default function ResetPasswordForm({ email, onSuccess }: Props) {
   };
 
   const missing = translate('common.missingInfo');
+  const requiredText = (value: string) => notBlank(value) || missing;
 
   return (
     <Stack component="form" spacing={2} noValidate onSubmit={handleSubmit(onSubmit, onInvalid)}>
@@ -90,11 +92,13 @@ export default function ResetPasswordForm({ email, onSuccess }: Props) {
         control={control}
         rules={{
           required: missing,
+          validate: requiredText,
           minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
         }}
         render={({ field, fieldState }) => (
           <PasswordField {...field} required size="small" label={translate('forgotPassword.newPassword')}
-            autoComplete="new-password" autoFocus error={!!fieldState.error} />
+            autoComplete="new-password" autoFocus error={!!fieldState.error}
+            helperText={fieldState.error?.message} />
         )}
       />
 
@@ -103,11 +107,15 @@ export default function ResetPasswordForm({ email, onSuccess }: Props) {
         control={control}
         rules={{
           required: missing,
-          validate: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch'),
+          validate: {
+            notBlank: requiredText,
+            matches: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch'),
+          },
         }}
         render={({ field, fieldState }) => (
           <PasswordField {...field} required size="small" label={translate('forgotPassword.confirmPassword')}
-            autoComplete="new-password" error={!!fieldState.error} />
+            autoComplete="new-password" error={!!fieldState.error}
+            helperText={fieldState.error?.message} />
         )}
       />
 
@@ -118,7 +126,7 @@ export default function ResetPasswordForm({ email, onSuccess }: Props) {
         render={({ field, fieldState }) => (
           <TextField {...field} required size="small" label="OTP" autoComplete="one-time-code"
             slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6 } }}
-            error={!!fieldState.error} />
+            error={!!fieldState.error} helperText={fieldState.error?.message} />
         )}
       />
 

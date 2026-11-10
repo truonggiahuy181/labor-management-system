@@ -8,6 +8,7 @@ import useLocales from '@/Hooks/useLocales';
 import { getErrorMessage, userApi } from '@/services/user';
 
 const RESEND_SECONDS = 60;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type Step = 'otp' | 'email';
 
 // Bước 1: nhập OTP gửi về email hiện tại → Bước 2: nhập email mới
@@ -24,6 +25,7 @@ export default function ChangeEmailDialog({ open, currentEmail, onClose, onChang
   const [newEmail, setNewEmail] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [busy, setBusy] = useState(false);
+  const emailError = newEmail.length > 0 && !EMAIL_RE.test(newEmail);
 
   const showError = (err: unknown) =>
     enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
@@ -116,8 +118,11 @@ export default function ChangeEmailDialog({ open, currentEmail, onClose, onChang
             <>
               <Typography variant="body2">{translate('changeEmail.enterNewEmail')}</Typography>
               <TextField size="small" type="email" label={translate('changeEmail.newEmail')} required value={newEmail}
+                error={emailError}
+                helperText={emailError ? translate('signup.invalidEmail') : undefined}
                 onChange={(e) => setNewEmail(e.target.value.trim())} />
-              <Button variant="contained" onClick={saveEmail} disabled={!newEmail || busy}>{translate('common.save')}</Button>
+              <Button variant="contained" onClick={saveEmail}
+                disabled={!EMAIL_RE.test(newEmail) || busy}>{translate('common.save')}</Button>
             </>
           )}
 

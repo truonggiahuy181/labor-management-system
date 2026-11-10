@@ -41,43 +41,39 @@ export default function ReportHeaderForm({
     payrollFundVnd: report.payrollFundVnd,
     noAccidentsDeclared: report.noAccidentsDeclared,
   }));
-
   const invalid = form.femaleEmployees > form.totalEmployees;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       {report.status === "RETURNED" && report.returnedReason && (
         <Alert severity="warning">
           Yêu cầu bổ sung: {report.returnedReason}
         </Alert>
       )}
-
       <Card variant="outlined" sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2, fontWeight: 700 }}>
-          Thông tin doanh nghiệp
+        <Typography sx={{ mb: 0.75, fontWeight: 700 }}>
+          1. Thông tin công ty
+        </Typography>
+        <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+          Lưu ý: nhập tổng quỹ lương 6 tháng khi khai báo TNLĐ 6 tháng hoặc tổng
+          quỹ lương 12 tháng khi khai báo TNLĐ cả năm.
         </Typography>
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
-            gap: 2,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+            gap: 1.5,
           }}
         >
           <TextField
             size="small"
-            label="Tên doanh nghiệp"
+            label="Tên công ty"
             value={report.enterprise.enterpriseName}
             slotProps={{ input: { readOnly: true } }}
           />
           <TextField
             size="small"
-            label="Mã số thuế"
-            value={report.enterprise.taxCode}
-            slotProps={{ input: { readOnly: true } }}
-          />
-          <TextField
-            size="small"
-            label="Loại hình doanh nghiệp"
+            label="Loại hình công ty"
             value={report.enterprise.businessTypeName}
             slotProps={{ input: { readOnly: true } }}
           />
@@ -88,31 +84,10 @@ export default function ReportHeaderForm({
             slotProps={{ input: { readOnly: true } }}
           />
           <TextField
-            size="small"
-            label="Địa chỉ"
-            value={report.enterprise.address}
-            slotProps={{ input: { readOnly: true } }}
-            sx={{ gridColumn: { md: "1 / -1" } }}
-          />
-        </Box>
-      </Card>
-
-      <Card variant="outlined" sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2, fontWeight: 700 }}>
-          Lao động và quỹ lương trong kỳ
-        </Typography>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-            gap: 2,
-          }}
-        >
-          <TextField
             required
             size="small"
             type="number"
-            label="Tổng số lao động"
+            label="Tổng số lao động của cơ sở"
             value={form.totalEmployees}
             disabled={readOnly}
             onChange={(event) =>
@@ -127,12 +102,12 @@ export default function ReportHeaderForm({
             required
             size="small"
             type="number"
-            label="Số lao động nữ"
+            label="Tổng số lao động nữ"
             value={form.femaleEmployees}
             disabled={readOnly}
             error={invalid}
             helperText={
-              invalid ? "Không được lớn hơn tổng số lao động" : undefined
+              invalid ? "Không được lớn hơn tổng số lao động." : undefined
             }
             onChange={(event) =>
               setForm((current) => ({

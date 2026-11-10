@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import {
+  Alert,
+  Autocomplete,
   Box,
   Button,
+  createFilterOptions,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,7 +14,6 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
-  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -28,6 +30,7 @@ import type {
   AccidentVictimGroupBody,
   OccupationalAccidentCase,
 } from "@/services/occupationalAccidentReport";
+import AppDateField from "@/Components/AppDateField";
 
 const EMPTY_GROUP: AccidentVictimGroupBody = {
   occupationId: 0,
@@ -75,6 +78,20 @@ const toBody = (item: OccupationalAccidentCase | null): AccidentCaseBody =>
 const money = (value: string) => value.replace(/\D/g, "").slice(0, 19) || "0";
 const intValue = (value: string, minimum = 0) =>
   Math.max(minimum, Math.min(2_147_483_647, Number(value) || 0));
+const displayDate = (value: string) => value.split("-").reverse().join("/");
+
+const causeFilter = createFilterOptions<AccidentCause>({
+  stringify: (option) => `${option.causeCode} ${option.causeName}`,
+  limit: 50,
+});
+const factorFilter = createFilterOptions<InjuryFactor>({
+  stringify: (option) => `${option.factorCode} ${option.factorName}`,
+  limit: 50,
+});
+const occupationFilter = createFilterOptions<Occupation>({
+  stringify: (option) => `${option.occupationCode} ${option.occupationName}`,
+  limit: 80,
+});
 
 interface AccidentCaseDialogProps {
   open: boolean;
@@ -127,8 +144,35 @@ export default function AccidentCaseDialog({
       ),
     }));
 
+  const dateOutOfRange =
+    Boolean(form.accidentDate) &&
+    (form.accidentDate < minDate || form.accidentDate > maxDate);
+  const invalidFemaleGroup = form.victimGroups.findIndex(
+    (group) => group.femaleCount > group.victimCount,
+  );
+  const invalidInjuryGroup = form.victimGroups.findIndex(
+    (group) => group.deathCount + group.severeCount > group.victimCount,
+  );
+  const selectedGroupKeys = form.victimGroups
+    .filter((group) => group.occupationId > 0)
+    .map(
+      (group) => `${group.occupationId}:${group.isUnderEnterpriseManagement}`,
+    );
+  const hasDuplicateGroups =
+    new Set(selectedGroupKeys).size !== selectedGroupKeys.length;
+  const validationError = dateOutOfRange
+    ? `Ngày xảy ra tai nạn phải từ ${displayDate(minDate)} đến ${displayDate(maxDate)}.`
+    : invalidFemaleGroup >= 0
+      ? `Nhóm nạn nhân ${invalidFemaleGroup + 1}: số nữ không được lớn hơn số nạn nhân.`
+      : invalidInjuryGroup >= 0
+        ? `Nhóm nạn nhân ${invalidInjuryGroup + 1}: tổng số người chết và bị thương nặng không được lớn hơn số nạn nhân.`
+        : hasDuplicateGroups
+          ? "Không được lặp nghề nghiệp và phạm vi quản lý trong cùng một vụ tai nạn."
+          : "";
+
   const valid =
     Boolean(form.accidentDate) &&
+    !dateOutOfRange &&
     form.primaryCauseId > 0 &&
     form.injuryFactorId > 0 &&
     form.victimGroups.length > 0 &&
@@ -138,7 +182,12 @@ export default function AccidentCaseDialog({
         group.victimCount > 0 &&
         group.femaleCount <= group.victimCount &&
         group.deathCount + group.severeCount <= group.victimCount,
-    );
+    ) &&
+    !hasDuplicateGroups;
+  const selectedCause =
+    causes.find((cause) => cause.id === form.primaryCauseId) ?? null;
+  const selectedFactor =
+    injuryFactors.find((factor) => factor.id === form.injuryFactorId) ?? null;
 
   return (
     <Dialog
@@ -164,51 +213,67 @@ export default function AccidentCaseDialog({
               gap: 2,
             }}
           >
-            <TextField
+            <AppDateField
               required
-              size="small"
-              type="date"
               label="Ngày xảy ra tai nạn"
               value={form.accidentDate}
-              onChange={(event) => setField("accidentDate", event.target.value)}
-              slotProps={{
-                inputLabel: { shrink: true },
-                htmlInput: { min: minDate, max: maxDate },
-              }}
+              onChange={(value) => setField("accidentDate", value)}
+              min={minDate}
+              max={maxDate}
             />
-            <TextField
-              required
-              select
+            <Autocomplete
               size="small"
-              label="Nguyên nhân xảy ra tai nạn"
-              value={form.primaryCauseId || ""}
-              onChange={(event) =>
-                setField("primaryCauseId", Number(event.target.value))
+              options={causes}
+              value={selectedCause}
+              autoHighlight
+              openOnFocus
+              selectOnFocus
+              filterOptions={causeFilter}
+              getOptionLabel={(option) =>
+                `${option.causeCode} - ${option.causeName}`
               }
-            >
-              {causes.map((cause) => (
-                <MenuItem key={cause.id} value={cause.id}>
-                  {cause.causeCode} - {cause.causeName}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              required
-              select
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              onChange={(_, option) =>
+                setField("primaryCauseId", option?.id ?? 0)
+              }
+              slotProps={{ listbox: { style: { maxHeight: 320 } } }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  required
+                  label="Nguyên nhân xảy ra tai nạn"
+                  placeholder="Nhập mã hoặc tên để tìm"
+                />
+              )}
+            />
+            <Autocomplete
               size="small"
-              label="Yếu tố gây chấn thương"
-              value={form.injuryFactorId || ""}
-              onChange={(event) =>
-                setField("injuryFactorId", Number(event.target.value))
+              options={injuryFactors}
+              value={selectedFactor}
+              autoHighlight
+              openOnFocus
+              selectOnFocus
+              filterOptions={factorFilter}
+              getOptionLabel={(option) =>
+                `${option.factorCode} - ${option.factorName}`
               }
-            >
-              {injuryFactors.map((factor) => (
-                <MenuItem key={factor.id} value={factor.id}>
-                  {factor.factorCode} - {factor.factorName}
-                </MenuItem>
-              ))}
-            </TextField>
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              onChange={(_, option) =>
+                setField("injuryFactorId", option?.id ?? 0)
+              }
+              slotProps={{ listbox: { style: { maxHeight: 320 } } }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  required
+                  label="Yếu tố gây chấn thương"
+                  placeholder="Nhập mã hoặc tên để tìm"
+                />
+              )}
+            />
           </Box>
+
+          {validationError && <Alert severity="error">{validationError}</Alert>}
 
           <Divider />
           <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -246,24 +311,44 @@ export default function AccidentCaseDialog({
                 borderRadius: 1,
               }}
             >
-              <TextField
-                required
-                select
+              <Autocomplete
                 size="small"
-                label="Nghề nghiệp"
-                value={group.occupationId || ""}
-                onChange={(event) =>
+                options={occupations}
+                value={
+                  occupations.find(
+                    (occupation) => occupation.id === group.occupationId,
+                  ) ?? null
+                }
+                autoHighlight
+                openOnFocus
+                selectOnFocus
+                filterOptions={occupationFilter}
+                getOptionLabel={(option) =>
+                  `${option.occupationCode} - ${option.occupationName}`
+                }
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                onChange={(_, option) =>
                   updateGroup(index, {
-                    occupationId: Number(event.target.value),
+                    occupationId: option?.id ?? 0,
                   })
                 }
-              >
-                {occupations.map((occupation) => (
-                  <MenuItem key={occupation.id} value={occupation.id}>
-                    {occupation.occupationCode} - {occupation.occupationName}
-                  </MenuItem>
-                ))}
-              </TextField>
+                slotProps={{ listbox: { style: { maxHeight: 320 } } }}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id} title={option.occupationName}>
+                    <Typography noWrap>
+                      {option.occupationCode} - {option.occupationName}
+                    </Typography>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="Nghề nghiệp"
+                    placeholder="Nhập mã hoặc tên nghề"
+                  />
+                )}
+              />
               {(
                 [
                   ["victimCount", "Số nạn nhân", 1],
