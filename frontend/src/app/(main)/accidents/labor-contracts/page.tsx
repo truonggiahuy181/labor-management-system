@@ -27,7 +27,6 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useSnackbar } from "notistack";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
-import AdminReportQueue from "@/Components/OccupationalAccidentReport/AdminReportQueue";
 import { hasRole } from "@/constants/roles";
 import {
   occupationalAccidentReportApi,
@@ -69,6 +68,12 @@ export default function OccupationalAccidentReportsPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const isEnterprise = hasRole(user, 'ENTERPRISE');
+  const isAdmin = hasRole(user, 'ADMIN');
+
+  // Admin duyệt báo cáo ở màn hình riêng (cũng là mục trên menu)
+  useEffect(() => {
+    if (isAdmin) router.replace("/admin/occupational-accident-reports");
+  }, [isAdmin, router]);
 
   const years = useMemo(
     () => Array.from({ length: 7 }, (_, index) => currentYear + 1 - index),
@@ -85,6 +90,8 @@ export default function OccupationalAccidentReportsPage() {
       })
       .catch((error) => {
         if (!cancelled) {
+          // Không giữ lại danh sách của năm trước khi tải năm mới thất bại
+          setRows([]);
           enqueueSnackbar(
             getErrorMessage(error, "Không tải được danh sách báo cáo."),
             { variant: "error" },
@@ -124,8 +131,7 @@ export default function OccupationalAccidentReportsPage() {
     }
   };
 
-  if (authLoading) return <LinearProgress />;
-  if (hasRole(user, 'ADMIN')) return <AdminReportQueue />;
+  if (authLoading || isAdmin) return <LinearProgress />;
   if (!isEnterprise) {
     return (
       <Typography color="text.secondary">
@@ -154,6 +160,7 @@ export default function OccupationalAccidentReportsPage() {
           size="small"
           options={years}
           value={year}
+          getOptionLabel={(option) => String(option)}
           onChange={(_, value) => {
             if (value === null) return;
             setLoading(true);

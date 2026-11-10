@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -26,21 +26,34 @@ interface ReportHeaderFormProps {
   report: OccupationalAccidentReport;
   readOnly: boolean;
   saving: boolean;
-  onSave: (body: UpdateReportHeaderBody) => void;
+  /** Trả về true khi lưu thành công → form coi dữ liệu hiện tại là đã lưu */
+  onSave: (body: UpdateReportHeaderBody) => Promise<boolean>;
+  /** Báo cho trang cha biết form có thay đổi chưa lưu (để cảnh báo khi chuyển mục) */
+  onDirtyChange?: (dirty: boolean) => void;
 }
+
+const toBody = (report: OccupationalAccidentReport): UpdateReportHeaderBody => ({
+  totalEmployees: report.totalEmployees,
+  femaleEmployees: report.femaleEmployees,
+  payrollFundVnd: report.payrollFundVnd,
+  noAccidentsDeclared: report.noAccidentsDeclared,
+});
 
 export default function ReportHeaderForm({
   report,
   readOnly,
   saving,
   onSave,
+  onDirtyChange,
 }: ReportHeaderFormProps) {
-  const [form, setForm] = useState<UpdateReportHeaderBody>(() => ({
-    totalEmployees: report.totalEmployees,
-    femaleEmployees: report.femaleEmployees,
-    payrollFundVnd: report.payrollFundVnd,
-    noAccidentsDeclared: report.noAccidentsDeclared,
-  }));
+  // Mốc so sánh "đã lưu": dữ liệu lúc mở form, cập nhật lại mỗi lần lưu thành công
+  const [saved, setSaved] = useState(() => toBody(report));
+  const [form, setForm] = useState<UpdateReportHeaderBody>(saved);
+  const dirty = !readOnly && JSON.stringify(form) !== JSON.stringify(saved);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const workforceRequirements = report.cases.reduce(
     (required, accidentCase) => {
       const managed = accidentCase.victimGroups.reduce(
@@ -194,7 +207,10 @@ export default function ReportHeaderForm({
               variant="contained"
               startIcon={<SaveOutlinedIcon />}
               disabled={saving || invalid}
-              onClick={() => onSave(form)}
+              onClick={async () => {
+                const body = form;
+                if (await onSave(body)) setSaved(body);
+              }}
             >
               Lưu thông tin
             </Button>
