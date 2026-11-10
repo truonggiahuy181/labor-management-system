@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsString,
+  Matches,
   MinLength,
   MaxLength,
 } from 'class-validator';
@@ -28,6 +29,7 @@ export class UpdateUserDto extends UpdateProfileDto {
   })
   @IsOptional()
   @IsString({ message: 'Mật khẩu phải là chuỗi ký tự' })
+  @Matches(/\S/u, { message: 'Mật khẩu không được chỉ gồm khoảng trắng' })
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   password?: string;
 

@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DataSourceOptions } from 'typeorm';
+import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 
 type EnvironmentReader = (
   key: string,
@@ -39,6 +40,26 @@ export function createDatabaseOptions(
     // Schema changes must be represented by a migration. Never combine
     // synchronize with migrations because synchronize has no audit trail.
     synchronize: false,
-    logging: environment === 'development',
+    logging: isEnabled(readEnvironment('DB_LOGGING', 'false')),
   };
+}
+
+export function createNestDatabaseOptions(
+  readEnvironment: EnvironmentReader,
+): TypeOrmModuleOptions {
+  const options = createDatabaseOptions(readEnvironment);
+  const environment = readEnvironment('NODE_ENV', 'development');
+
+  if (environment === 'test') {
+    return {
+      ...options,
+      autoLoadEntities: true,
+      entities: [],
+      migrations: [],
+      migrationsRun: false,
+      logging: false,
+    };
+  }
+
+  return options;
 }

@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:e2e": "npm run build && vitest run --config ./vitest.config.e2e.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
@@ -32,6 +32,9 @@
     "seed:industries": "npm run build && node dist/database/seeds/industry-seed.cli.js",
     "seed:business-types": "npm run build && node dist/database/seeds/business-type-seed.cli.js",
     "seed:occupations": "npm run build && node dist/database/seeds/occupation-seed.cli.js",
+    "seed:reference-data": "npm run build && node dist/database/seeds/reference-data-seed.cli.js",
+    "db:setup": "npm run build && node dist/database/seeds/database-setup.cli.js",
+    "demo:verify": "npm run build && node dist/database/seeds/demo-data-verify.cli.js",
     "locations:refresh": "node scripts/refresh-location-catalog.mjs"
   },
   "dependencies": {

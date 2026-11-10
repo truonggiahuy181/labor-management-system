@@ -17,8 +17,8 @@ import type {
   OccupationalAccidentReport,
   UpdateReportHeaderBody,
 } from "@/services/occupationalAccidentReport";
+import { formatVnd, sanitizeVndInput } from "@/services/money";
 
-const money = (value: string) => value.replace(/\D/g, "").slice(0, 19) || "0";
 const count = (value: string) =>
   Math.max(0, Math.min(2_147_483_647, Number(value) || 0));
 
@@ -41,43 +41,65 @@ export default function ReportHeaderForm({
     payrollFundVnd: report.payrollFundVnd,
     noAccidentsDeclared: report.noAccidentsDeclared,
   }));
-
-  const invalid = form.femaleEmployees > form.totalEmployees;
+  const workforceRequirements = report.cases.reduce(
+    (required, accidentCase) => {
+      const managed = accidentCase.victimGroups.reduce(
+        (total, group) => {
+          if (group.isUnderEnterpriseManagement) {
+            total.victims += group.victimCount;
+            total.femaleVictims += group.femaleCount;
+          }
+          return total;
+        },
+        { victims: 0, femaleVictims: 0 },
+      );
+      required.employees = Math.max(required.employees, managed.victims);
+      required.femaleEmployees = Math.max(
+        required.femaleEmployees,
+        managed.femaleVictims,
+      );
+      return required;
+    },
+    { employees: 0, femaleEmployees: 0 },
+  );
+  const totalEmployeesError =
+    form.totalEmployees < workforceRequirements.employees;
+  const femaleEmployeesError =
+    form.femaleEmployees > form.totalEmployees ||
+    form.femaleEmployees < workforceRequirements.femaleEmployees;
+  const invalid = totalEmployeesError || femaleEmployeesError;
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
       {report.status === "RETURNED" && report.returnedReason && (
         <Alert severity="warning">
           Yêu cầu bổ sung: {report.returnedReason}
         </Alert>
       )}
-
       <Card variant="outlined" sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2, fontWeight: 700 }}>
-          Thông tin doanh nghiệp
+        <Typography sx={{ mb: 0.75, fontWeight: 700 }}>
+          1. Thông tin công ty
+        </Typography>
+        <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+          Lưu ý: nhập tổng quỹ lương 6 tháng khi khai báo TNLĐ 6 tháng hoặc tổng
+          quỹ lương 12 tháng khi khai báo TNLĐ cả năm.
         </Typography>
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
-            gap: 2,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+            gap: 1.5,
           }}
         >
           <TextField
             size="small"
-            label="Tên doanh nghiệp"
+            label="Tên công ty"
             value={report.enterprise.enterpriseName}
             slotProps={{ input: { readOnly: true } }}
           />
           <TextField
             size="small"
-            label="Mã số thuế"
-            value={report.enterprise.taxCode}
-            slotProps={{ input: { readOnly: true } }}
-          />
-          <TextField
-            size="small"
-            label="Loại hình doanh nghiệp"
+            label="Loại hình công ty"
             value={report.enterprise.businessTypeName}
             slotProps={{ input: { readOnly: true } }}
           />
@@ -88,33 +110,18 @@ export default function ReportHeaderForm({
             slotProps={{ input: { readOnly: true } }}
           />
           <TextField
-            size="small"
-            label="Địa chỉ"
-            value={report.enterprise.address}
-            slotProps={{ input: { readOnly: true } }}
-            sx={{ gridColumn: { md: "1 / -1" } }}
-          />
-        </Box>
-      </Card>
-
-      <Card variant="outlined" sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2, fontWeight: 700 }}>
-          Lao động và quỹ lương trong kỳ
-        </Typography>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-            gap: 2,
-          }}
-        >
-          <TextField
             required
             size="small"
             type="number"
-            label="Tổng số lao động"
+            label="Tổng số lao động của cơ sở"
             value={form.totalEmployees}
             disabled={readOnly}
+            error={totalEmployeesError}
+            helperText={
+              totalEmployeesError
+                ? `Không được nhỏ hơn ${workforceRequirements.employees} nạn nhân thuộc quyền quản lý trong một vụ.`
+                : undefined
+            }
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
@@ -127,12 +134,16 @@ export default function ReportHeaderForm({
             required
             size="small"
             type="number"
-            label="Số lao động nữ"
+            label="Tổng số lao động nữ"
             value={form.femaleEmployees}
             disabled={readOnly}
-            error={invalid}
+            error={femaleEmployeesError}
             helperText={
-              invalid ? "Không được lớn hơn tổng số lao động" : undefined
+              form.femaleEmployees > form.totalEmployees
+                ? "Không được lớn hơn tổng số lao động."
+                : form.femaleEmployees < workforceRequirements.femaleEmployees
+                  ? `Không được nhỏ hơn ${workforceRequirements.femaleEmployees} lao động nữ bị nạn thuộc quyền quản lý trong một vụ.`
+                  : undefined
             }
             onChange={(event) =>
               setForm((current) => ({
@@ -146,12 +157,12 @@ export default function ReportHeaderForm({
             required
             size="small"
             label="Tổng quỹ lương (VND)"
-            value={form.payrollFundVnd}
+            value={formatVnd(form.payrollFundVnd)}
             disabled={readOnly}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
-                payrollFundVnd: money(event.target.value),
+                payrollFundVnd: sanitizeVndInput(event.target.value),
               }))
             }
             slotProps={{ htmlInput: { inputMode: "numeric" } }}

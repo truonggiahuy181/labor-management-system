@@ -5,6 +5,7 @@ import { Button, Card, CardContent, Stack, TextField, Typography } from '@mui/ma
 import { useSnackbar } from 'notistack';
 import useLocales from '@/Hooks/useLocales';
 import { authApi, getErrorCode } from '@/services/auth';
+import { notBlank } from '@/services/text';
 
 type ChangePasswordForm = { oldPassword: string; newPassword: string; confirmPassword: string };
 const PASSWORD_MIN = 8;
@@ -36,6 +37,7 @@ export default function ChangePasswordPage() {
   };
 
   const required = translate('common.required');
+  const requiredText = (value: string) => notBlank(value) || required;
 
   return (
     <Card sx={{ maxWidth: 480, mx: 'auto' }}>
@@ -43,7 +45,8 @@ export default function ChangePasswordPage() {
         <Stack component="form" spacing={2.5} onSubmit={handleSubmit(onSubmit)} noValidate>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>{translate('changePassword.title')}</Typography>
 
-          <Controller name="oldPassword" control={control} rules={{ required }}
+          <Controller name="oldPassword" control={control}
+            rules={{ required, validate: requiredText }}
             render={({ field, fieldState }) => (
               <TextField {...field} type="password" label={translate('changePassword.oldPassword')} autoComplete="current-password"
                 error={!!fieldState.error} helperText={fieldState.error?.message} />
@@ -53,7 +56,10 @@ export default function ChangePasswordPage() {
             rules={{
               required,
               minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
-              validate: (v) => v !== getValues('oldPassword') || translate('changePassword.sameAsOld'),
+              validate: {
+                notBlank: requiredText,
+                different: (v) => v !== getValues('oldPassword') || translate('changePassword.sameAsOld'),
+              },
             }}
             render={({ field, fieldState }) => (
               <TextField {...field} type="password" label={translate('changePassword.newPassword')} autoComplete="new-password"
@@ -61,7 +67,13 @@ export default function ChangePasswordPage() {
             )} />
 
           <Controller name="confirmPassword" control={control}
-            rules={{ required, validate: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch') }}
+            rules={{
+              required,
+              validate: {
+                notBlank: requiredText,
+                matches: (v) => v === getValues('newPassword') || translate('signup.passwordMismatch'),
+              },
+            }}
             render={({ field, fieldState }) => (
               <TextField {...field} type="password" label={translate('signup.confirmPassword')} autoComplete="new-password"
                 error={!!fieldState.error} helperText={fieldState.error?.message} />

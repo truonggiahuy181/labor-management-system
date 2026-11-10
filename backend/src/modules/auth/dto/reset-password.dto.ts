@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -28,6 +29,7 @@ export class ResetPasswordDto {
     example: 'NewPass@2024',
   })
   @IsString()
+  @Matches(/\S/u, { message: 'Mật khẩu mới không được chỉ gồm khoảng trắng' })
   @MinLength(8, { message: 'Mật khẩu mới phải có ít nhất 8 ký tự' })
   newPassword: string;
 
@@ -37,5 +39,6 @@ export class ResetPasswordDto {
   })
   @IsOptional()
   @IsString()
+  @Matches(/\S/u, { message: 'Mật khẩu xác nhận không được chỉ gồm khoảng trắng' })
   confirmNewPassword?: string;
 }

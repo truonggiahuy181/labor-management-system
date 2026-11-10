@@ -7,6 +7,7 @@ import { Trans } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
+import { notBlank } from '@/services/text';
 import { adminUserApi, getErrorMessage, type Profile } from '@/services/user';
 
 const PASSWORD_MIN = 8;
@@ -43,6 +44,7 @@ export default function ResetPasswordDialog({ user, onClose }: { user: Profile |
           <Controller name="newPassword" control={control}
             rules={{
               required: translate('common.required'),
+              validate: (value) => notBlank(value) || translate('common.required'),
               minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
             }}
             render={({ field, fieldState }) => (

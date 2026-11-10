@@ -73,3 +73,30 @@ describe('User DTO date-of-birth rules', () => {
     expect(errors.find((error) => error.property === 'dob')).toBeUndefined();
   });
 });
+
+describe('User DTO text rules', () => {
+  it.each([CreateUserDto, UpdateProfileDto, UpdateUserDto])(
+    '%s rejects a full name containing only whitespace',
+    async (DtoClass) => {
+      const dto = plainToInstance(DtoClass, { fullName: '   ' });
+
+      const errors = await validate(dto, validationOptions);
+
+      expect(errors.map((error) => error.property)).toContain('fullName');
+    },
+  );
+
+  it('rejects an initial password containing only whitespace', async () => {
+    const dto = plainToInstance(CreateUserDto, {
+      username: 'internal-user',
+      password: '        ',
+      fullName: 'Internal User',
+      email: 'internal@example.com',
+      roleId: 1,
+    });
+
+    const errors = await validate(dto, validationOptions);
+
+    expect(errors.map((error) => error.property)).toContain('password');
+  });
+});

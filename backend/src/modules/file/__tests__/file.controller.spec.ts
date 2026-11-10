@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotFoundException, StreamableFile } from '@nestjs/common';
 import { RoleCode } from '../../../commons/constants/role-codes.js';
 import type { FileAccessQueryDto } from '../dto/file-access-query.dto.js';
 import type { UploadFileDto } from '../dto/upload-file.dto.js';
@@ -68,5 +69,16 @@ describe('FileController', () => {
       user,
     );
     expect(result).toBe(response);
+  });
+
+  it('chỉ phục vụ PDF demo trong development', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    expect(controller.getDemoReportDocument()).toBeInstanceOf(StreamableFile);
+
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(() => controller.getDemoReportDocument()).toThrow(
+      NotFoundException,
+    );
+    vi.unstubAllEnvs();
   });
 });

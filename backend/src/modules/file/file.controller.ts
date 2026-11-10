@@ -5,8 +5,10 @@ import {
   Header,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Post,
   Query,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -26,6 +28,10 @@ import { UploadFileDto } from './dto/upload-file.dto.js';
 import { MAX_UPLOAD_FILE_SIZE } from './file.constants.js';
 import { FileService } from './file.service.js';
 import type { AuthenticatedFileUser, MultipartFile } from './file.types.js';
+import {
+  DEMO_REPORT_DOCUMENT_BUFFER,
+  DEMO_REPORT_DOCUMENT_ORIGINAL_NAME,
+} from './demo-report-document.js';
 
 @ApiTags('Files – Lưu trữ Cloudflare R2')
 @ApiBearerAuth()
@@ -128,5 +134,20 @@ export class FileController {
   @ApiResponse({ status: 403, description: 'Không có quyền truy cập tệp.' })
   getPublicAccessUrl(@Query() query: FileAccessQueryDto) {
     return this.fileService.getPublicDocumentAccessUrl(query.objectKey);
+  }
+
+  @Public()
+  @Get('demo-report.pdf')
+  @Header('Content-Type', 'application/pdf')
+  @Header(
+    'Content-Disposition',
+    `inline; filename="${DEMO_REPORT_DOCUMENT_ORIGINAL_NAME}"`,
+  )
+  @ApiOperation({ summary: 'Tài liệu PDF đi kèm dữ liệu báo cáo demo local' })
+  getDemoReportDocument(): StreamableFile {
+    if (process.env.NODE_ENV !== 'development') {
+      throw new NotFoundException();
+    }
+    return new StreamableFile(DEMO_REPORT_DOCUMENT_BUFFER);
   }
 }

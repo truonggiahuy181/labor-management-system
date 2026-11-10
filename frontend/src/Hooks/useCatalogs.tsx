@@ -9,13 +9,34 @@ export type { Option };
 export default function useCatalogs() {
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const locations = useLocations();
 
   useEffect(() => {
-    // Lỗi tải danh mục chỉ làm ô chọn trống, không chặn trang
-    catalogApi.businessTypes().then(setBusinessTypes).catch(() => setBusinessTypes([]));
-    catalogApi.industries().then(setIndustries).catch(() => setIndustries([]));
-  }, []);
+    let cancelled = false;
+
+    Promise.all([catalogApi.businessTypes(), catalogApi.industries()])
+      .then(([nextBusinessTypes, nextIndustries]) => {
+        if (cancelled) return;
+        setBusinessTypes(nextBusinessTypes);
+        setIndustries(nextIndustries);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBusinessTypes([]);
+        setIndustries([]);
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   return useMemo(() => {
     const businessTypeOptions: Option[] = businessTypes.map((b) => ({ value: String(b.id), label: b.typeName }));
@@ -30,11 +51,19 @@ export default function useCatalogs() {
       businessTypeOptions,
       industryOptions,
       locations,
+      loading: loading || locations.loadingProvinces,
+      loadError: loadError || locations.loadError,
+      retry: () => {
+        setLoading(true);
+        setLoadError(false);
+        setReloadKey((current) => current + 1);
+        locations.retry();
+      },
       // Các phường/xã của những tỉnh đã được tải – trang doanh nghiệp tải theo dữ liệu đang có
       allWardOptions: locations.allWardOptions,
       businessTypeLabel: (id: number | null | undefined) => find(businessTypeOptions, id),
       industryLabel: (id: number | null | undefined) => find(industryOptions, id),
       wardLabel: locations.wardLabel,
     };
-  }, [businessTypes, industries, locations]);
+  }, [businessTypes, industries, loadError, loading, locations]);
 }

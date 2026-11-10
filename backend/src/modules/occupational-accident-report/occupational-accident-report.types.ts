@@ -27,7 +27,7 @@ export interface AccidentDamageMetrics {
 export interface AccidentSummary
   extends AccidentCountMetrics, AccidentDamageMetrics {}
 
-export interface AccidentBreakdownRow extends AccidentCountMetrics {
+export interface AccidentBreakdownRow extends AccidentSummary {
   id: number;
   code: string;
   name: string;
@@ -88,6 +88,7 @@ export interface AdminOccupationalAccidentReportPage {
 export interface OccupationalAccidentBusinessTypeSummary {
   code: string;
   name: string;
+  totalEnterpriseCount: number;
   enterpriseCount: number;
   totalEmployees: number;
   femaleEmployees: number;
@@ -97,10 +98,12 @@ export interface OccupationalAccidentBusinessTypeSummary {
 
 export interface AdminOccupationalAccidentSummary {
   reportCount: number;
+  registeredEnterpriseCount: number;
   enterpriseCount: number;
   totalEmployees: number;
   femaleEmployees: number;
   payrollFundVnd: string;
   overview: OccupationalAccidentOverview;
+  byIndustry: AccidentBreakdownRow[];
   byBusinessType: OccupationalAccidentBusinessTypeSummary[];
 }

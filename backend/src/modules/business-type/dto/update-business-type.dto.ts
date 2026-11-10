@@ -1,5 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+
+const NAME_START_RE = /^[\p{L}\p{N}]/u;
 
 export class UpdateBusinessTypeDto {
   @ApiPropertyOptional({
@@ -10,5 +18,8 @@ export class UpdateBusinessTypeDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
+  @Matches(NAME_START_RE, {
+    message: 'Tên loại hình kinh doanh phải bắt đầu bằng chữ cái hoặc chữ số',
+  })
   typeName?: string;
 }

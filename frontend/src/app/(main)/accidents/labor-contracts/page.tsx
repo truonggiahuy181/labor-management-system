@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Autocomplete,
   Card,
   Chip,
   CircularProgress,
   IconButton,
   LinearProgress,
-  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -150,24 +150,21 @@ export default function OccupationalAccidentReportsPage() {
         <Typography sx={{ flex: 1, fontWeight: 700 }}>
           Báo cáo định kỳ tai nạn lao động
         </Typography>
-        <TextField
-          select
+        <Autocomplete
           size="small"
-          label="Năm báo cáo"
+          options={years}
           value={year}
-          onChange={(event) => {
+          onChange={(_, value) => {
+            if (value === null) return;
             setLoading(true);
-            setYear(Number(event.target.value));
+            setYear(value);
             setPage(0);
           }}
           sx={{ width: 150 }}
-        >
-          {years.map((value) => (
-            <MenuItem key={value} value={value}>
-              {value}
-            </MenuItem>
-          ))}
-        </TextField>
+          renderInput={(params) => (
+            <TextField {...params} label="Năm báo cáo" />
+          )}
+        />
         <Tooltip title={translate("common.resetFilters")}>
           <span>
             <IconButton

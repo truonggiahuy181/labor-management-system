@@ -1,7 +1,8 @@
 # Dữ liệu mẫu
 
 Dữ liệu doanh nghiệp và tài khoản mẫu chỉ dùng cho môi trường development.
-Danh mục ngành là dữ liệu tham chiếu và có lệnh seed riêng cho từng môi trường.
+Roles, địa giới hành chính, loại hình kinh doanh, ngành kinh tế và nghề nghiệp là
+dữ liệu tham chiếu bắt buộc, có quy trình seed riêng với dữ liệu mẫu.
 
 Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ liệu mẫu lúc khởi động. Seed có thể chạy lại an toàn: các bản ghi có cùng mã hoặc username sẽ không bị nhân đôi.
 
@@ -20,7 +21,8 @@ Khi `NODE_ENV=development` và `SEED_SAMPLE_DATA=true`, backend tự tạo dữ 
 - Một tài khoản quản trị mẫu.
 - 12 kỳ báo cáo thuộc nhiều loại, năm và trạng thái khác nhau.
 - 9 yếu tố gây chấn thương mẫu.
-- Danh mục 34 tỉnh/thành và 3.321 phường/xã được migration `010_create_location_catalog` nạp sẵn; seed doanh nghiệp sử dụng trực tiếp các mã này.
+- Danh mục 34 tỉnh/thành và 3.321 phường/xã được nạp từ snapshot có phiên bản;
+  seed doanh nghiệp sử dụng trực tiếp các mã này.
 
 Số lượng doanh nghiệp/tài khoản có thể đổi bằng `SEED_PAGINATION_RECORDS` (tối đa 100).
 
@@ -40,13 +42,31 @@ Các giá trị trên có thể đổi qua biến môi trường trong `.env`.
 
 ## Chạy seed
 
-Đảm bảo migration đã chạy, sau đó khởi động backend:
+Với database mới, chạy migration và toàn bộ dữ liệu tham chiếu bằng một lệnh:
+
+```powershell
+npm run db:setup
+```
+
+Nếu migration đã chạy, chỉ cần nạp lại toàn bộ dữ liệu tham chiếu:
+
+```powershell
+npm run seed:reference-data
+```
+
+Hai lệnh đều có thể chạy lại an toàn và không tạo doanh nghiệp hoặc tài khoản mẫu.
+
+Sau đó, nếu cần dữ liệu mẫu cho development, bật `SEED_SAMPLE_DATA=true` rồi khởi động backend:
 
 ```powershell
 npm run start:dev
 ```
 
 Không sử dụng mật khẩu mẫu ở production. Seed luôn bị bỏ qua khi `NODE_ENV` khác `development`.
+
+Để tạo admin ban đầu độc lập với dữ liệu mẫu, cấu hình
+`BOOTSTRAP_ADMIN_ENABLED=true` cùng username, password tối thiểu 12 ký tự và email
+trong `.env`, khởi động backend một lần, sau đó tắt lại biến này.
 
 Để chỉ nạp danh mục ngành cấp 1-4 mà không tạo doanh nghiệp hoặc tài khoản mẫu:
 

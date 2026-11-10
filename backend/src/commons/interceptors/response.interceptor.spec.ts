@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ExecutionContext, CallHandler } from '@nestjs/common';
+import { ExecutionContext, CallHandler, StreamableFile } from '@nestjs/common';
 import { of, lastValueFrom } from 'rxjs';
 import { ResponseInterceptor } from './response.interceptor.js';
 
@@ -99,5 +99,15 @@ describe('ResponseInterceptor', () => {
     expect(result).toEqual(preformatted);
     // Ensure data is NOT nested as data.data
     expect((result.data as any).data).toBeUndefined();
+  });
+
+  it('should pass streamable files through without wrapping', async () => {
+    const file = new StreamableFile(Buffer.from('%PDF-1.4 demo'));
+
+    const result = await lastValueFrom(
+      interceptor.intercept(createMockContext(200), createCallHandler(file)),
+    );
+
+    expect(result).toBe(file);
   });
 });

@@ -27,24 +27,70 @@ describe('SampleDataSeedService', () => {
     parent_code: string | null;
     level: number;
   }>;
+  let seededRoleRows: Array<{
+    role_code: string;
+    role_name: string;
+    is_active: boolean;
+    deleted_at: null;
+  }>;
 
   beforeEach(() => {
     seededBusinessTypeRows = [];
     seededOccupationRows = [];
     seededIndustryRows = [];
+    seededRoleRows = [];
     manager = {
       query: vi.fn(async (sql: string, parameters?: unknown[]) => {
+        if (sql.includes('INSERT INTO roles')) {
+          seededRoleRows.push(
+            ...JSON.parse(parameters?.[0] as string).map(
+              (row: { role_code: string; role_name: string }) => ({
+                ...row,
+                is_active: true,
+                deleted_at: null,
+              }),
+            ),
+          );
+          return [];
+        }
+        if (sql.includes('FROM roles') && sql.includes('role_code = ANY')) {
+          return seededRoleRows;
+        }
+        if (
+          sql.includes('(SELECT COUNT(*)::int FROM provinces') &&
+          sql.includes('(SELECT COUNT(*)::int FROM wards')
+        ) {
+          return [{ province_count: 34, ward_count: 3321 }];
+        }
         if (sql.includes('SELECT DISTINCT ON')) {
           return [{ province_code: '01', ward_code: '00004' }];
         }
         if (sql.includes("role_code = 'ENTERPRISE_USER'")) {
           return [{ id: 2 }];
         }
+        if (
+          sql.includes('COUNT(*)::text') &&
+          sql.includes('FROM occupational_accident_reports')
+        ) {
+          return [{ count: '6' }];
+        }
         if (sql.includes('COUNT(*)::text') && sql.includes('INNER JOIN')) {
           return [{ count: '30' }];
         }
         if (sql.includes('COUNT(*)::text')) {
           return [{ count: '30' }];
+        }
+        if (
+          sql.includes('SELECT users.username') &&
+          sql.includes('INNER JOIN roles')
+        ) {
+          return [];
+        }
+        if (
+          sql.includes('INSERT INTO users') &&
+          sql.includes('RETURNING username')
+        ) {
+          return [{ username: 'admin_demo' }];
         }
         if (sql.includes('INSERT INTO business_types')) {
           const rows = JSON.parse(parameters?.[0] as string);
@@ -91,6 +137,9 @@ describe('SampleDataSeedService', () => {
       SEED_SAMPLE_DATA: 'true',
       SEED_PAGINATION_RECORDS: '30',
       SEED_ENTERPRISE_PASSWORD: '12345678',
+      SEED_ADMIN_USERNAME: 'admin_demo',
+      SEED_ADMIN_PASSWORD: 'Admin@123456',
+      SEED_ADMIN_EMAIL: 'admin.demo@example.com',
       ...overrides,
     };
     const configService = {
@@ -133,6 +182,12 @@ describe('SampleDataSeedService', () => {
     const injuryTypeInserts = manager.query.mock.calls.filter(([sql]) =>
       sql.includes('INSERT INTO injury_types'),
     );
+    const accidentCauseInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO accident_causes'),
+    );
+    const demoReportInsert = manager.query.mock.calls.find(([sql]) =>
+      sql.includes('INSERT INTO occupational_accident_reports'),
+    );
     const businessTypeInsert = manager.query.mock.calls.find(([sql]) =>
       sql.includes('INSERT INTO business_types'),
     );
@@ -148,6 +203,10 @@ describe('SampleDataSeedService', () => {
     const injuryTypeRows = injuryTypeInserts.flatMap(([, parameters]) =>
       JSON.parse(parameters?.[0] as string),
     );
+    const accidentCauseRows = JSON.parse(
+      accidentCauseInsert?.[1]?.[0] as string,
+    );
+    const demoReportRows = JSON.parse(demoReportInsert?.[1]?.[0] as string);
     const businessTypeRows = JSON.parse(businessTypeInsert?.[1]?.[0] as string);
     const occupationRows = occupationInserts.flatMap(([, parameters]) =>
       JSON.parse(parameters?.[0] as string),
@@ -157,26 +216,31 @@ describe('SampleDataSeedService', () => {
     );
 
     expect(enterpriseRows).toHaveLength(30);
-    expect(reportPeriodRows).toHaveLength(12);
+    const currentYear = new Date().getFullYear();
+    expect(reportPeriodRows).toHaveLength(5);
     expect(reportPeriodRows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           report_name: 'Báo cáo tai nạn lao động',
-          report_year: 2026,
+          report_year: currentYear,
           report_type_code: 'OCCUPATIONAL_ACCIDENT',
           period_code: 'FIRST_HALF',
-          start_date: '2026-07-01',
-          end_date: '2026-07-04',
+          submission_start_date: `${currentYear}-07-01`,
+          submission_end_date: `${currentYear}-07-04`,
         }),
         expect.objectContaining({
-          report_name: 'Báo cáo tai nạn lao động',
-          report_year: 2026,
+          report_name: 'Báo cáo tai nạn lao động (demo local)',
+          report_year: currentYear,
           report_type_code: 'OCCUPATIONAL_ACCIDENT',
           period_code: 'ANNUAL',
-          start_date: '2027-01-01',
-          end_date: '2027-01-09',
+          is_active: true,
         }),
       ]),
+    );
+    expect(accidentCauseRows).toHaveLength(9);
+    expect(demoReportRows).toHaveLength(6);
+    expect(demoReportRows.map((row: { status: string }) => row.status)).toEqual(
+      expect.arrayContaining(['DRAFT', 'SUBMITTED', 'RECEIVED', 'RETURNED']),
     );
     expect(injuryFactorRows).toHaveLength(9);
     expect(businessTypeRows).toEqual([

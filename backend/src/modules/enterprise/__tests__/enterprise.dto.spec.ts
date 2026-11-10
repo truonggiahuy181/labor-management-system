@@ -18,6 +18,9 @@ const createDto = (
     wardId: '26740',
     address: '12 Nguyễn Huệ',
     email: 'contact@abc.vn',
+    phoneNumber: '0912345678',
+    operatingProvinceId: '79',
+    operatingWardId: '26740',
     ...overrides,
   });
 
@@ -71,6 +74,49 @@ describe('CreateEnterpriseDto', () => {
     expect(
       errors.find((error) => error.property === 'phoneNumber')?.constraints,
     ).toHaveProperty('matches');
+  });
+
+  it.each([
+    ['phoneNumber', { phoneNumber: undefined }],
+    ['operatingProvinceId', { operatingProvinceId: undefined }],
+    ['operatingWardId', { operatingWardId: undefined }],
+  ])('requires %s when creating an enterprise', async (property, overrides) => {
+    const errors = await validate(createDto(overrides));
+
+    expect(errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ property })]),
+    );
+  });
+
+  it.each(['0001-09-09', '1899-12-31'])(
+    'rejects registration date %s before 01/01/1900',
+    async (registrationDate) => {
+      const errors = await validate(createDto({ registrationDate }));
+
+      expect(
+        errors.find((error) => error.property === 'registrationDate')?.constraints,
+      ).toHaveProperty('isNotBeforeDate');
+    },
+  );
+
+  it('accepts the minimum registration date', async () => {
+    const errors = await validate(
+      createDto({ registrationDate: '1900-01-01' }),
+    );
+
+    expect(
+      errors.find((error) => error.property === 'registrationDate'),
+    ).toBeUndefined();
+  });
+
+  it('rejects a registration date in the future', async () => {
+    const errors = await validate(
+      createDto({ registrationDate: '9999-12-31' }),
+    );
+
+    expect(
+      errors.find((error) => error.property === 'registrationDate')?.constraints,
+    ).toHaveProperty('isNotFutureDate');
   });
 });
 

@@ -8,14 +8,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  MenuItem,
   Stack,
   TextField,
 } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import { useSnackbar } from "notistack";
 import useLocales from "@/Hooks/useLocales";
+import SearchableSelectField from "@/Components/SearchableSelectField";
 import { injuryFactorApi, type InjuryFactor } from "@/services/accidentCatalog";
+import { notBlank, startsWithLetterOrNumber } from "@/services/text";
 import { getErrorMessage } from "@/services/user";
 
 type InjuryFactorForm = {
@@ -112,7 +113,19 @@ export default function InjuryFactorFormDialog({
           <Controller
             name="factorCode"
             control={control}
-            rules={{ required, maxLength: 50 }}
+            rules={{
+              required,
+              validate: {
+                notBlank: (value) => notBlank(value) || required,
+                validStart: (value) =>
+                  startsWithLetterOrNumber(value) ||
+                  translate("common.invalidNameStart"),
+              },
+              maxLength: {
+                value: 50,
+                message: translate("common.maxLength", { max: 50 }),
+              },
+            }}
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
@@ -128,7 +141,19 @@ export default function InjuryFactorFormDialog({
           <Controller
             name="factorName"
             control={control}
-            rules={{ required, maxLength: 255 }}
+            rules={{
+              required,
+              validate: {
+                notBlank: (value) => notBlank(value) || required,
+                validStart: (value) =>
+                  startsWithLetterOrNumber(value) ||
+                  translate("common.invalidNameStart"),
+              },
+              maxLength: {
+                value: 255,
+                message: translate("common.maxLength", { max: 255 }),
+              },
+            }}
             render={({ field, fieldState }) => (
               <TextField
                 {...field}
@@ -145,22 +170,21 @@ export default function InjuryFactorFormDialog({
             name="isActive"
             control={control}
             render={({ field }) => (
-              <TextField
-                select
-                size="small"
+              <SearchableSelectField
                 label={translate("catalogManagement.status")}
                 value={String(field.value)}
-                onChange={(event) =>
-                  field.onChange(event.target.value === "true")
-                }
-              >
-                <MenuItem value="true">
-                  {translate("catalogManagement.inUse")}
-                </MenuItem>
-                <MenuItem value="false">
-                  {translate("catalogManagement.notInUse")}
-                </MenuItem>
-              </TextField>
+                onChange={(value) => field.onChange(value === "true")}
+                options={[
+                  {
+                    value: "true",
+                    label: translate("catalogManagement.inUse"),
+                  },
+                  {
+                    value: "false",
+                    label: translate("catalogManagement.notInUse"),
+                  },
+                ]}
+              />
             )}
           />
         </Stack>

@@ -104,7 +104,7 @@ export interface AccidentSummary extends AccidentCountMetrics {
   propertyDamageVnd: string;
 }
 
-export interface AccidentBreakdownRow extends AccidentCountMetrics {
+export interface AccidentBreakdownRow extends AccidentSummary {
   id: number;
   code: string;
   name: string;
@@ -122,6 +122,7 @@ export interface OccupationalAccidentOverview {
 export interface OccupationalAccidentBusinessTypeSummary {
   code: string;
   name: string;
+  totalEnterpriseCount: number;
   enterpriseCount: number;
   totalEmployees: number;
   femaleEmployees: number;
@@ -131,11 +132,13 @@ export interface OccupationalAccidentBusinessTypeSummary {
 
 export interface AdminOccupationalAccidentSummary {
   reportCount: number;
+  registeredEnterpriseCount: number;
   enterpriseCount: number;
   totalEmployees: number;
   femaleEmployees: number;
   payrollFundVnd: string;
   overview: OccupationalAccidentOverview;
+  byIndustry: AccidentBreakdownRow[];
   byBusinessType: OccupationalAccidentBusinessTypeSummary[];
 }
 
@@ -230,7 +233,7 @@ export interface OccupationalAccidentReport {
   reportPeriod: {
     reportName: string;
     reportYear: number;
-    reportTypeCode: 'OCCUPATIONAL_ACCIDENT';
+    reportTypeCode: "OCCUPATIONAL_ACCIDENT";
     periodCode: OccupationalAccidentPeriodCode;
     submissionStartDate: string;
     submissionEndDate: string;

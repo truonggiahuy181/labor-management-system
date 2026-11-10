@@ -13,7 +13,7 @@ import { ResponseInterceptor } from './commons/interceptors/response.interceptor
 import { GlobalExceptionFilter } from './commons/filters/global-exception.filter.js';
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
 import { SeedModule } from './database/seeds/seed.module.js';
-import { createDatabaseOptions } from './database/database-options.js';
+import { createNestDatabaseOptions } from './database/database-options.js';
 import { FileModule } from './modules/file/file.module.js';
 import { LocationModule } from './modules/location/location.module.js';
 import { ReportPeriodModule } from './modules/report-period/report-period.module.js';
@@ -36,7 +36,7 @@ import { OccupationalAccidentReportModule } from './modules/occupational-acciden
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) =>
-        createDatabaseOptions(
+        createNestDatabaseOptions(
           (key, defaultValue) => configService.get<string>(key) ?? defaultValue,
         ),
     }),

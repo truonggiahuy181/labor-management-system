@@ -9,6 +9,7 @@ import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import { authApi, getErrorCode, type RegisterBody } from '@/services/auth';
+import { notBlank } from '@/services/text';
 
 type SignupForm = RegisterBody & { confirmPassword: string };
 
@@ -35,8 +36,16 @@ export default function SignupPage() {
     defaultValues: { companyName: '', taxCode: '', email: '', phone: '', username: '', password: '', confirmPassword: '' },
   });
 
-  // Tách confirmPassword ra, chỉ gửi những trường server cần
-  const onSubmit = async ({ confirmPassword, ...body }: SignupForm) => {
+  // Chỉ gửi những trường server cần, không gửi confirmPassword.
+  const onSubmit = async (values: SignupForm) => {
+    const body: RegisterBody = {
+      companyName: values.companyName,
+      taxCode: values.taxCode,
+      email: values.email,
+      phone: values.phone,
+      username: values.username,
+      password: values.password,
+    };
     setAlert('');
     try {
       const res = await authApi.register(body);
@@ -50,20 +59,40 @@ export default function SignupPage() {
 
   const required = translate('common.required');
   const pattern = (value: RegExp, key: string) => ({ value, message: translate(key) });
+  const requiredText = (value: string) => notBlank(value) || required;
 
   const fields: FieldConfig[] = [
-    { name: 'companyName', label: translate('signup.companyName'), rules: { required }, autoComplete: 'organization' },
+    { name: 'companyName', label: translate('signup.companyName'), rules: { required, validate: requiredText }, autoComplete: 'organization' },
     { name: 'taxCode', label: translate('signup.taxCode'), rules: { required, pattern: pattern(TAX_CODE_RE, 'signup.invalidTaxCode') } },
     { name: 'email', label: translate('signup.email'), rules: { required, pattern: pattern(EMAIL_RE, 'signup.invalidEmail') }, autoComplete: 'email' },
     { name: 'phone', label: translate('signup.phone'), rules: { required, pattern: pattern(PHONE_RE, 'signup.invalidPhone') }, autoComplete: 'tel' },
-    { name: 'username', label: translate('login.username'), rules: { required }, autoComplete: 'username' },
+    {
+      name: 'username',
+      label: translate('login.username'),
+      rules: {
+        required,
+        validate: requiredText,
+        pattern: pattern(/^[a-zA-Z0-9_-]+$/, 'users.invalidUsername'),
+      },
+      autoComplete: 'username',
+    },
     {
       name: 'password', label: translate('login.password'), autoComplete: 'new-password', password: true,
-      rules: { required, minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) } },
+      rules: {
+        required,
+        validate: requiredText,
+        minLength: { value: PASSWORD_MIN, message: translate('signup.passwordMin', { min: PASSWORD_MIN }) },
+      },
     },
     {
       name: 'confirmPassword', label: translate('signup.confirmPassword'), autoComplete: 'new-password', password: true,
-      rules: { required, validate: (v) => v === getValues('password') || translate('signup.passwordMismatch') },
+      rules: {
+        required,
+        validate: {
+          notBlank: requiredText,
+          matches: (v) => v === getValues('password') || translate('signup.passwordMismatch'),
+        },
+      },
     },
   ];
 

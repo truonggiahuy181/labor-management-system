@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Autocomplete, Stack, TextField, Typography } from "@mui/material";
 import InjuryFactorCatalog from "@/Components/CatalogManagement/InjuryFactorCatalog";
 import InjuryTypeCatalog from "@/Components/CatalogManagement/InjuryTypeCatalog";
 import OccupationCatalog from "@/Components/CatalogManagement/OccupationCatalog";
@@ -15,6 +15,14 @@ export default function AccidentCategoriesPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const [catalog, setCatalog] = useState<CatalogKind>("injury-types");
+  const catalogOptions: Array<{ value: CatalogKind; label: string }> = [
+    {
+      value: "injury-factors",
+      label: translate("accidentCatalog.injuryFactors"),
+    },
+    { value: "injury-types", label: translate("accidentCatalog.injuryTypes") },
+    { value: "occupations", label: translate("accidentCatalog.occupations") },
+  ];
 
   if (user && user.roleId !== ROLE.ADMIN) {
     return (
@@ -26,24 +34,23 @@ export default function AccidentCategoriesPage() {
 
   return (
     <Stack spacing={2}>
-      <TextField
-        select
+      <Autocomplete
         size="small"
-        value={catalog}
-        onChange={(event) => setCatalog(event.target.value as CatalogKind)}
-        label={translate("accidentCatalog.category")}
+        options={catalogOptions}
+        value={
+          catalogOptions.find((option) => option.value === catalog) ?? null
+        }
+        getOptionLabel={(option) => option.label}
+        isOptionEqualToValue={(option, value) => option.value === value.value}
+        onChange={(_, option) => option && setCatalog(option.value)}
         sx={{ width: 340, maxWidth: "100%" }}
-      >
-        <MenuItem value="injury-factors">
-          {translate("accidentCatalog.injuryFactors")}
-        </MenuItem>
-        <MenuItem value="injury-types">
-          {translate("accidentCatalog.injuryTypes")}
-        </MenuItem>
-        <MenuItem value="occupations">
-          {translate("accidentCatalog.occupations")}
-        </MenuItem>
-      </TextField>
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label={translate("accidentCatalog.category")}
+          />
+        )}
+      />
 
       {catalog === "injury-types" ? (
         <InjuryTypeCatalog />

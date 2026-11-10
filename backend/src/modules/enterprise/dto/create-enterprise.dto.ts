@@ -11,6 +11,8 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotBeforeDate } from '../../../commons/validators/is-not-before-date.validator.js';
+import { IsNotFutureDate } from '../../../commons/validators/is-not-future-date.validator.js';
 
 const TAX_CODE_RE = /^\d{10}(-\d{3})?$/;
 const PHONE_RE = /^0\d{9}$/;
@@ -43,6 +45,12 @@ export class CreateEnterpriseDto {
 
   @ApiProperty({ example: '2020-01-15' })
   @IsDateString({}, { message: 'Ngày cấp phép không hợp lệ' })
+  @IsNotBeforeDate('1900-01-01', {
+    message: 'Ngày cấp GPKD không được trước ngày 01/01/1900',
+  })
+  @IsNotFutureDate({
+    message: 'Ngày cấp GPKD không được lớn hơn ngày hiện tại',
+  })
   registrationDate: string;
 
   @ApiProperty({ example: '79', minLength: 2, maxLength: 2 })
@@ -80,11 +88,11 @@ export class CreateEnterpriseDto {
   @MaxLength(255)
   foreignName?: string;
 
-  @ApiPropertyOptional({ maxLength: 20 })
-  @IsOptional()
-  @IsString()
+  @ApiProperty({ example: '0912345678', maxLength: 20 })
+  @IsString({ message: 'Số điện thoại cơ quan phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Số điện thoại cơ quan không được để trống' })
   @Matches(PHONE_RE, { message: 'Số điện thoại không hợp lệ' })
-  phoneNumber?: string;
+  phoneNumber: string;
 
   @ApiPropertyOptional({ maxLength: 100 })
   @IsOptional()
@@ -97,23 +105,27 @@ export class CreateEnterpriseDto {
   @Matches(PHONE_RE, { message: 'Số điện thoại không hợp lệ' })
   representativePhone?: string;
 
-  @ApiPropertyOptional({ minLength: 2, maxLength: 2 })
-  @IsOptional()
-  @IsString()
+  @ApiProperty({ example: '79', minLength: 2, maxLength: 2 })
+  @IsString({
+    message: 'Mã tỉnh/thành phố hoạt động phải là chuỗi ký tự',
+  })
+  @IsNotEmpty({
+    message: 'Tỉnh/thành phố hoạt động không được để trống',
+  })
   @MaxLength(2)
   @Matches(/^\d{2}$/, {
     message: 'Mã tỉnh/thành phố hoạt động phải gồm đúng 2 chữ số',
   })
-  operatingProvinceId?: string;
+  operatingProvinceId: string;
 
-  @ApiPropertyOptional({ minLength: 5, maxLength: 5 })
-  @IsOptional()
-  @IsString()
+  @ApiProperty({ example: '26740', minLength: 5, maxLength: 5 })
+  @IsString({ message: 'Mã phường/xã hoạt động phải là chuỗi ký tự' })
+  @IsNotEmpty({ message: 'Phường/xã hoạt động không được để trống' })
   @MaxLength(5)
   @Matches(/^\d{5}$/, {
     message: 'Mã phường/xã hoạt động phải gồm đúng 5 chữ số',
   })
-  operatingWardId?: string;
+  operatingWardId: string;
 
   @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()

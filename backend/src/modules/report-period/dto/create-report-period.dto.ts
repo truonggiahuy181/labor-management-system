@@ -24,6 +24,7 @@ export class CreateReportPeriodDto {
   @ApiProperty({ example: 'Báo cáo tai nạn lao động', maxLength: 255 })
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/u, { message: 'Tên báo cáo không được chỉ gồm khoảng trắng' })
   @MaxLength(255)
   reportName: string;
 

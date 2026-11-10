@@ -64,6 +64,13 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
   enterpriseId: 2,
   reportPeriodId: 10,
   reportPeriod: makePeriod(),
+  enterpriseName: 'Công ty Cổ phần An Toàn',
+  taxCode: '0312345678',
+  enterpriseAddress: 'Thành phố Hồ Chí Minh',
+  businessTypeCode: 'CTCP',
+  businessTypeName: 'Công ty cổ phần',
+  industryCode: '6201',
+  industryName: 'Lập trình máy vi tính',
   status: OccupationalAccidentReportStatus.DRAFT,
   noAccidentsDeclared: false,
   headerCompleted: true,
@@ -169,6 +176,9 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
 describe('OccupationalAccidentReportService', () => {
   let reportRepository: Record<string, ReturnType<typeof vi.fn>>;
   let reportPeriodRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let causeRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let injuryFactorRepository: Record<string, ReturnType<typeof vi.fn>>;
+  let occupationRepository: Record<string, ReturnType<typeof vi.fn>>;
   let userRepository: Record<string, ReturnType<typeof vi.fn>>;
   let enterpriseRepository: Record<string, ReturnType<typeof vi.fn>>;
   let article39Repository: Record<string, ReturnType<typeof vi.fn>>;
@@ -201,6 +211,12 @@ describe('OccupationalAccidentReportService', () => {
       findOne: vi.fn(),
       createQueryBuilder: vi.fn(),
     };
+    causeRepository = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
+    };
+    injuryFactorRepository = { findOne: vi.fn() };
+    occupationRepository = { find: vi.fn() };
     userRepository = {
       findOne: vi.fn().mockResolvedValue({ id: 1, enterpriseId: 2 }),
     };
@@ -211,6 +227,7 @@ describe('OccupationalAccidentReportService', () => {
         businessType: {},
         industry: {},
       }),
+      find: vi.fn().mockResolvedValue([]),
     };
     article39Repository = { save: vi.fn() };
     submissionRepository = {
@@ -261,9 +278,9 @@ describe('OccupationalAccidentReportService', () => {
       userRepository as never,
       enterpriseRepository as never,
       reportPeriodRepository as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      causeRepository as never,
+      injuryFactorRepository as never,
+      occupationRepository as never,
       dataSource as never,
       fileService as never,
     );
@@ -271,6 +288,22 @@ describe('OccupationalAccidentReportService', () => {
 
   it('aggregates regular accidents, article 39 and every breakdown', async () => {
     reportRepository.findOne.mockResolvedValue(makeReport());
+    causeRepository.find.mockResolvedValue([
+      {
+        id: 1,
+        causeCode: 'NSDL-01',
+        causeName: 'Thiếu thiết bị an toàn',
+        displayOrder: 1,
+        isActive: true,
+      },
+      {
+        id: 2,
+        causeCode: 'NSDL-02',
+        causeName: 'Thiếu phương tiện bảo vệ',
+        displayOrder: 2,
+        isActive: true,
+      },
+    ]);
 
     const result = await service.getOverview(1, 20);
 
@@ -300,7 +333,18 @@ describe('OccupationalAccidentReportService', () => {
       propertyDamageVnd: '540',
     });
     expect(result.byCause).toEqual([
-      expect.objectContaining({ id: 1, totalCases: 1, victimCount: 3 }),
+      expect.objectContaining({
+        id: 1,
+        code: '1',
+        totalCases: 1,
+        victimCount: 3,
+      }),
+      expect.objectContaining({
+        id: 2,
+        code: '2',
+        totalCases: 0,
+        victimCount: 0,
+      }),
     ]);
     expect(result.byInjuryFactor).toEqual([
       expect.objectContaining({ id: 3, totalCases: 1, victimCount: 3 }),
@@ -310,6 +354,39 @@ describe('OccupationalAccidentReportService', () => {
     ]);
   });
 
+  it('allows one case to be both fatal and multi-victim in article 39', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport());
+
+    await service.updateArticle39Summary(1, 20, {
+      totalCases: 1,
+      fatalCases: 1,
+      multiVictimCases: 1,
+      victimCount: 2,
+      femaleCount: 0,
+      deathCount: 1,
+      severeCount: 0,
+      unmanagedVictimCount: 0,
+      unmanagedFemaleCount: 0,
+      unmanagedDeathCount: 0,
+      unmanagedSevereCount: 0,
+      medicalCostVnd: '0',
+      salaryCostVnd: '0',
+      compensationCostVnd: '0',
+      lostWorkDays: 0,
+      propertyDamageVnd: '0',
+    });
+
+    expect(article39Repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        totalCases: 1,
+        fatalCases: 1,
+        multiVictimCases: 1,
+        victimCount: 2,
+        deathCount: 1,
+      }),
+    );
+  });
+
   it('returns active periods that have not been started yet', async () => {
     vi.useFakeTimers();
     try {
@@ -317,7 +394,10 @@ describe('OccupationalAccidentReportService', () => {
       reportRepository.createQueryBuilder.mockReturnValue(makeQueryBuilder([]));
       reportPeriodRepository.createQueryBuilder.mockReturnValue(
         makeQueryBuilder([
-          makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
+          makePeriod({
+            submissionStartDate: '2026-12-15',
+            submissionEndDate: '2027-01-10',
+          }),
         ]),
       );
 
@@ -339,7 +419,10 @@ describe('OccupationalAccidentReportService', () => {
 
   it('derives the statistical range from the year and period code', () => {
     const range = (service as any).getCoverageDateRange(
-      makePeriod({ submissionStartDate: '2026-12-15', submissionEndDate: '2027-01-10' }),
+      makePeriod({
+        submissionStartDate: '2026-12-15',
+        submissionEndDate: '2027-01-10',
+      }),
     );
 
     expect(range).toEqual(['2026-01-01', '2026-12-31']);
@@ -391,6 +474,16 @@ describe('OccupationalAccidentReportService', () => {
     });
     const builder = makeAdminQueryBuilder([report]);
     reportRepository.createQueryBuilder.mockReturnValue(builder);
+    enterpriseRepository.find.mockResolvedValue([
+      {
+        id: 2,
+        isActive: true,
+        businessType: {
+          typeCode: 'CTCP',
+          typeName: 'Công ty cổ phần',
+        },
+      },
+    ]);
 
     const result = await service.getAdminSummary({ year: 2026 });
 
@@ -400,6 +493,7 @@ describe('OccupationalAccidentReportService', () => {
     );
     expect(result).toMatchObject({
       reportCount: 1,
+      registeredEnterpriseCount: 1,
       enterpriseCount: 1,
       totalEmployees: 30,
       femaleEmployees: 12,
@@ -411,10 +505,20 @@ describe('OccupationalAccidentReportService', () => {
           totalCostVnd: '660',
         },
       },
+      byIndustry: [
+        {
+          code: '6201',
+          name: 'Lập trình máy vi tính',
+          totalCases: 2,
+          victimCount: 5,
+          totalCostVnd: '660',
+        },
+      ],
       byBusinessType: [
         {
           code: 'CTCP',
           name: 'Công ty cổ phần',
+          totalEnterpriseCount: 1,
           enterpriseCount: 1,
           accidentSummary: { totalCases: 2, victimCount: 5 },
         },
@@ -532,6 +636,58 @@ describe('OccupationalAccidentReportService', () => {
     expect(reportRepository.update).not.toHaveBeenCalled();
   });
 
+  it('rejects workforce totals below managed victims in an existing case', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport());
+
+    await expect(
+      service.updateHeader(1, 20, {
+        totalEmployees: 1,
+        femaleEmployees: 1,
+        payrollFundVnd: '1000',
+        noAccidentsDeclared: false,
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a case whose managed victims exceed the workforce', async () => {
+    reportRepository.findOne.mockResolvedValue(
+      makeReport({ totalEmployees: 1, femaleEmployees: 1 }),
+    );
+    causeRepository.findOne.mockResolvedValue({ id: 1, isActive: true });
+    injuryFactorRepository.findOne.mockResolvedValue({
+      id: 3,
+      isActive: true,
+    });
+    occupationRepository.find.mockResolvedValue([
+      { id: 100, level: 4, isActive: true },
+    ]);
+
+    await expect(
+      service.createCase(1, 20, {
+        accidentDate: '2026-03-15',
+        primaryCauseId: 1,
+        injuryFactorId: 3,
+        medicalCostVnd: '0',
+        salaryCostVnd: '0',
+        compensationCostVnd: '0',
+        lostWorkDays: 0,
+        propertyDamageVnd: '0',
+        victimGroups: [
+          {
+            occupationId: 100,
+            isUnderEnterpriseManagement: true,
+            victimCount: 2,
+            femaleCount: 1,
+            deathCount: 0,
+            severeCount: 0,
+          },
+        ],
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
   it('rejects money values beyond the PostgreSQL BIGINT limit', async () => {
     reportRepository.findOne.mockResolvedValue(makeReport());
 
@@ -552,6 +708,15 @@ describe('OccupationalAccidentReportService', () => {
     );
 
     await expect(service.submit(1, 20)).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects submission when an existing case exceeds the workforce', async () => {
+    reportRepository.findOne.mockResolvedValue(
+      makeReport({ totalEmployees: 1, femaleEmployees: 1 }),
+    );
+
+    await expect(service.submit(1, 20)).rejects.toThrow(BadRequestException);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
   it('requires a signed PDF before submitting a completed report', async () => {

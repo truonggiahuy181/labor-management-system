@@ -42,6 +42,20 @@ describe('CreateInjuryFactorDto', () => {
       expect.arrayContaining(['factorCode', 'factorName']),
     );
   });
+
+  it.each([
+    { factorCode: '_M1', factorName: 'Điện' },
+    { factorCode: 'M1', factorName: '-Điện' },
+  ])(
+    'rejects a code or name starting with a special character',
+    async (value) => {
+      const errors = await validate(
+        plainToInstance(CreateInjuryFactorDto, value),
+      );
+
+      expect(errors).not.toHaveLength(0);
+    },
+  );
 });
 
 describe('InjuryFactorQueryDto', () => {

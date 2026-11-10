@@ -44,6 +44,12 @@ describe('CreateReportPeriodDto', () => {
     const errors = await validate(createDto({ reportName: 'a'.repeat(256) }));
     expect(errors.map((error) => error.property)).toContain('reportName');
   });
+
+  it('rejects a report name containing only whitespace', async () => {
+    const errors = await validate(createDto({ reportName: '   ' }));
+
+    expect(errors.map((error) => error.property)).toContain('reportName');
+  });
 });
 
 describe('ReportPeriodQueryDto', () => {
