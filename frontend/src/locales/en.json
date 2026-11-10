@@ -90,7 +90,7 @@
     "submit": "Confirm",
     "resendOtp": "Resend",
     "sendSuccess": "Verification code sent successfully",
-    "resetsuccess": "Password reset successfully. Please log in with your new password",
+    "resetSuccess": "Password reset successfully. Please log in with your new password",
     "recentlySent": "A verification code has been sent recently, please wait {{seconds}} seconds before requesting again"
   },
   "menu": {

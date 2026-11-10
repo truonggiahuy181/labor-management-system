@@ -149,9 +149,7 @@
     "enterNewEmail": "Vui lòng nhập email mới",
     "newEmail": "Email",
     "success": "Cập nhật email thành công",
-    "sendOtpFailed": "Không gửi được mã OTP",
-    "sendSuccess": "Mã xác thực đã được gửi thành công",
-    "resetsuccess": "Mật khẩu đã được đặt lại thành công. Vui lòng đăng nhập bằng mật khẩu mới"
+    "sendOtpFailed": "Không gửi được mã OTP"
   },
   "businessRegister": {
     "stepInfo": "Thông tin doanh nghiệp",

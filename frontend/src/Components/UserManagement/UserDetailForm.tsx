@@ -155,7 +155,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const required = translate("common.required");
   const maxLength = (value: number) => ({
     value,
-    message: translate("users.maxLength", { max: value }),
+    message: translate("common.maxLength", { max: value }),
   });
 
   const onSubmit = async (values: Form) => {
