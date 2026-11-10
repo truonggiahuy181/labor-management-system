@@ -124,44 +124,38 @@ export default function AccidentCasePanel({
             variant="outlined"
             sx={{ "&:before": { display: "none" } }}
           >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Stack
-                direction="row"
-                sx={{ alignItems: "center", width: "100%" }}
-              >
-                <Typography sx={{ flex: 1, fontWeight: 700 }}>
+            {/* Nút sửa/xóa đặt cạnh AccordionSummary (không lồng bên trong) vì AccordionSummary là <button> */}
+            <Stack direction="row" sx={{ alignItems: "center", pr: readOnly ? 0 : 1 }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 700 }}>
                   Chi tiết vụ tai nạn số {index + 1}
                 </Typography>
-                {!readOnly && (
-                  <>
-                    <Tooltip title="Chỉnh sửa">
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onEdit(item);
-                        }}
-                      >
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Xóa">
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onRemove(item);
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </>
-                )}
-              </Stack>
-            </AccordionSummary>
+              </AccordionSummary>
+              {!readOnly && (
+                <>
+                  <Tooltip title="Chỉnh sửa">
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      aria-label={`Chỉnh sửa vụ tai nạn số ${index + 1}`}
+                      onClick={() => onEdit(item)}
+                    >
+                      <EditOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Xóa">
+                    <IconButton
+                      size="small"
+                      color="error"
+                      aria-label={`Xóa vụ tai nạn số ${index + 1}`}
+                      onClick={() => onRemove(item)}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+            </Stack>
             <AccordionDetails sx={{ pt: 0 }}>
               <Box
                 sx={{

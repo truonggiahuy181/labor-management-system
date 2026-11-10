@@ -90,6 +90,8 @@ export default function OccupationalAccidentReportsPage() {
       })
       .catch((error) => {
         if (!cancelled) {
+          // Không giữ lại danh sách của năm trước khi tải năm mới thất bại
+          setRows([]);
           enqueueSnackbar(
             getErrorMessage(error, "Không tải được danh sách báo cáo."),
             { variant: "error" },
@@ -158,6 +160,7 @@ export default function OccupationalAccidentReportsPage() {
           size="small"
           options={years}
           value={year}
+          getOptionLabel={(option) => String(option)}
           onChange={(_, value) => {
             if (value === null) return;
             setLoading(true);
