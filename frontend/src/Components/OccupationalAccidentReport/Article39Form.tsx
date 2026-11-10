@@ -60,55 +60,123 @@ const MONEY_FIELDS: Array<[Article39MoneyKey, string]> = [
 const count = (value: string) =>
   Math.max(0, Math.min(2_147_483_647, Number(value) || 0));
 
-const getValidationError = (form: Article39SummaryBody): string => {
-  if (form.fatalCases > form.totalCases) {
-    return "Số vụ có người chết không được lớn hơn tổng số vụ.";
-  }
-  if (form.multiVictimCases > form.totalCases) {
-    return "Số vụ có từ 2 người bị nạn trở lên không được lớn hơn tổng số vụ.";
-  }
-  if (form.victimCount < form.totalCases + form.multiVictimCases) {
-    return "Tổng số người bị nạn chưa phù hợp: mỗi vụ có ít nhất 1 nạn nhân và mỗi vụ có từ 2 nạn nhân cần thêm ít nhất 1 người.";
-  }
-  if (form.fatalCases > form.deathCount) {
-    return "Số vụ có người chết không được lớn hơn số người chết.";
-  }
-  if (form.femaleCount > form.victimCount) {
-    return "Số lao động nữ bị nạn không được lớn hơn tổng số người bị nạn.";
-  }
-  if (form.deathCount + form.severeCount > form.victimCount) {
-    return "Tổng số người chết và bị thương nặng không được lớn hơn tổng số người bị nạn.";
-  }
-  if (form.unmanagedVictimCount > form.victimCount) {
-    return "Số người bị nạn ngoài phạm vi quản lý không được lớn hơn tổng số người bị nạn.";
-  }
-  if (form.unmanagedFemaleCount > form.femaleCount) {
-    return "Số lao động nữ bị nạn ngoài phạm vi quản lý không được lớn hơn tổng số lao động nữ bị nạn.";
-  }
-  if (form.unmanagedDeathCount > form.deathCount) {
-    return "Số người chết ngoài phạm vi quản lý không được lớn hơn tổng số người chết.";
-  }
-  if (form.unmanagedSevereCount > form.severeCount) {
-    return "Số người bị thương nặng ngoài phạm vi quản lý không được lớn hơn tổng số người bị thương nặng.";
-  }
-  if (
-    (form.deathCount === 0 && form.fatalCases !== 0) ||
-    (form.deathCount > 0 && form.fatalCases === 0)
-  ) {
-    return "Số vụ có người chết phải phù hợp với số người chết.";
-  }
+type Article39Key = Article39CountKey | Article39MoneyKey;
 
-  const hasData =
-    form.victimCount > 0 ||
-    form.medicalCostVnd !== "0" ||
-    form.salaryCostVnd !== "0" ||
-    form.compensationCostVnd !== "0" ||
-    form.lostWorkDays > 0 ||
-    form.propertyDamageVnd !== "0";
-  if (form.totalCases === 0 && hasData) {
-    return "Không được nhập nạn nhân hoặc thiệt hại khi tổng số vụ bằng 0.";
+// Mỗi quy tắc: fields[0] là ô "chính" – quy tắc chỉ được kiểm tra sau khi rời ô này (hoặc khi bấm Lưu),
+// lỗi hiện dưới mọi ô liên quan đã rời. Thứ tự giữ như cũ để banner hiện lỗi đầu tiên.
+type Article39Rule = {
+  fields: Article39Key[];
+  invalid: (form: Article39SummaryBody) => boolean;
+  message: string;
+};
+
+const hasArticle39Data = (form: Article39SummaryBody) =>
+  form.victimCount > 0 ||
+  form.medicalCostVnd !== "0" ||
+  form.salaryCostVnd !== "0" ||
+  form.compensationCostVnd !== "0" ||
+  form.lostWorkDays > 0 ||
+  form.propertyDamageVnd !== "0";
+
+const RULES: Article39Rule[] = [
+  {
+    fields: ["fatalCases", "totalCases"],
+    invalid: (f) => f.fatalCases > f.totalCases,
+    message: "Số vụ có người chết không được lớn hơn tổng số vụ.",
+  },
+  {
+    fields: ["multiVictimCases", "totalCases"],
+    invalid: (f) => f.multiVictimCases > f.totalCases,
+    message: "Số vụ có từ 2 người bị nạn trở lên không được lớn hơn tổng số vụ.",
+  },
+  {
+    fields: ["victimCount", "totalCases", "multiVictimCases"],
+    invalid: (f) => f.victimCount < f.totalCases + f.multiVictimCases,
+    message:
+      "Tổng số người bị nạn chưa phù hợp: mỗi vụ có ít nhất 1 nạn nhân và mỗi vụ có từ 2 nạn nhân cần thêm ít nhất 1 người.",
+  },
+  {
+    fields: ["fatalCases", "deathCount"],
+    invalid: (f) => f.fatalCases > f.deathCount,
+    message: "Số vụ có người chết không được lớn hơn số người chết.",
+  },
+  {
+    fields: ["femaleCount", "victimCount"],
+    invalid: (f) => f.femaleCount > f.victimCount,
+    message: "Số lao động nữ bị nạn không được lớn hơn tổng số người bị nạn.",
+  },
+  {
+    fields: ["severeCount", "deathCount", "victimCount"],
+    invalid: (f) => f.deathCount + f.severeCount > f.victimCount,
+    message:
+      "Tổng số người chết và bị thương nặng không được lớn hơn tổng số người bị nạn.",
+  },
+  {
+    fields: ["unmanagedVictimCount", "victimCount"],
+    invalid: (f) => f.unmanagedVictimCount > f.victimCount,
+    message:
+      "Số người bị nạn ngoài phạm vi quản lý không được lớn hơn tổng số người bị nạn.",
+  },
+  {
+    fields: ["unmanagedFemaleCount", "femaleCount"],
+    invalid: (f) => f.unmanagedFemaleCount > f.femaleCount,
+    message:
+      "Số lao động nữ bị nạn ngoài phạm vi quản lý không được lớn hơn tổng số lao động nữ bị nạn.",
+  },
+  {
+    fields: ["unmanagedDeathCount", "deathCount"],
+    invalid: (f) => f.unmanagedDeathCount > f.deathCount,
+    message:
+      "Số người chết ngoài phạm vi quản lý không được lớn hơn tổng số người chết.",
+  },
+  {
+    fields: ["unmanagedSevereCount", "severeCount"],
+    invalid: (f) => f.unmanagedSevereCount > f.severeCount,
+    message:
+      "Số người bị thương nặng ngoài phạm vi quản lý không được lớn hơn tổng số người bị thương nặng.",
+  },
+  // 2 quy tắc dưới khớp CHECK chk_oa_article39_counts của DB
+  {
+    fields: ["unmanagedFemaleCount", "unmanagedVictimCount"],
+    invalid: (f) => f.unmanagedFemaleCount > f.unmanagedVictimCount,
+    message:
+      "Số lao động nữ bị nạn ngoài phạm vi quản lý không được lớn hơn số người bị nạn ngoài phạm vi quản lý.",
+  },
+  {
+    fields: ["unmanagedSevereCount", "unmanagedDeathCount", "unmanagedVictimCount"],
+    invalid: (f) =>
+      f.unmanagedDeathCount + f.unmanagedSevereCount > f.unmanagedVictimCount,
+    message:
+      "Tổng số người chết và bị thương nặng ngoài phạm vi quản lý không được lớn hơn số người bị nạn ngoài phạm vi quản lý.",
+  },
+  {
+    fields: ["deathCount", "fatalCases"],
+    invalid: (f) =>
+      (f.deathCount === 0 && f.fatalCases !== 0) ||
+      (f.deathCount > 0 && f.fatalCases === 0),
+    message: "Số vụ có người chết phải phù hợp với số người chết.",
+  },
+  {
+    fields: ["totalCases"],
+    invalid: (f) => f.totalCases === 0 && hasArticle39Data(f),
+    message: "Không được nhập nạn nhân hoặc thiệt hại khi tổng số vụ bằng 0.",
+  },
+];
+
+// Lỗi đang hiển thị: quy tắc sai và ô chính đã rời (hoặc đã bấm Lưu) → gán cho các ô liên quan đã rời
+const getFieldErrors = (
+  form: Article39SummaryBody,
+  touched: ReadonlySet<Article39Key>,
+  all: boolean,
+): Partial<Record<Article39Key, string>> => {
+  const errors: Partial<Record<Article39Key, string>> = {};
+  for (const rule of RULES) {
+    if (!(all || touched.has(rule.fields[0])) || !rule.invalid(form)) continue;
+    for (const field of rule.fields) {
+      if ((all || touched.has(field)) && !errors[field]) errors[field] = rule.message;
+    }
   }
-  return "";
+  return errors;
 };
 
 const toBody = (report: OccupationalAccidentReport): Article39SummaryBody => {
@@ -148,14 +216,18 @@ export default function Article39Form({
 }: Article39FormProps) {
   const [form, setForm] = useState<Article39SummaryBody>(() => toBody(report));
   const [validationRequested, setValidationRequested] = useState(false);
+  const [touched, setTouched] = useState<ReadonlySet<Article39Key>>(() => new Set());
+  const touch = (key: Article39Key) =>
+    setTouched((current) => (current.has(key) ? current : new Set(current).add(key)));
   const totalCostVnd = (
     BigInt(form.medicalCostVnd || "0") +
     BigInt(form.salaryCostVnd || "0") +
     BigInt(form.compensationCostVnd || "0")
   ).toString();
 
-  const validationError = getValidationError(form);
+  const validationError = RULES.find((rule) => rule.invalid(form))?.message ?? "";
   const invalid = Boolean(validationError);
+  const fieldErrors = getFieldErrors(form, touched, validationRequested);
   const gridSx = {
     display: "grid",
     gridTemplateColumns: {
@@ -174,6 +246,9 @@ export default function Article39Form({
       label={label}
       value={form[key]}
       disabled={readOnly}
+      error={Boolean(fieldErrors[key])}
+      helperText={fieldErrors[key]}
+      onBlur={() => touch(key)}
       onChange={(event) =>
         setForm((current) => ({
           ...current,
@@ -191,6 +266,9 @@ export default function Article39Form({
       label={`${label} (VND)`}
       value={formatVnd(form[key])}
       disabled={readOnly}
+      error={Boolean(fieldErrors[key])}
+      helperText={fieldErrors[key]}
+      onBlur={() => touch(key)}
       onChange={(event) =>
         setForm((current) => ({
           ...current,
