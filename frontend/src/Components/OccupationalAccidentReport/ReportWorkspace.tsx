@@ -293,7 +293,7 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           <Button
             variant="outlined"
             startIcon={<PrintOutlinedIcon />}
-            onClick={() => printOccupationalAccidentReport(report, overview)}
+            onClick={() => printOccupationalAccidentReport(report, overview, causes)}
           >
             In báo cáo
           </Button>
@@ -396,15 +396,20 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
       )}
 
       {section === 3 && (
-        <Stack spacing={1.5}>
-          <OverviewPanel overview={overview} />
-          <SignedDocumentPanel
-            report={report}
-            mode="enterprise"
-            readOnly={readOnly}
-            onReportChange={setReport}
-          />
-        </Stack>
+        <OverviewPanel
+          overview={overview}
+          report={report}
+          causes={causes}
+          headerContent={
+            <SignedDocumentPanel
+              report={report}
+              mode="enterprise"
+              readOnly={readOnly}
+              compact
+              onReportChange={setReport}
+            />
+          }
+        />
       )}
 
       {caseDialogOpen && (

@@ -16,6 +16,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import { useSnackbar } from "notistack";
 import AdminSummaryTables from "@/Components/AdminOccupationalAccidentReport/AdminSummaryTables";
+import { printAdminOccupationalAccidentSummary } from "@/Components/AdminOccupationalAccidentReport/adminSummaryPrint";
 import useAuth from "@/Hooks/useAuth";
 import { hasRole } from "@/constants/roles";
 import {
@@ -84,6 +85,16 @@ export default function AdminOccupationalAccidentSummaryPage() {
     : year
       ? `Năm ${year}`
       : "Tất cả các kỳ";
+  const handlePrint = () => {
+    if (!summary) return;
+    try {
+      printAdminOccupationalAccidentSummary(summary, scopeLabel);
+    } catch (error) {
+      enqueueSnackbar(getErrorMessage(error, "Không mở được báo cáo để in."), {
+        variant: "error",
+      });
+    }
+  };
 
   if (user && !isAdmin) {
     return (
@@ -122,7 +133,7 @@ export default function AdminOccupationalAccidentSummaryPage() {
         <Button
           variant="outlined"
           startIcon={<PrintOutlinedIcon />}
-          onClick={() => window.print()}
+          onClick={handlePrint}
         >
           In báo cáo
         </Button>
