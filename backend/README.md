@@ -23,15 +23,39 @@ cp .env.example .env
 _(Nếu cần, chỉnh sửa cổng hoặc mật khẩu trong file `.env`. File đã tồn tại sẽ
 không bị lệnh chạy chung ghi đè.)_
 
+Trong `backend/.env`, đặt:
+
+```dotenv
+NODE_ENV=development
+DB_MIGRATIONS_RUN=true
+SEED_SAMPLE_DATA=true
+```
+
 ---
 
-## 3. Khởi chạy Database & Redis (Docker)
+## 3. Cài đặt và khởi chạy
 
-Chạy PostgreSQL và Redis dưới nền:
+Chạy tại thư mục `backend`:
 
 ```bash
+npm install
 npm run docker:up
+npm run start:dev
 ```
+
+- **API URL**: `http://localhost:3000/api/v1`
+- **Swagger UI**: `http://localhost:3000/api/docs`
+
+Khi cần xóa dữ liệu cũ và khởi tạo lại database từ đầu:
+
+```bash
+docker compose down -v
+npm run docker:up
+npm run start:dev
+```
+
+> `docker compose down -v` sẽ xóa toàn bộ dữ liệu hiện có. Backend tự chạy
+> migration và nạp dữ liệu mẫu khi khởi động.
 
 - Dừng containers khi không dùng:
   ```bash
@@ -44,20 +68,7 @@ npm run docker:up
 
 ---
 
-## 4. Cài đặt & Khởi chạy Backend
-
-```bash
-# Cài đặt dependencies
-npm install
-
-# Khởi chạy server ở chế độ dev
-npm run start:dev
-```
-
-- **API URL**: `http://localhost:3000/api/v1`
-- **Swagger UI (Tài liệu API)**: `http://localhost:3000/api/docs`
-
-### Database migration
+## 4. Database migration
 
 Backend dùng TypeORM migration và lưu lịch sử trong bảng
 `typeorm_migrations`. Khi `DB_MIGRATIONS_RUN=true`, các migration còn thiếu
