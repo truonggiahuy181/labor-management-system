@@ -84,9 +84,26 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
   const [section, setSection] = useState(0);
   const [regularTab, setRegularTab] = useState(0);
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  // Hành động đang chờ người dùng xác nhận bỏ dữ liệu chưa lưu (hủy bỏ / chuyển mục)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const onDirtyChange = useCallback((value: boolean) => setDirty(value), []);
   const [editingCase, setEditingCase] =
     useState<OccupationalAccidentCase | null>(null);
+
+  // Đóng tab / tải lại trang khi form còn thay đổi chưa lưu → trình duyệt hỏi lại
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  // Chuyển mục: còn thay đổi chưa lưu thì hỏi trước, không thì làm luôn
+  const guard = (action: () => void) => {
+    if (dirty) setPendingAction(() => action);
+    else action();
+  };
 
   const refresh = useCallback(async () => {
     const [nextReport, nextOverview] = await Promise.all([
@@ -236,9 +253,18 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
       return;
     }
     if (section < REPORT_SECTIONS.length - 1) {
-      setSection((current) => current + 1);
-      setRegularTab(0);
+      guard(() => {
+        setSection((current) => current + 1);
+        setRegularTab(0);
+      });
     }
+  };
+
+  const confirmPendingAction = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    setDirty(false);
+    action?.();
   };
 
   return (
@@ -277,7 +303,10 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           slotProps={{ input: { readOnly: true } }}
           sx={{ width: 92 }}
         />
-        <Button color="inherit" onClick={() => setCancelDialogOpen(true)}>
+        <Button
+          color="inherit"
+          onClick={() => guard(() => router.push("/accidents/labor-contracts"))}
+        >
           Hủy bỏ
         </Button>
         {section < REPORT_SECTIONS.length - 1 && (
@@ -330,8 +359,12 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           selectOnFocus
           onChange={(_, option) => {
             if (!option) return;
-            setSection(REPORT_SECTIONS.indexOf(option));
-            setRegularTab(0);
+            const next = REPORT_SECTIONS.indexOf(option);
+            if (next === section) return;
+            guard(() => {
+              setSection(next);
+              setRegularTab(0);
+            });
           }}
           sx={{ maxWidth: 620 }}
           renderInput={(params) => (
@@ -361,6 +394,7 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           readOnly={readOnly}
           saving={saving}
           onSave={saveHeader}
+          onDirtyChange={onDirtyChange}
         />
       )}
 
@@ -392,6 +426,7 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           readOnly={readOnly}
           saving={saving}
           onSave={saveArticle39}
+          onDirtyChange={onDirtyChange}
         />
       )}
 
@@ -433,8 +468,8 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
       )}
 
       <Dialog
-        open={cancelDialogOpen}
-        onClose={() => setCancelDialogOpen(false)}
+        open={pendingAction !== null}
+        onClose={() => setPendingAction(null)}
         maxWidth="xs"
         fullWidth
       >
@@ -451,13 +486,9 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           Dữ liệu chưa lưu trong biểu mẫu hiện tại sẽ không được giữ lại.
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCancelDialogOpen(false)}>Hủy bỏ</Button>
-          <Button
-            variant="contained"
-            onClick={() => router.push("/accidents/labor-contracts")}
-          >
-            {" "}
-            Đồng ý{" "}
+          <Button onClick={() => setPendingAction(null)}>Hủy bỏ</Button>
+          <Button variant="contained" onClick={confirmPendingAction}>
+            Đồng ý
           </Button>
         </DialogActions>
       </Dialog>

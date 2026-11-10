@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Box, Button, Card, TextField, Typography } from "@mui/material";
 import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
+import { useSnackbar } from "notistack";
 import type {
   Article39SummaryBody,
   OccupationalAccidentReport,
@@ -205,7 +206,10 @@ interface Article39FormProps {
   report: OccupationalAccidentReport;
   readOnly: boolean;
   saving: boolean;
-  onSave: (body: Article39SummaryBody) => void;
+  /** Trả về true khi lưu thành công → form coi dữ liệu hiện tại là đã lưu */
+  onSave: (body: Article39SummaryBody) => Promise<boolean>;
+  /** Báo cho trang cha biết form có thay đổi chưa lưu (để cảnh báo khi chuyển mục) */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export default function Article39Form({
@@ -213,8 +217,17 @@ export default function Article39Form({
   readOnly,
   saving,
   onSave,
+  onDirtyChange,
 }: Article39FormProps) {
-  const [form, setForm] = useState<Article39SummaryBody>(() => toBody(report));
+  const { enqueueSnackbar } = useSnackbar();
+  // Mốc so sánh "đã lưu": dữ liệu lúc mở form, cập nhật lại mỗi lần lưu thành công
+  const [saved, setSaved] = useState(() => toBody(report));
+  const [form, setForm] = useState<Article39SummaryBody>(saved);
+  const dirty = !readOnly && JSON.stringify(form) !== JSON.stringify(saved);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [validationRequested, setValidationRequested] = useState(false);
   const [touched, setTouched] = useState<ReadonlySet<Article39Key>>(() => new Set());
   const touch = (key: Article39Key) =>
@@ -240,6 +253,7 @@ export default function Article39Form({
   const renderCountField = ([key, label]: CountFieldDefinition) => (
     <TextField
       key={key}
+      data-article39-key={key}
       required
       size="small"
       type="number"
@@ -261,6 +275,7 @@ export default function Article39Form({
   const renderMoneyField = ([key, label]: [Article39MoneyKey, string]) => (
     <TextField
       key={key}
+      data-article39-key={key}
       required
       size="small"
       label={`${label} (VND)`}
@@ -336,11 +351,22 @@ export default function Article39Form({
             variant="contained"
             startIcon={<SaveOutlinedIcon />}
             disabled={saving}
-            onClick={() => {
+            onClick={async () => {
               setValidationRequested(true);
-              if (invalid) return;
+              if (invalid) {
+                // Lỗi chỉ hiện ở đầu khung → báo rõ là CHƯA lưu và đưa con trỏ tới ô sai đầu tiên
+                enqueueSnackbar(`Chưa lưu: ${validationError}`, { variant: "error" });
+                const firstKey = RULES.find((rule) => rule.invalid(form))?.fields[0];
+                const input = firstKey
+                  ? document.querySelector<HTMLInputElement>(`[data-article39-key="${firstKey}"] input`)
+                  : null;
+                input?.scrollIntoView({ behavior: "smooth", block: "center" });
+                input?.focus({ preventScroll: true });
+                return;
+              }
               setValidationRequested(false);
-              onSave(form);
+              const body = form;
+              if (await onSave(body)) setSaved(body);
             }}
           >
             Lưu số liệu
