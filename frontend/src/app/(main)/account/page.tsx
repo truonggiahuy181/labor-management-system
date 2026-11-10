@@ -22,15 +22,12 @@ import {
   type ProfileUpdate,
 } from "@/services/user";
 import { GENDERS } from "@/Components/UserProfile/options";
-import { ROLE } from "@/constants/roles";
+import { getRoleKey, hasRole, ROLE_LABEL } from "@/constants/roles";
+import useAuth from "@/Hooks/useAuth";
 import { getLocalToday, isNotFutureDate } from "@/services/date";
 import { notBlank } from "@/services/text";
 type Form = Required<{ [K in keyof ProfileUpdate]: string }>;
 
-const ROLE_KEYS: Record<number, string> = {
-  [ROLE.ADMIN]: "account.roleAdmin",
-  [ROLE.ENTERPRISE]: "account.roleEnterprise",
-};
 const EMPTY: Form = {
   fullName: "",
   dob: "",
@@ -66,13 +63,16 @@ const toUpdate = (f: Form): ProfileUpdate => {
 export default function AccountPage() {
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [enterpriseFiles, setEnterpriseFiles] = useState<BusinessFiles | null>(
     null,
   );
-  const isEnterprise = profile?.roleId === ROLE.ENTERPRISE;
+  // Vai trò lấy từ phiên đăng nhập (có roleCode); /users/me chỉ trả roleId
+  const isEnterprise = !!profile && hasRole(user, "ENTERPRISE");
+  const roleKey = getRoleKey(user);
   const locations = useLocations();
   const { ensureWards } = locations;
   const {
@@ -150,8 +150,8 @@ export default function AccountPage() {
   };
 
   const roleName = profile
-    ? ROLE_KEYS[profile.roleId]
-      ? translate(ROLE_KEYS[profile.roleId])
+    ? roleKey
+      ? translate(ROLE_LABEL[roleKey])
       : translate("account.roleUnknown", { id: profile.roleId })
     : "";
   const maxLength = (value: number) => ({

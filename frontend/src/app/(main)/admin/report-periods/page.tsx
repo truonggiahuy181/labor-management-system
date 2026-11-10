@@ -29,7 +29,7 @@ import ReportPeriodFormDialog from "@/Components/ReportPeriodManagement/ReportPe
 import TableFilterAutocomplete from "@/Components/TableFilterAutocomplete";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
-import { ROLE } from "@/constants/roles";
+import { hasRole } from "@/constants/roles";
 import {
   getReportPeriodLabel,
   reportPeriodApi,
@@ -155,7 +155,7 @@ export default function ReportPeriodsPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
   const [rows, setRows] = useState<ReportPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);

@@ -10,7 +10,7 @@ import IndustryFormDialog from '@/Components/CatalogManagement/IndustryFormDialo
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { industryApi, type Industry } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 
@@ -22,7 +22,7 @@ export default function IndustriesPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
   const [rows, setRows] = useState<Industry[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);

@@ -17,20 +17,20 @@ import CheckIcon from '@mui/icons-material/Check';
 import ChangePasswordDialog from '@/Components/ChangePasswordDialog';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE, RoleId } from '@/constants/roles';
+import { hasRole, type RoleKey } from '@/constants/roles';
 
 export const SIDEBAR_WIDTH = 280;
 const BG = '#1a3291';
 const DIVIDER = '1px dashed rgba(255, 255, 255, 0.3)';
-type MenuItem = { label: string; href: string; roles?: RoleId[] };
-type MenuGroup = { title: string; roles: RoleId[]; items: MenuItem[] };
+type MenuItem = { label: string; href: string; roles?: RoleKey[] };
+type MenuGroup = { title: string; roles: RoleKey[]; items: MenuItem[] };
 
 // title / label là key dịch (locales/*.json → menu.*), khi render mới gọi translate
 // Đường dẫn tạm thời – đổi theo route thật khi có trang
 const MENU: MenuGroup[] = [
   {
     title: 'menu.groupAdmin',
-    roles: [ROLE.ADMIN],
+    roles: ['ADMIN'],
     items: [
       { label: 'menu.users', href: '/admin/users' },
       { label: 'menu.companies', href: '/admin/companies' },
@@ -41,18 +41,18 @@ const MENU: MenuGroup[] = [
   },
   {
     title: 'menu.groupSystem',
-    roles: [ROLE.ENTERPRISE],
+    roles: ['ENTERPRISE'],
     items: [
       { label: 'menu.companyInfo', href: '/company-info' },
     ],
   },
   {
     title: 'menu.groupAccidents',
-    roles: [ROLE.ADMIN, ROLE.ENTERPRISE],
+    roles: ['ADMIN', 'ENTERPRISE'],
     items: [
-      { label: 'menu.accidentCategories', href: '/accidents/categories',roles: [ROLE.ADMIN]  },
-      { label: 'menu.accidentLaborContracts', href: '/admin/occupational-accident-reports', roles: [ROLE.ADMIN] },
-      { label: 'menu.accidentLaborContracts', href: '/accidents/labor-contracts', roles: [ROLE.ENTERPRISE] },
+      { label: 'menu.accidentCategories', href: '/accidents/categories',roles: ['ADMIN']  },
+      { label: 'menu.accidentLaborContracts', href: '/admin/occupational-accident-reports', roles: ['ADMIN'] },
+      { label: 'menu.accidentLaborContracts', href: '/accidents/labor-contracts', roles: ['ENTERPRISE'] },
     ],
   },
 ];
@@ -66,10 +66,10 @@ export default function Sidebar({ onToggle }: { onToggle?: () => void }) {
   const [langAnchor, setLangAnchor] = useState<HTMLElement | null>(null);
   const closeMenus = () => { setLangAnchor(null); setMenuAnchor(null); };
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const canSee = (roles: RoleId[] | undefined, roleId: number) => !roles || (roles as number[]).includes(roleId);
+  const canSee = (roles: RoleKey[] | undefined) => !roles || hasRole(user, ...roles);
   const menu = user
-  ? MENU.filter((g) => canSee(g.roles, user.roleId))
-    .map((g) => ({ ...g, items: g.items.filter((i) => canSee(i.roles, user.roleId)) }))
+  ? MENU.filter((g) => canSee(g.roles))
+    .map((g) => ({ ...g, items: g.items.filter((i) => canSee(i.roles)) }))
   : [];
   const goLogin = async () => {
     await logout();

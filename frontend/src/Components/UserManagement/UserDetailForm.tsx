@@ -21,12 +21,10 @@ import { ROLE } from "@/constants/roles";
 import {
   adminUserApi,
   getErrorMessage,
-  roleApi,
   type Profile,
-  type Role,
   type UserBody,
 } from "@/services/user";
-import { ROLE_OPTIONS } from "./roleOptions";
+import useRoles from "@/Hooks/useRoles";
 import { getLocalToday, isNotFutureDate } from "@/services/date";
 import { notBlank, stripSpaces } from "@/services/text";
 
@@ -140,21 +138,19 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       ? uploadedAvatar.url
       : (user?.avatarUrl ?? null));
 
-  // Danh sách vai trò đang hoạt động trong DB; null = chưa tải được → dùng ROLE_OPTIONS cố định
-  const [roles, setRoles] = useState<Role[] | null>(null);
+  // Vai trò đang hoạt động trong DB (id thật); chưa tải được thì tạm dùng id mặc định 1/2
+  const roles = useRoles();
+  const roleOptions = roles.options.filter(
+    (o) => isEdit || o.roleCode !== ENTERPRISE_ROLE_CODE,
+  );
+  // Tạo mới: mặc định chọn Quản trị viên theo id thật (DB có thể cấp id khác 1)
+  const adminRoleId = roles.idOf("ADMIN");
   useEffect(() => {
-    roleApi
-      .list()
-      .then((rs) => setRoles(rs.filter((r) => r.isActive)))
-      .catch(() => setRoles(null));
-  }, []);
-  const roleOptions = roles
-    ? roles
-        .filter((r) => isEdit || r.roleCode !== ENTERPRISE_ROLE_CODE)
-        .map((r) => ({ value: r.id, label: r.roleName }))
-    : ROLE_OPTIONS.filter((o) => isEdit || o.value !== ROLE.ENTERPRISE).map(
-        (o) => ({ value: o.value, label: translate(o.label) }),
-      );
+    if (isEdit || !roles.loaded || adminRoleId === undefined) return;
+    if (!roleOptions.some((o) => o.value === getValues("roleId"))) {
+      setValue("roleId", adminRoleId);
+    }
+  }, [isEdit, roles.loaded, adminRoleId, roleOptions, getValues, setValue]);
 
   const required = translate("common.required");
   const maxLength = (value: number) => ({
@@ -338,7 +334,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       rules={{
         validate: (v) =>
           isEdit ||
-          !roles ||
+          !roles.loaded ||
           roleOptions.some((o) => o.value === v) ||
           translate("users.roleInactive"),
       }}

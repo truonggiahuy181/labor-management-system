@@ -20,7 +20,7 @@ import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useCatalogs, { type Option } from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { enterpriseApi, toBusinessFiles, toBusinessInfo, type Enterprise } from '@/services/enterprise';
 import { adminUserApi, getErrorMessage, type Profile } from '@/services/user';
 
@@ -45,7 +45,7 @@ export default function CompaniesPage() {
   const router = useRouter();
   const catalogs = useCatalogs();
   const { ensureWards } = catalogs.locations;
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
 
   const [rows, setRows] = useState<Enterprise[]>([]);
   const [loading, setLoading] = useState(true);

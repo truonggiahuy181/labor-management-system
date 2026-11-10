@@ -17,7 +17,7 @@ import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
 import { useSnackbar } from "notistack";
 import AdminSummaryTables from "@/Components/AdminOccupationalAccidentReport/AdminSummaryTables";
 import useAuth from "@/Hooks/useAuth";
-import { ROLE } from "@/constants/roles";
+import { hasRole } from "@/constants/roles";
 import {
   adminOccupationalAccidentReportApi,
   type AdminOccupationalAccidentSummary,
@@ -34,7 +34,7 @@ export default function AdminOccupationalAccidentSummaryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
   const yearParam = searchParams.get("year");
   const periodParam = searchParams.get("reportPeriodId");
   const year =

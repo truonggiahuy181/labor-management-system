@@ -1335,6 +1335,10 @@ export class OccupationalAccidentReportService {
       dto.unmanagedFemaleCount > dto.femaleCount ||
       dto.unmanagedDeathCount > dto.deathCount ||
       dto.unmanagedSevereCount > dto.severeCount ||
+      // Khớp CHECK chk_oa_article39_counts – thiếu 2 điều kiện này thì DB từ chối và API trả 500
+      dto.unmanagedFemaleCount > dto.unmanagedVictimCount ||
+      dto.unmanagedDeathCount + dto.unmanagedSevereCount >
+        dto.unmanagedVictimCount ||
       dto.victimCount < dto.totalCases + dto.multiVictimCases
     ) {
       this.throwInvalidMetrics('Số liệu Khoản 2 Điều 39 không nhất quán.');

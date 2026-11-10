@@ -31,7 +31,7 @@ import {
 import TableFilterAutocomplete from "@/Components/TableFilterAutocomplete";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
-import { ROLE } from "@/constants/roles";
+import { hasRole } from "@/constants/roles";
 import {
   adminOccupationalAccidentReportApi,
   type AdminOccupationalAccidentReportListItem,
@@ -49,7 +49,7 @@ export default function AdminOccupationalAccidentReportsPage() {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const { translate } = useLocales();
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
   const [periods, setPeriods] = useState<ReportPeriod[]>([]);
   const [periodsLoaded, setPeriodsLoaded] = useState(false);
   const [rows, setRows] = useState<AdminOccupationalAccidentReportListItem[]>(

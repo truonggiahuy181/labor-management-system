@@ -18,10 +18,10 @@ import { useSnackbar } from 'notistack';
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
 import { USERS_PATH } from '@/Components/UserManagement/UserDetailForm';
-import { ROLE_OPTIONS, roleLabel } from '@/Components/UserManagement/roleOptions';
+import useRoles from '@/Hooks/useRoles';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, type Profile, type UserFilters } from '@/services/user';
 
 // Ô lọc giữ chuỗi; '' = không lọc
@@ -56,6 +56,7 @@ function useDebounced<T>(value: T, ms: number) {
 export default function UsersPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
+  const roles = useRoles();
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
 
@@ -69,7 +70,7 @@ export default function UsersPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [resetting, setResetting] = useState<Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
 
   const { roleId, isActive } = debouncedFilters;
   const query = useMemo(() => toParams(roleId, isActive), [roleId, isActive]);
@@ -150,7 +151,7 @@ export default function UsersPage() {
   const exportCsv = () => {
     const header = ['users.fullName', 'users.username', 'users.email', 'users.role', 'users.jobTitle', 'users.status'].map((k) => translate(k));
     const lines = rows.map((r) => [
-      r.fullName, r.username, r.email ?? '', translate(roleLabel(r.roleId) ?? ''), r.title ?? '',
+      r.fullName, r.username, r.email ?? '', roles.labelOf(r.roleId), r.title ?? '',
       translate(r.isActive ? 'users.active' : 'users.inactive'),
     ]);
     const csv = [header, ...lines].map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
@@ -216,7 +217,7 @@ export default function UsersPage() {
                 <TableCell sx={{ ...filterCell, top: 37 }}>
                   <TableFilterAutocomplete
                     value={filters.roleId}
-                    options={ROLE_OPTIONS.map((option) => ({ value: String(option.value), label: translate(option.label) }))}
+                    options={roles.options.map((option) => ({ value: String(option.value), label: option.label }))}
                     ariaLabel={translate('users.role')}
                     onChange={(value) => setFilter('roleId', value)}
                   />
@@ -255,7 +256,7 @@ export default function UsersPage() {
                   <TableCell>{r.fullName}</TableCell>
                   <TableCell>{r.username}</TableCell>
                   <TableCell>{r.email}</TableCell>
-                  <TableCell>{roleLabel(r.roleId) ? translate(roleLabel(r.roleId)!) : translate('account.roleUnknown', { id: r.roleId })}</TableCell>
+                  <TableCell>{roles.labelOf(r.roleId)}</TableCell>
                   <TableCell>{r.title}</TableCell>
                   <TableCell>
                     <Switch size="small" checked={r.isActive} disabled={r.id === Number(user?.id)}

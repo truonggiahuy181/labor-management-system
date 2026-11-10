@@ -130,6 +130,7 @@ export class AuthService {
         fullName: user.fullName,
         email: user.email,
         roleId: user.roleId,
+        roleCode: user.role?.roleCode ?? null,
         enterpriseId: user.enterpriseId ?? null,
         avatarObjectKey: user.avatarObjectKey,
         avatarUrl,
@@ -142,6 +143,7 @@ export class AuthService {
   async getMe(userId: number) {
     const user = await this.userService.findOneOrFail({
       where: { id: userId },
+      relations: { role: true },
     });
     const avatarUrl = await this.userService.resolveAvatarUrl(
       user.avatarObjectKey,
@@ -152,6 +154,7 @@ export class AuthService {
       fullName: user.fullName,
       email: user.email,
       roleId: user.roleId,
+      roleCode: user.role?.roleCode ?? null,
       enterpriseId: user.enterpriseId,
       avatarObjectKey: user.avatarObjectKey,
       avatarUrl,

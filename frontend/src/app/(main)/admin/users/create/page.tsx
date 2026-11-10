@@ -4,13 +4,13 @@ import { Typography } from '@mui/material';
 import UserDetailForm from '@/Components/UserManagement/UserDetailForm';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 
 export default function CreateUserPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
 
-  if (user && user.roleId !== ROLE.ADMIN) {
+  if (user && !hasRole(user, 'ADMIN')) {
     return <Typography color="text.secondary">{translate('users.adminOnly')}</Typography>;
   }
   return <UserDetailForm user={null} />;

@@ -4,13 +4,13 @@ import { Typography } from '@mui/material';
 import EnterpriseForm from '@/Components/EnterpriseManagement/EnterpriseForm';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 
 export default function CreateEnterprisePage() {
   const { user } = useAuth();
   const { translate } = useLocales();
 
-  if (user && user.roleId !== ROLE.ADMIN) {
+  if (user && !hasRole(user, 'ADMIN')) {
     return <Typography color="text.secondary">{translate('users.adminOnly')}</Typography>;
   }
   return <EnterpriseForm enterprise={null} />;
