@@ -7,7 +7,7 @@ import InjuryTypeCatalog from "@/Components/CatalogManagement/InjuryTypeCatalog"
 import OccupationCatalog from "@/Components/CatalogManagement/OccupationCatalog";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
-import { ROLE } from "@/constants/roles";
+import { hasRole } from "@/constants/roles";
 
 type CatalogKind = "injury-types" | "injury-factors" | "occupations";
 
@@ -24,7 +24,7 @@ export default function AccidentCategoriesPage() {
     { value: "occupations", label: translate("accidentCatalog.occupations") },
   ];
 
-  if (user && user.roleId !== ROLE.ADMIN) {
+  if (user && !hasRole(user, 'ADMIN')) {
     return (
       <Typography color="text.secondary">
         {translate("users.adminOnly")}

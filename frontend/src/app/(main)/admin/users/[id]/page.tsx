@@ -7,7 +7,7 @@ import { useSnackbar } from 'notistack';
 import UserDetailForm from '@/Components/UserManagement/UserDetailForm';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { adminUserApi, getErrorMessage, type Profile } from '@/services/user';
 
 export default function EditUserPage() {
@@ -17,7 +17,7 @@ export default function EditUserPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [target, setTarget] = useState<Profile | null>(null);
   const [failed, setFailed] = useState(false);
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
 
   // cacheComponents giữ trang đã rời (ẩn đi chứ không huỷ): rời trang thì xoá dữ liệu để lần mở sau tải bản mới nhất
   useEffect(() => {

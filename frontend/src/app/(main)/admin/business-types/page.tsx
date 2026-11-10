@@ -10,7 +10,7 @@ import CatalogListTable, { type CatalogColumn } from '@/Components/CatalogManage
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { businessTypeApi, type BusinessType } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 
@@ -22,7 +22,7 @@ export default function BusinessTypesPage() {
   const { user } = useAuth();
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
   const [rows, setRows] = useState<BusinessType[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadCount, setReloadCount] = useState(0);

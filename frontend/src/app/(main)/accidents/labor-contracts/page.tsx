@@ -28,7 +28,7 @@ import { useSnackbar } from "notistack";
 import useAuth from "@/Hooks/useAuth";
 import useLocales from "@/Hooks/useLocales";
 import AdminReportQueue from "@/Components/OccupationalAccidentReport/AdminReportQueue";
-import { ROLE } from "@/constants/roles";
+import { hasRole } from "@/constants/roles";
 import {
   occupationalAccidentReportApi,
   type OccupationalAccidentReportListItem,
@@ -68,7 +68,7 @@ export default function OccupationalAccidentReportsPage() {
   const [openingPeriodId, setOpeningPeriodId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  const isEnterprise = user?.roleId === ROLE.ENTERPRISE;
+  const isEnterprise = hasRole(user, 'ENTERPRISE');
 
   const years = useMemo(
     () => Array.from({ length: 7 }, (_, index) => currentYear + 1 - index),
@@ -125,7 +125,7 @@ export default function OccupationalAccidentReportsPage() {
   };
 
   if (authLoading) return <LinearProgress />;
-  if (user?.roleId === ROLE.ADMIN) return <AdminReportQueue />;
+  if (hasRole(user, 'ADMIN')) return <AdminReportQueue />;
   if (!isEnterprise) {
     return (
       <Typography color="text.secondary">

@@ -2,7 +2,7 @@
 import api from './api';
 import { mockAuthApi } from './mockAuth';
 
-export interface User { id: string; username: string; email: string; roleId: number; }
+export interface User { id: string; username: string; email: string; roleId: number; roleCode?: string | null; }
 
 export interface RegisterBody {
   companyName: string;

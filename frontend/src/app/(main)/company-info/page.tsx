@@ -6,7 +6,7 @@ import { useSnackbar } from 'notistack';
 import EnterpriseForm from '@/Components/EnterpriseManagement/EnterpriseForm';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { enterpriseApi, type Enterprise } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 
@@ -16,7 +16,7 @@ export default function CompanyInfoPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
   const [failed, setFailed] = useState(false);
-  const isEnterprise = user?.roleId === ROLE.ENTERPRISE;
+  const isEnterprise = hasRole(user, 'ENTERPRISE');
 
   const load = useCallback(() => enterpriseApi.me()
     .then(setEnterprise)

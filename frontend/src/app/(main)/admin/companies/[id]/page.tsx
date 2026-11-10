@@ -7,7 +7,7 @@ import { useSnackbar } from 'notistack';
 import EnterpriseForm from '@/Components/EnterpriseManagement/EnterpriseForm';
 import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
-import { ROLE } from '@/constants/roles';
+import { hasRole } from '@/constants/roles';
 import { enterpriseApi, type Enterprise } from '@/services/enterprise';
 import { getErrorMessage } from '@/services/user';
 
@@ -18,7 +18,7 @@ export default function EditEnterprisePage() {
   const { enqueueSnackbar } = useSnackbar();
   const [target, setTarget] = useState<Enterprise | null>(null);
   const [failed, setFailed] = useState(false);
-  const isAdmin = user?.roleId === ROLE.ADMIN;
+  const isAdmin = hasRole(user, 'ADMIN');
 
   // cacheComponents giữ trang đã rời (ẩn đi chứ không huỷ): khi rời trang thì xoá dữ liệu để lần mở sau
   // tải lại doanh nghiệp mới nhất và form bắt đầu lại từ bước 1

@@ -1,20 +1,20 @@
 // src/app/layout.tsx
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 import Providers from './providers';
-import { Roboto } from 'next/font/google';
+// Roboto tự host (có subset tiếng Việt) thay cho next/font/google: Google Fonts có lúc trả URL dạng
+// /l/font?kit=…&skey=… và Turbopack không xử lý được dấu & trong đó → lỗi "queries have exactly one entry"
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 
-
-const roboto = Roboto({
-  subsets: ['latin', 'vietnamese'],
-  weight: ['300', '400', '500', '700'],
-  display: 'swap',
-  variable: '--font-sans',   // tạo biến CSS --font-sans
-});
+// Theme MUI dùng var(--font-sans) → khai báo trên <body> như next/font từng làm
+const FONT_VARS = { '--font-sans': "'Roboto'" } as React.CSSProperties;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body className={roboto.variable}>
+      <body style={FONT_VARS}>
         <AppRouterCacheProvider>
           <Providers>{children}</Providers>
         </AppRouterCacheProvider>
