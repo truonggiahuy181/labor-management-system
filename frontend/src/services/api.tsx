@@ -6,6 +6,8 @@ const NO_REFRESH_URLS = ['/auth/login', '/auth/refresh', '/auth/logout'];
 // Chuyển về /login, trừ khi đang ở sẵn trang đăng nhập / đăng ký / quên mật khẩu
 const redirectToLogin = () => {
   if (!AUTH_PAGES.some((p) => window.location.pathname.startsWith(p))) {
+    // Interceptor axios chạy ngoài React nên không dùng được router; tải lại trang cũng xoá sạch state của phiên cũ
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/login';
   }
 };
