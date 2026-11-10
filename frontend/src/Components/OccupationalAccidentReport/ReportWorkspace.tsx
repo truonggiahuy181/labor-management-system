@@ -414,6 +414,8 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           causes={causes}
           injuryFactors={injuryFactors}
           occupations={occupations}
+          totalEmployees={report.totalEmployees}
+          femaleEmployees={report.femaleEmployees}
           minDate={coverage.startDate}
           maxDate={coverage.endDate}
           saving={saving}

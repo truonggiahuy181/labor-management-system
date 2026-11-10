@@ -30,6 +30,7 @@ import type {
   AccidentVictimGroupBody,
   OccupationalAccidentCase,
 } from "@/services/occupationalAccidentReport";
+import { formatVnd, sanitizeVndInput } from "@/services/money";
 import AppDateField from "@/Components/AppDateField";
 
 const EMPTY_GROUP: AccidentVictimGroupBody = {
@@ -75,7 +76,6 @@ const toBody = (item: OccupationalAccidentCase | null): AccidentCaseBody =>
       }
     : { ...EMPTY_CASE, victimGroups: [{ ...EMPTY_GROUP }] };
 
-const money = (value: string) => value.replace(/\D/g, "").slice(0, 19) || "0";
 const intValue = (value: string, minimum = 0) =>
   Math.max(minimum, Math.min(2_147_483_647, Number(value) || 0));
 const displayDate = (value: string) => value.split("-").reverse().join("/");
@@ -99,6 +99,8 @@ interface AccidentCaseDialogProps {
   causes: AccidentCause[];
   injuryFactors: InjuryFactor[];
   occupations: Occupation[];
+  totalEmployees: number;
+  femaleEmployees: number;
   minDate: string;
   maxDate: string;
   saving: boolean;
@@ -112,6 +114,8 @@ export default function AccidentCaseDialog({
   causes,
   injuryFactors,
   occupations,
+  totalEmployees,
+  femaleEmployees,
   minDate,
   maxDate,
   saving,
@@ -153,6 +157,20 @@ export default function AccidentCaseDialog({
   const invalidInjuryGroup = form.victimGroups.findIndex(
     (group) => group.deathCount + group.severeCount > group.victimCount,
   );
+  const managedVictims = form.victimGroups.reduce(
+    (totals, group) => {
+      if (group.isUnderEnterpriseManagement) {
+        totals.victimCount += group.victimCount;
+        totals.femaleCount += group.femaleCount;
+      }
+      return totals;
+    },
+    { victimCount: 0, femaleCount: 0 },
+  );
+  const managedVictimsExceedWorkforce =
+    managedVictims.victimCount > totalEmployees;
+  const managedFemaleVictimsExceedWorkforce =
+    managedVictims.femaleCount > femaleEmployees;
   const selectedGroupKeys = form.victimGroups
     .filter((group) => group.occupationId > 0)
     .map(
@@ -166,9 +184,13 @@ export default function AccidentCaseDialog({
       ? `Nhóm nạn nhân ${invalidFemaleGroup + 1}: số nữ không được lớn hơn số nạn nhân.`
       : invalidInjuryGroup >= 0
         ? `Nhóm nạn nhân ${invalidInjuryGroup + 1}: tổng số người chết và bị thương nặng không được lớn hơn số nạn nhân.`
-        : hasDuplicateGroups
-          ? "Không được lặp nghề nghiệp và phạm vi quản lý trong cùng một vụ tai nạn."
-          : "";
+        : managedVictimsExceedWorkforce
+          ? `Số nạn nhân thuộc quyền quản lý trong vụ này không được lớn hơn tổng số ${totalEmployees} lao động của cơ sở.`
+          : managedFemaleVictimsExceedWorkforce
+            ? `Số lao động nữ bị nạn thuộc quyền quản lý trong vụ này không được lớn hơn tổng số ${femaleEmployees} lao động nữ.`
+            : hasDuplicateGroups
+              ? "Không được lặp nghề nghiệp và phạm vi quản lý trong cùng một vụ tai nạn."
+              : "";
 
   const valid =
     Boolean(form.accidentDate) &&
@@ -183,6 +205,8 @@ export default function AccidentCaseDialog({
         group.femaleCount <= group.victimCount &&
         group.deathCount + group.severeCount <= group.victimCount,
     ) &&
+    !managedVictimsExceedWorkforce &&
+    !managedFemaleVictimsExceedWorkforce &&
     !hasDuplicateGroups;
   const selectedCause =
     causes.find((cause) => cause.id === form.primaryCauseId) ?? null;
@@ -419,8 +443,10 @@ export default function AccidentCaseDialog({
                 required
                 size="small"
                 label={`${label} (VND)`}
-                value={form[key]}
-                onChange={(event) => setField(key, money(event.target.value))}
+                value={formatVnd(form[key])}
+                onChange={(event) =>
+                  setField(key, sanitizeVndInput(event.target.value))
+                }
                 slotProps={{ htmlInput: { inputMode: "numeric" } }}
               />
             ))}

@@ -7,6 +7,7 @@ import type {
   Article39SummaryBody,
   OccupationalAccidentReport,
 } from "@/services/occupationalAccidentReport";
+import { formatVnd, sanitizeVndInput } from "@/services/money";
 
 type Article39CountKey =
   | "totalCases"
@@ -58,9 +59,6 @@ const MONEY_FIELDS: Array<[Article39MoneyKey, string]> = [
 
 const count = (value: string) =>
   Math.max(0, Math.min(2_147_483_647, Number(value) || 0));
-const money = (value: string) => value.replace(/\D/g, "").slice(0, 19) || "0";
-const formatMoney = (value: string) =>
-  new Intl.NumberFormat("vi-VN").format(BigInt(value || "0"));
 
 const getValidationError = (form: Article39SummaryBody): string => {
   if (form.fatalCases > form.totalCases) {
@@ -191,12 +189,12 @@ export default function Article39Form({
       required
       size="small"
       label={`${label} (VND)`}
-      value={formatMoney(form[key])}
+      value={formatVnd(form[key])}
       disabled={readOnly}
       onChange={(event) =>
         setForm((current) => ({
           ...current,
-          [key]: money(event.target.value),
+          [key]: sanitizeVndInput(event.target.value),
         }))
       }
       slotProps={{ htmlInput: { inputMode: "numeric" } }}
@@ -246,7 +244,7 @@ export default function Article39Form({
         <TextField
           size="small"
           label="Tổng số tiền chi phí (VND)"
-          value={formatMoney(totalCostVnd)}
+          value={formatVnd(totalCostVnd)}
           slotProps={{ input: { readOnly: true } }}
         />
       </Box>

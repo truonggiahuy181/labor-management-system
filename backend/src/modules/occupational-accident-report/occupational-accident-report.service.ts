@@ -262,12 +262,16 @@ export class OccupationalAccidentReportService {
       });
     }
 
-    const [reports, causes] = await Promise.all([
+    const [reports, causes, registeredEnterprises] = await Promise.all([
       builder
         .orderBy('report.enterprise_name', 'ASC')
         .addOrderBy('report.id', 'ASC')
         .getMany(),
       this.getActiveAccidentCauses(),
+      this.enterpriseRepository.find({
+        where: { isActive: true },
+        relations: { businessType: true },
+      }),
     ]);
     const regular = this.emptySummary();
     const article39 = this.emptySummary();
@@ -275,12 +279,15 @@ export class OccupationalAccidentReportService {
     const byCause = this.createCauseBreakdownMap(causes);
     const byInjuryFactor = new Map<number, BreakdownValue>();
     const byOccupation = new Map<number, BreakdownValue>();
+    const byIndustry = new Map<string, BreakdownValue>();
+    const registeredEnterpriseIds = new Set<number>();
     const enterpriseIds = new Set<number>();
     const businessTypes = new Map<
       string,
       {
         code: string;
         name: string;
+        totalEnterpriseIds: Set<number>;
         enterpriseIds: Set<number>;
         totalEmployees: number;
         femaleEmployees: number;
@@ -292,6 +299,30 @@ export class OccupationalAccidentReportService {
     let femaleEmployees = 0;
     let payrollFundVnd = '0';
 
+    const getBusinessTypeSummary = (code: string, name: string) => {
+      const current = businessTypes.get(code) ?? {
+        code,
+        name,
+        totalEnterpriseIds: new Set<number>(),
+        enterpriseIds: new Set<number>(),
+        totalEmployees: 0,
+        femaleEmployees: 0,
+        payrollFundVnd: '0',
+        accidentSummary: this.emptySummary(),
+      };
+      businessTypes.set(code, current);
+      return current;
+    };
+
+    for (const enterprise of registeredEnterprises) {
+      if (!enterprise.businessType) continue;
+      registeredEnterpriseIds.add(enterprise.id);
+      getBusinessTypeSummary(
+        enterprise.businessType.typeCode,
+        enterprise.businessType.typeName,
+      ).totalEnterpriseIds.add(enterprise.id);
+    }
+
     const mergeBreakdownRows = (
       target: Map<number, BreakdownValue>,
       rows: AccidentBreakdownRow[],
@@ -301,9 +332,9 @@ export class OccupationalAccidentReportService {
           id: row.id,
           code: row.code,
           name: row.name,
-          ...this.emptyCounts(),
+          ...this.emptySummary(),
         };
-        this.addCounts(current, row, true);
+        this.addSummary(current, row);
         target.set(row.id, current);
       }
     };
@@ -314,6 +345,7 @@ export class OccupationalAccidentReportService {
         accidentCase.victimGroups ??= [];
       }
       const overview = this.buildOverview(report, causes);
+      registeredEnterpriseIds.add(report.enterpriseId);
       enterpriseIds.add(report.enterpriseId);
       totalEmployees += report.totalEmployees;
       femaleEmployees += report.femaleEmployees;
@@ -325,15 +357,20 @@ export class OccupationalAccidentReportService {
       mergeBreakdownRows(byInjuryFactor, overview.byInjuryFactor);
       mergeBreakdownRows(byOccupation, overview.byOccupation);
 
-      const businessType = businessTypes.get(report.businessTypeCode) ?? {
-        code: report.businessTypeCode,
-        name: report.businessTypeName,
-        enterpriseIds: new Set<number>(),
-        totalEmployees: 0,
-        femaleEmployees: 0,
-        payrollFundVnd: '0',
-        accidentSummary: this.emptySummary(),
+      const industry = byIndustry.get(report.industryCode) ?? {
+        id: Number.parseInt(report.industryCode, 10),
+        code: report.industryCode,
+        name: report.industryName,
+        ...this.emptySummary(),
       };
+      this.addSummary(industry, overview.grandTotal);
+      byIndustry.set(report.industryCode, industry);
+
+      const businessType = getBusinessTypeSummary(
+        report.businessTypeCode,
+        report.businessTypeName,
+      );
+      businessType.totalEnterpriseIds.add(report.enterpriseId);
       businessType.enterpriseIds.add(report.enterpriseId);
       businessType.totalEmployees += report.totalEmployees;
       businessType.femaleEmployees += report.femaleEmployees;
@@ -345,13 +382,14 @@ export class OccupationalAccidentReportService {
       businessTypes.set(report.businessTypeCode, businessType);
     }
 
-    const sortRows = (rows: Map<number, BreakdownValue>) =>
+    const sortRows = <Key>(rows: Map<Key, BreakdownValue>) =>
       [...rows.values()].sort((left, right) =>
         left.code.localeCompare(right.code, 'vi', { numeric: true }),
       );
 
     return {
       reportCount: reports.length,
+      registeredEnterpriseCount: registeredEnterpriseIds.size,
       enterpriseCount: enterpriseIds.size,
       totalEmployees,
       femaleEmployees,
@@ -364,11 +402,13 @@ export class OccupationalAccidentReportService {
         byInjuryFactor: sortRows(byInjuryFactor),
         byOccupation: sortRows(byOccupation),
       },
+      byIndustry: sortRows(byIndustry),
       byBusinessType: [...businessTypes.values()]
         .sort((left, right) => left.name.localeCompare(right.name, 'vi'))
         .map((row) => ({
           code: row.code,
           name: row.name,
+          totalEnterpriseCount: row.totalEnterpriseIds.size,
           enterpriseCount: row.enterpriseIds.size,
           totalEmployees: row.totalEmployees,
           femaleEmployees: row.femaleEmployees,
@@ -614,6 +654,13 @@ export class OccupationalAccidentReportService {
         'Số lao động nữ không được lớn hơn tổng số lao động.',
       );
     }
+    for (const accidentCase of report.cases ?? []) {
+      this.validateManagedVictimsAgainstWorkforce(
+        accidentCase.victimGroups,
+        dto.totalEmployees,
+        dto.femaleEmployees,
+      );
+    }
     if (
       dto.noAccidentsDeclared &&
       (report.cases.length > 0 || this.hasArticle39Data(report))
@@ -647,7 +694,7 @@ export class OccupationalAccidentReportService {
         'Bỏ xác nhận không phát sinh tai nạn trước khi thêm vụ tai nạn.',
       );
     }
-    await this.validateCase(dto, report.reportPeriod);
+    await this.validateCase(dto, report);
 
     const caseId = await this.dataSource.transaction(async (manager) => {
       const caseRepository = manager.getRepository(
@@ -704,7 +751,7 @@ export class OccupationalAccidentReportService {
     const report = await this.findOwnedReport(enterprise.id, reportId);
     this.assertEditable(report);
     await this.findCaseOrFail(report.id, caseId);
-    await this.validateCase(dto, report.reportPeriod);
+    await this.validateCase(dto, report);
 
     await this.dataSource.transaction(async (manager) => {
       await manager
@@ -817,9 +864,15 @@ export class OccupationalAccidentReportService {
           'Vui lòng hoàn thành thông tin lao động và quỹ lương trước khi gửi báo cáo.',
       });
     }
+    for (const accidentCase of report.cases) {
+      this.validateManagedVictimsAgainstWorkforce(
+        accidentCase.victimGroups,
+        report.totalEmployees,
+        report.femaleEmployees,
+      );
+    }
     const hasAccidentData =
-      report.cases.length > 0 ||
-      (report.article39Summary?.totalCases ?? 0) > 0;
+      report.cases.length > 0 || (report.article39Summary?.totalCases ?? 0) > 0;
     if (!report.noAccidentsDeclared && !hasAccidentData) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INCOMPLETE,
@@ -967,8 +1020,8 @@ export class OccupationalAccidentReportService {
     const today = this.getCurrentDateInVietnam();
     return Boolean(
       period.isActive &&
-        today >= period.submissionStartDate &&
-        today <= period.submissionEndDate,
+      today >= period.submissionStartDate &&
+      today <= period.submissionEndDate,
     );
   }
 
@@ -1155,7 +1208,7 @@ export class OccupationalAccidentReportService {
 
   private async validateCase(
     dto: SaveAccidentCaseDto,
-    period: ReportPeriodEntity,
+    report: OccupationalAccidentReportEntity,
   ): Promise<void> {
     this.assertMoneyFitsDatabase(
       dto.medicalCostVnd,
@@ -1163,7 +1216,9 @@ export class OccupationalAccidentReportService {
       dto.compensationCostVnd,
       dto.propertyDamageVnd,
     );
-    const [coverageStart, coverageEnd] = this.getCoverageDateRange(period);
+    const [coverageStart, coverageEnd] = this.getCoverageDateRange(
+      report.reportPeriod,
+    );
     if (dto.accidentDate < coverageStart || dto.accidentDate > coverageEnd) {
       this.throwInvalidMetrics('Ngày xảy ra tai nạn không thuộc kỳ báo cáo.');
     }
@@ -1212,6 +1267,42 @@ export class OccupationalAccidentReportService {
         );
       }
       uniqueGroups.add(key);
+    }
+    this.validateManagedVictimsAgainstWorkforce(
+      dto.victimGroups,
+      report.totalEmployees,
+      report.femaleEmployees,
+    );
+  }
+
+  private validateManagedVictimsAgainstWorkforce(
+    groups: ReadonlyArray<{
+      isUnderEnterpriseManagement: boolean;
+      victimCount: number;
+      femaleCount: number;
+    }>,
+    totalEmployees: number,
+    femaleEmployees: number,
+  ): void {
+    const managed = groups.reduce(
+      (totals, group) => {
+        if (group.isUnderEnterpriseManagement) {
+          totals.victimCount += group.victimCount;
+          totals.femaleCount += group.femaleCount;
+        }
+        return totals;
+      },
+      { victimCount: 0, femaleCount: 0 },
+    );
+    if (managed.victimCount > totalEmployees) {
+      this.throwInvalidMetrics(
+        'Số nạn nhân thuộc quyền quản lý trong một vụ không được lớn hơn tổng số lao động của cơ sở.',
+      );
+    }
+    if (managed.femaleCount > femaleEmployees) {
+      this.throwInvalidMetrics(
+        'Số lao động nữ bị nạn thuộc quyền quản lý trong một vụ không được lớn hơn tổng số lao động nữ của cơ sở.',
+      );
     }
   }
 
@@ -1432,14 +1523,14 @@ export class OccupationalAccidentReportService {
         accidentCase.primaryCause.id,
         accidentCase.primaryCause.causeCode,
         accidentCase.primaryCause.causeName,
-        caseCounts,
+        caseSummary,
       );
       this.addBreakdown(
         byFactor,
         accidentCase.injuryFactor.id,
         accidentCase.injuryFactor.factorCode,
         accidentCase.injuryFactor.factorName,
-        caseCounts,
+        caseSummary,
       );
 
       const occupationGroups = new Map<
@@ -1460,13 +1551,14 @@ export class OccupationalAccidentReportService {
         occupationGroups.set(group.occupationId, existing);
       }
       for (const [occupationId, value] of occupationGroups) {
-        this.addBreakdown(
-          byOccupation,
-          occupationId,
-          value.code,
-          value.name,
-          this.countVictimGroups(value.groups),
-        );
+        const occupationCounts = this.countVictimGroups(value.groups);
+        this.addBreakdown(byOccupation, occupationId, value.code, value.name, {
+          ...this.emptySummary(),
+          ...occupationCounts,
+          totalCases: 1,
+          fatalCases: occupationCounts.deathCount > 0 ? 1 : 0,
+          multiVictimCases: occupationCounts.victimCount >= 2 ? 1 : 0,
+        });
       }
     }
 
@@ -1506,7 +1598,7 @@ export class OccupationalAccidentReportService {
           id: cause.id,
           code: String(cause.displayOrder),
           name: cause.causeName,
-          ...this.emptyCounts(),
+          ...this.emptySummary(),
         },
       ]),
     );
@@ -1536,13 +1628,10 @@ export class OccupationalAccidentReportService {
     id: number,
     code: string,
     name: string,
-    counts: AccidentCountMetrics,
+    summary: AccidentSummary,
   ): void {
-    const current = map.get(id) ?? { id, code, name, ...this.emptyCounts() };
-    current.totalCases += 1;
-    current.fatalCases += counts.deathCount > 0 ? 1 : 0;
-    current.multiVictimCases += counts.victimCount >= 2 ? 1 : 0;
-    this.addCounts(current, counts, false);
+    const current = map.get(id) ?? { id, code, name, ...this.emptySummary() };
+    this.addSummary(current, summary);
     map.set(id, current);
   }
 
@@ -1730,8 +1819,11 @@ export class OccupationalAccidentReportService {
     submittedAt: Date,
   ): Record<string, unknown> {
     const response = this.toResponse(report) as Record<string, unknown>;
-    const { signedDocument: _document, submissions: _submissions, ...data } =
-      response;
+    const {
+      signedDocument: _document,
+      submissions: _submissions,
+      ...data
+    } = response;
     return {
       schemaVersion: 1,
       ...data,

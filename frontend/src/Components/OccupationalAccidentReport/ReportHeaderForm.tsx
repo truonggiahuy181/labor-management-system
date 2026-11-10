@@ -17,8 +17,8 @@ import type {
   OccupationalAccidentReport,
   UpdateReportHeaderBody,
 } from "@/services/occupationalAccidentReport";
+import { formatVnd, sanitizeVndInput } from "@/services/money";
 
-const money = (value: string) => value.replace(/\D/g, "").slice(0, 19) || "0";
 const count = (value: string) =>
   Math.max(0, Math.min(2_147_483_647, Number(value) || 0));
 
@@ -41,7 +41,33 @@ export default function ReportHeaderForm({
     payrollFundVnd: report.payrollFundVnd,
     noAccidentsDeclared: report.noAccidentsDeclared,
   }));
-  const invalid = form.femaleEmployees > form.totalEmployees;
+  const workforceRequirements = report.cases.reduce(
+    (required, accidentCase) => {
+      const managed = accidentCase.victimGroups.reduce(
+        (total, group) => {
+          if (group.isUnderEnterpriseManagement) {
+            total.victims += group.victimCount;
+            total.femaleVictims += group.femaleCount;
+          }
+          return total;
+        },
+        { victims: 0, femaleVictims: 0 },
+      );
+      required.employees = Math.max(required.employees, managed.victims);
+      required.femaleEmployees = Math.max(
+        required.femaleEmployees,
+        managed.femaleVictims,
+      );
+      return required;
+    },
+    { employees: 0, femaleEmployees: 0 },
+  );
+  const totalEmployeesError =
+    form.totalEmployees < workforceRequirements.employees;
+  const femaleEmployeesError =
+    form.femaleEmployees > form.totalEmployees ||
+    form.femaleEmployees < workforceRequirements.femaleEmployees;
+  const invalid = totalEmployeesError || femaleEmployeesError;
 
   return (
     <Stack spacing={1.5}>
@@ -90,6 +116,12 @@ export default function ReportHeaderForm({
             label="Tổng số lao động của cơ sở"
             value={form.totalEmployees}
             disabled={readOnly}
+            error={totalEmployeesError}
+            helperText={
+              totalEmployeesError
+                ? `Không được nhỏ hơn ${workforceRequirements.employees} nạn nhân thuộc quyền quản lý trong một vụ.`
+                : undefined
+            }
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
@@ -105,9 +137,13 @@ export default function ReportHeaderForm({
             label="Tổng số lao động nữ"
             value={form.femaleEmployees}
             disabled={readOnly}
-            error={invalid}
+            error={femaleEmployeesError}
             helperText={
-              invalid ? "Không được lớn hơn tổng số lao động." : undefined
+              form.femaleEmployees > form.totalEmployees
+                ? "Không được lớn hơn tổng số lao động."
+                : form.femaleEmployees < workforceRequirements.femaleEmployees
+                  ? `Không được nhỏ hơn ${workforceRequirements.femaleEmployees} lao động nữ bị nạn thuộc quyền quản lý trong một vụ.`
+                  : undefined
             }
             onChange={(event) =>
               setForm((current) => ({
@@ -121,12 +157,12 @@ export default function ReportHeaderForm({
             required
             size="small"
             label="Tổng quỹ lương (VND)"
-            value={form.payrollFundVnd}
+            value={formatVnd(form.payrollFundVnd)}
             disabled={readOnly}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
-                payrollFundVnd: money(event.target.value),
+                payrollFundVnd: sanitizeVndInput(event.target.value),
               }))
             }
             slotProps={{ htmlInput: { inputMode: "numeric" } }}
