@@ -291,7 +291,7 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
       {report.status === "RETURNED" && report.returnedReason && (
         <Alert severity="warning">Lý do trả bổ sung: {report.returnedReason}</Alert>
       )}
-      <SignedDocumentPanel report={report} mode="admin" readOnly />
+      {tab !== 3 && <SignedDocumentPanel report={report} mode="admin" readOnly />}
       <Card square>
         <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto">
           <Tab label="Thông tin doanh nghiệp" />
@@ -305,7 +305,13 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
       {tab === 0 && <ReportHeaderForm report={report} readOnly saving={false} onSave={() => undefined} />}
       {tab === 1 && <AccidentCasesReadOnly cases={report.cases} />}
       {tab === 2 && <Article39Form report={report} readOnly saving={false} onSave={() => undefined} />}
-      {tab === 3 && <OverviewPanel overview={overview} />}
+      {tab === 3 && (
+        <OverviewPanel
+          overview={overview}
+          report={report}
+          headerContent={<SignedDocumentPanel report={report} mode="admin" readOnly compact />}
+        />
+      )}
       {tab === 4 && <HistoryTable report={report} />}
 
       <Dialog open={returnOpen} onClose={processing ? undefined : () => setReturnOpen(false)} fullWidth maxWidth="sm">

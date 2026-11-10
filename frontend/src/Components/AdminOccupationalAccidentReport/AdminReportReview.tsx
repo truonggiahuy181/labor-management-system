@@ -42,7 +42,7 @@ import { getErrorMessage } from '@/services/user';
 import { getReportPeriodLabel } from '@/services/reportPeriod';
 import SignedDocumentPanel from '@/Components/OccupationalAccidentReport/SignedDocumentPanel';
 import { printOccupationalAccidentReport } from '@/Components/OccupationalAccidentReport/reportPrint';
-import ReportTables from './ReportTables';
+import OverviewPanel from '@/Components/OccupationalAccidentReport/OverviewPanel';
 import {
   ADMIN_REPORT_STATUS,
   formatReportDate,
@@ -217,8 +217,6 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         </Alert>
       )}
 
-      <SignedDocumentPanel report={report} mode="admin" readOnly />
-
       <Card variant="outlined" sx={{ p: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           Báo cáo tổng hợp tình hình tai nạn lao động
@@ -304,7 +302,11 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         </Box>
       </Card>
 
-      <ReportTables overview={overview} />
+      <OverviewPanel
+        overview={overview}
+        report={report}
+        headerContent={<SignedDocumentPanel report={report} mode="admin" readOnly compact />}
+      />
 
       <Card variant="outlined" sx={{ p: 2 }}>
         <Typography sx={{ mb: 1.5, fontWeight: 700 }}>Lịch sử xử lý</Typography>
