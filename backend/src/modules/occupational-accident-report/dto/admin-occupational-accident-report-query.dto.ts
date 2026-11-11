@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -27,6 +28,18 @@ export class AdminOccupationalAccidentReportQueryDto {
   @MaxLength(255)
   search?: string;
 
+  @ApiPropertyOptional({ description: 'Tìm theo tên doanh nghiệp.', maxLength: 255 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  enterpriseName?: string;
+
+  @ApiPropertyOptional({ description: 'Tìm theo mã số thuế.', maxLength: 20 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  taxCode?: string;
+
   @ApiPropertyOptional({ example: 2026, minimum: 2000, maximum: 2100 })
   @IsOptional()
   @Type(() => Number)
@@ -46,6 +59,24 @@ export class AdminOccupationalAccidentReportQueryDto {
   @IsOptional()
   @IsIn(REVIEW_STATUSES)
   status?: (typeof REVIEW_STATUSES)[number];
+
+  @ApiPropertyOptional({
+    description: 'Mã tỉnh/thành phố của doanh nghiệp (trụ sở chính).',
+    example: '79',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}$/)
+  provinceId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Mã phường/xã của doanh nghiệp (trụ sở chính).',
+    example: '26740',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{5}$/)
+  wardId?: string;
 
   @ApiPropertyOptional({ example: 1, minimum: 1, default: 1 })
   @IsOptional()
