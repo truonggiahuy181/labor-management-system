@@ -199,7 +199,7 @@ export default function BusinessInfoStep({
     {
       name: "officePhone",
       label: t("officePhone"),
-      required: !isEdit,
+      required: true,
       noSpaces: true,
       maxLength: 10,
       rules: { pattern: pattern(PHONE_RE, "invalidPhone") },
@@ -207,14 +207,14 @@ export default function BusinessInfoStep({
     {
       name: "operatingProvince",
       label: t("operatingProvince"),
-      required: !isEdit,
+      required: true,
       options: locations.provinceOptions,
       searchable: true,
     },
     {
       name: "operatingWard",
       label: t("operatingWard"),
-      required: !isEdit,
+      required: true,
       options: operatingWards,
       searchable: true,
     },

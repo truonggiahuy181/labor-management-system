@@ -84,7 +84,12 @@ export interface UserBody {
   isActive?: boolean;
 }
 
-export type UserUpdate = Partial<Omit<UserBody, 'username' | 'password'>>;
+export type UserUpdate = Partial<
+  Omit<UserBody, 'username' | 'password' | 'provinceId' | 'wardId'>
+> & {
+  provinceId?: string | null;
+  wardId?: string | null;
+};
 
 
 export const adminUserApi = {

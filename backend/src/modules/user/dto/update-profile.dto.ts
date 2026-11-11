@@ -99,6 +99,7 @@ export class UpdateProfileDto {
     example: '79',
     minLength: 2,
     maxLength: 2,
+    nullable: true,
   })
   @IsOptional()
   @IsString({ message: 'Mã tỉnh/thành phố phải là chuỗi ký tự' })
@@ -106,7 +107,7 @@ export class UpdateProfileDto {
   @Matches(/^\d{2}$/, {
     message: 'Mã tỉnh/thành phố phải gồm đúng 2 chữ số',
   })
-  provinceId?: string;
+  provinceId?: string | null;
 
   @ApiPropertyOptional({
     description: 'Mã quận/huyện',
@@ -123,6 +124,7 @@ export class UpdateProfileDto {
     example: '26740',
     minLength: 5,
     maxLength: 5,
+    nullable: true,
   })
   @IsOptional()
   @IsString({ message: 'Mã phường/xã phải là chuỗi ký tự' })
@@ -130,7 +132,7 @@ export class UpdateProfileDto {
   @Matches(/^\d{5}$/, {
     message: 'Mã phường/xã phải gồm đúng 5 chữ số',
   })
-  wardId?: string;
+  wardId?: string | null;
 
   @ApiPropertyOptional({
     description: 'Địa chỉ cụ thể',

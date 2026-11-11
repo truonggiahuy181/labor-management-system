@@ -78,7 +78,9 @@ export class LocationService {
     }
 
     if (!wardCode) {
-      return;
+      this.throwInvalidSelection(
+        'Phải chọn phường/xã khi đã chọn tỉnh/thành phố.',
+      );
     }
 
     const wardExists = await this.wardRepository.exists({

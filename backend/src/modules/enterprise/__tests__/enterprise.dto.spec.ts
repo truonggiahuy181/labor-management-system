@@ -156,6 +156,25 @@ describe('UpdateEnterpriseDto', () => {
       expect.objectContaining({ property: 'email' }),
     ]);
   });
+
+  it.each([
+    ['phoneNumber', { phoneNumber: null }],
+    ['operatingProvinceId', { operatingProvinceId: null }],
+    ['operatingWardId', { operatingWardId: null }],
+  ])(
+    'rejects null for required contact/operating field %s when updating an enterprise',
+    async (property, payload) => {
+      const dto = plainToInstance(UpdateEnterpriseDto, payload);
+      const errors = await validate(dto, {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
+
+      expect(errors).toEqual(
+        expect.arrayContaining([expect.objectContaining({ property })]),
+      );
+    },
+  );
 });
 
 describe('EnterpriseFileParamDto', () => {
