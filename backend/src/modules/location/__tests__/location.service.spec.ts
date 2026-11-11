@@ -93,6 +93,15 @@ describe('LocationService', () => {
     });
   });
 
+  it('rejects when province is selected without a ward', async () => {
+    provinceRepository.exists.mockResolvedValue(true);
+
+    await expect(service.assertValidSelection('79', undefined)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(wardRepository.exists).not.toHaveBeenCalled();
+  });
+
   it('rejects a ward that does not belong to the selected province', async () => {
     provinceRepository.exists.mockResolvedValue(true);
     wardRepository.exists.mockResolvedValue(false);

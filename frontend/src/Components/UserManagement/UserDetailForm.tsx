@@ -113,6 +113,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     reset,
     setValue,
     getValues,
+    clearErrors,
     formState: { isSubmitting },
   } = useForm<Form>({ defaultValues: toForm(user) });
 
@@ -171,6 +172,8 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
           isActive,
           ...(emailChanged && { email: email.trim() }),
           ...optional(values),
+          provinceId: values.provinceId || null,
+          wardId: values.wardId || null,
         });
       } else {
         const createdUser = await adminUserApi.create({
@@ -452,7 +455,10 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
               searchable
               disabled={locations.loadingProvinces}
               translateLabels={false}
-              onChange={() => setValue("wardId", "")}
+              onChange={(value) => {
+                setValue("wardId", "");
+                if (!value) clearErrors("wardId");
+              }}
             />
           }
           ward={
@@ -468,6 +474,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
                 currentWards.length === 0
               }
               translateLabels={false}
+              rules={{ required: selectedProvince ? required : false }}
             />
           }
           address={

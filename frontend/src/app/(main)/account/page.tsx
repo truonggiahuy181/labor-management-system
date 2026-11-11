@@ -56,6 +56,8 @@ const toUpdate = (f: Form): ProfileUpdate => {
   const body: ProfileUpdate = {};
   for (const [k, v] of Object.entries(f))
     if (v.trim() !== "") Object.assign(body, { [k]: v.trim() });
+  body.provinceId = f.provinceId.trim() || null;
+  body.wardId = f.wardId.trim() || null;
   if (f.gender !== "") body.gender = Number(f.gender);
   return body;
 };
@@ -80,6 +82,7 @@ export default function AccountPage() {
     handleSubmit,
     reset,
     setValue,
+    clearErrors,
     formState: { isSubmitting, isDirty },
   } = useForm<Form>({ defaultValues: EMPTY });
 
@@ -270,7 +273,10 @@ export default function AccountPage() {
               searchable
               disabled={locations.loadingProvinces}
               translateLabels={false}
-              onChange={() => setValue("wardId", "", { shouldDirty: true })}
+              onChange={(value) => {
+                setValue("wardId", "", { shouldDirty: true });
+                if (!value) clearErrors("wardId");
+              }}
             />
           }
           ward={
@@ -286,6 +292,11 @@ export default function AccountPage() {
                 currentWards.length === 0
               }
               translateLabels={false}
+              rules={{
+                required: selectedProvince
+                  ? translate("common.required")
+                  : false,
+              }}
             />
           }
           address={

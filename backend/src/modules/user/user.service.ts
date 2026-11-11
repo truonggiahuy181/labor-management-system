@@ -170,8 +170,8 @@ export class UserService extends BaseService<UserEntity> {
 
     if (dto.provinceId !== undefined || dto.wardId !== undefined) {
       await this.locationService.assertValidSelection(
-        dto.provinceId ?? user.provinceId,
-        dto.wardId ?? user.wardId,
+        dto.provinceId !== undefined ? dto.provinceId : user.provinceId,
+        dto.wardId !== undefined ? dto.wardId : user.wardId,
       );
     }
 
@@ -245,8 +245,8 @@ export class UserService extends BaseService<UserEntity> {
 
     if (dto.provinceId !== undefined || dto.wardId !== undefined) {
       await this.locationService.assertValidSelection(
-        dto.provinceId ?? user.provinceId,
-        dto.wardId ?? user.wardId,
+        dto.provinceId !== undefined ? dto.provinceId : user.provinceId,
+        dto.wardId !== undefined ? dto.wardId : user.wardId,
       );
     }
 
