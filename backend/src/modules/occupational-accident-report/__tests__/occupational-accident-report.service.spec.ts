@@ -18,6 +18,7 @@ const makeQueryBuilder = (rows: unknown[]) => ({
 
 const makeAdminQueryBuilder = (rows: unknown[], total = rows.length) => ({
   innerJoinAndSelect: vi.fn().mockReturnThis(),
+  innerJoin: vi.fn().mockReturnThis(),
   leftJoinAndSelect: vi.fn().mockReturnThis(),
   where: vi.fn().mockReturnThis(),
   andWhere: vi.fn().mockReturnThis(),
@@ -464,6 +465,61 @@ describe('OccupationalAccidentReportService', () => {
         },
       ],
     });
+  });
+
+  it('filters the admin queue by enterprise province and ward', async () => {
+    const builder = makeAdminQueryBuilder([]);
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+
+    await service.getAdminReports({
+      provinceId: '79',
+      wardId: '26740',
+      page: 1,
+      pageSize: 10,
+    });
+
+    expect(builder.innerJoin).toHaveBeenCalledWith(
+      'report.enterprise',
+      'enterprise',
+    );
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'enterprise.province_id = :provinceId',
+      { provinceId: '79' },
+    );
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'enterprise.ward_id = :wardId',
+      { wardId: '26740' },
+    );
+  });
+
+  it('filters the admin queue by enterprise name and tax code separately', async () => {
+    const builder = makeAdminQueryBuilder([]);
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+
+    await service.getAdminReports({
+      enterpriseName: ' Thiên Ân ',
+      taxCode: ' 0317 ',
+      page: 1,
+      pageSize: 10,
+    });
+
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'LOWER(report.enterprise_name) LIKE :enterpriseName',
+      { enterpriseName: '%thiên ân%' },
+    );
+    expect(builder.andWhere).toHaveBeenCalledWith(
+      'report.tax_code LIKE :taxCode',
+      { taxCode: '%0317%' },
+    );
+  });
+
+  it('does not join enterprises when no location filter is given', async () => {
+    const builder = makeAdminQueryBuilder([]);
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+
+    await service.getAdminReports({ page: 1, pageSize: 10 });
+
+    expect(builder.innerJoin).not.toHaveBeenCalled();
   });
 
   it('aggregates received reports for the admin summary', async () => {

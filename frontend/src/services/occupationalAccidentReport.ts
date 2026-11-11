@@ -65,9 +65,13 @@ export interface AdminOccupationalAccidentReportPage {
 
 export interface AdminOccupationalAccidentReportFilters {
   search?: string;
+  enterpriseName?: string;
+  taxCode?: string;
   year?: number;
   reportPeriodId?: number;
   status?: ReviewableOccupationalAccidentReportStatus;
+  provinceId?: string;
+  wardId?: string;
   page?: number;
   pageSize?: number;
 }

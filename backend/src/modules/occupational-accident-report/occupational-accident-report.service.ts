@@ -6,7 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Not, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  In,
+  Not,
+  QueryFailedError,
+  Repository,
+  type SelectQueryBuilder,
+} from 'typeorm';
 import { createHash } from 'node:crypto';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { AccidentCauseEntity } from '../accident-cause/accident-cause.entity.js';
@@ -193,6 +200,18 @@ export class OccupationalAccidentReportService {
         { search: `%${search}%` },
       );
     }
+    const enterpriseName = query.enterpriseName?.trim().toLowerCase();
+    if (enterpriseName) {
+      builder.andWhere('LOWER(report.enterprise_name) LIKE :enterpriseName', {
+        enterpriseName: `%${enterpriseName}%`,
+      });
+    }
+    const taxCode = query.taxCode?.trim();
+    if (taxCode) {
+      builder.andWhere('report.tax_code LIKE :taxCode', {
+        taxCode: `%${taxCode}%`,
+      });
+    }
     if (query.year !== undefined) {
       builder.andWhere('period.report_year = :year', { year: query.year });
     }
@@ -204,6 +223,7 @@ export class OccupationalAccidentReportService {
     if (query.status !== undefined) {
       builder.andWhere('report.status = :status', { status: query.status });
     }
+    this.applyEnterpriseLocationFilter(builder, query);
 
     builder
       .orderBy('report.submitted_at', 'DESC', 'NULLS LAST')
@@ -237,6 +257,23 @@ export class OccupationalAccidentReportService {
     };
   }
 
+  // Lọc theo địa bàn trụ sở chính hiện tại của doanh nghiệp
+  private applyEnterpriseLocationFilter(
+    builder: SelectQueryBuilder<OccupationalAccidentReportEntity>,
+    query: Pick<AdminOccupationalAccidentReportQueryDto, 'provinceId' | 'wardId'>,
+  ) {
+    if (query.provinceId === undefined && query.wardId === undefined) return;
+    builder.innerJoin('report.enterprise', 'enterprise');
+    if (query.provinceId !== undefined) {
+      builder.andWhere('enterprise.province_id = :provinceId', {
+        provinceId: query.provinceId,
+      });
+    }
+    if (query.wardId !== undefined) {
+      builder.andWhere('enterprise.ward_id = :wardId', { wardId: query.wardId });
+    }
+  }
+
   async getAdminSummary(
     query: AdminOccupationalAccidentReportQueryDto = new AdminOccupationalAccidentReportQueryDto(),
   ): Promise<AdminOccupationalAccidentSummary> {
@@ -261,6 +298,7 @@ export class OccupationalAccidentReportService {
         reportPeriodId: query.reportPeriodId,
       });
     }
+    this.applyEnterpriseLocationFilter(builder, query);
 
     const [reports, causes, registeredEnterprises] = await Promise.all([
       builder
@@ -269,7 +307,11 @@ export class OccupationalAccidentReportService {
         .getMany(),
       this.getActiveAccidentCauses(),
       this.enterpriseRepository.find({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(query.provinceId !== undefined && { provinceId: query.provinceId }),
+          ...(query.wardId !== undefined && { wardId: query.wardId }),
+        },
         relations: { businessType: true },
       }),
     ]);
