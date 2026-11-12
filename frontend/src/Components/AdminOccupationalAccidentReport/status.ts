@@ -31,3 +31,9 @@ export const formatReportDateTime = (value?: string | null) => {
 
 export const formatReportMoney = (value: string | number) =>
   new Intl.NumberFormat('vi-VN').format(BigInt(String(value || 0)));
+
+export const formatReportFrequency = (value: number) =>
+  new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);

@@ -17,14 +17,7 @@ import {
   SUMMARY_CLASSIFICATION_PRINT_STYLES,
   unmanagedClassificationPrintTable,
 } from "./summaryClassificationPrint";
-
-const frequency = (value: number, employees: number) =>
-  employees > 0
-    ? new Intl.NumberFormat("vi-VN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format((value * 1_000) / employees)
-    : "0,00";
+import { formatReportFrequency } from "./status";
 
 const generalTables = (summary: AdminOccupationalAccidentSummary) => {
   const total: OccupationalAccidentBusinessTypeSummary = {
@@ -36,6 +29,8 @@ const generalTables = (summary: AdminOccupationalAccidentSummary) => {
     femaleEmployees: summary.femaleEmployees,
     payrollFundVnd: summary.payrollFundVnd,
     accidentSummary: summary.overview.grandTotal,
+    accidentFrequencyPerThousand: summary.accidentFrequencyPerThousand,
+    fatalityFrequencyPerThousand: summary.fatalityFrequencyPerThousand,
   };
   const rows = [total, ...summary.byBusinessType];
   const table = (
@@ -83,8 +78,8 @@ const generalTables = (summary: AdminOccupationalAccidentSummary) => {
       "4. Tần suất tai nạn lao động",
       ["K TNLĐ (‰)", "K chết (‰)"],
       (row) => [
-        frequency(row.accidentSummary.victimCount, row.totalEmployees),
-        frequency(row.accidentSummary.deathCount, row.totalEmployees),
+        formatReportFrequency(row.accidentFrequencyPerThousand),
+        formatReportFrequency(row.fatalityFrequencyPerThousand),
       ],
     )
   );

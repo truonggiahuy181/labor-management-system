@@ -49,6 +49,7 @@ import {
 import type {
   AccidentBreakdownRow,
   AccidentCountMetrics,
+  AccidentFrequencyMetrics,
   AccidentSummary,
   AdminOccupationalAccidentReportPage,
   AdminOccupationalAccidentSummary,
@@ -436,6 +437,7 @@ export class OccupationalAccidentReportService {
       totalEmployees,
       femaleEmployees,
       payrollFundVnd,
+      ...this.calculateFrequencyMetrics(grandTotal, totalEmployees),
       overview: {
         regular,
         article39,
@@ -456,7 +458,29 @@ export class OccupationalAccidentReportService {
           femaleEmployees: row.femaleEmployees,
           payrollFundVnd: row.payrollFundVnd,
           accidentSummary: row.accidentSummary,
+          ...this.calculateFrequencyMetrics(
+            row.accidentSummary,
+            row.totalEmployees,
+          ),
         })),
+    };
+  }
+
+  private calculateFrequencyMetrics(
+    counts: Pick<AccidentCountMetrics, 'victimCount' | 'deathCount'>,
+    totalEmployees: number,
+  ): AccidentFrequencyMetrics {
+    if (totalEmployees <= 0) {
+      return {
+        accidentFrequencyPerThousand: 0,
+        fatalityFrequencyPerThousand: 0,
+      };
+    }
+    return {
+      accidentFrequencyPerThousand:
+        (counts.victimCount * 1_000) / totalEmployees,
+      fatalityFrequencyPerThousand:
+        (counts.deathCount * 1_000) / totalEmployees,
     };
   }
 
