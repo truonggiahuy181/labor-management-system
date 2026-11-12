@@ -16,6 +16,7 @@ import type {
   OccupationalAccidentBusinessTypeSummary,
 } from "@/services/occupationalAccidentReport";
 import SummaryClassificationTable from "./SummaryClassificationTable";
+import { formatReportFrequency } from "./status";
 
 const headCellSx = {
   bgcolor: "grey.50",
@@ -36,14 +37,6 @@ const bodyCellSx = {
   py: 1,
 } as const;
 
-const frequency = (value: number, employees: number) =>
-  employees > 0
-    ? new Intl.NumberFormat("vi-VN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format((value * 1_000) / employees)
-    : "0,00";
-
 function GeneralRow({
   name,
   code,
@@ -52,6 +45,8 @@ function GeneralRow({
   totalEmployees,
   femaleEmployees,
   accidentSummary,
+  accidentFrequencyPerThousand,
+  fatalityFrequencyPerThousand,
   total,
 }: {
   name: string;
@@ -61,6 +56,8 @@ function GeneralRow({
   totalEmployees: number;
   femaleEmployees: number;
   accidentSummary: AccidentSummary;
+  accidentFrequencyPerThousand: number;
+  fatalityFrequencyPerThousand: number;
   total?: boolean;
 }) {
   const fontWeight = total ? 700 : 400;
@@ -97,10 +94,10 @@ function GeneralRow({
         {accidentSummary.severeCount}
       </TableCell>
       <TableCell align="right" sx={{ ...bodyCellSx, fontWeight }}>
-        {frequency(accidentSummary.victimCount, totalEmployees)}
+        {formatReportFrequency(accidentFrequencyPerThousand)}
       </TableCell>
       <TableCell align="right" sx={{ ...bodyCellSx, fontWeight }}>
-        {frequency(accidentSummary.deathCount, totalEmployees)}
+        {formatReportFrequency(fatalityFrequencyPerThousand)}
       </TableCell>
       <TableCell sx={{ ...bodyCellSx, minWidth: 130 }} />
     </TableRow>
@@ -185,6 +182,12 @@ function GeneralInformationTable({
               totalEmployees={summary.totalEmployees}
               femaleEmployees={summary.femaleEmployees}
               accidentSummary={summary.overview.grandTotal}
+              accidentFrequencyPerThousand={
+                summary.accidentFrequencyPerThousand
+              }
+              fatalityFrequencyPerThousand={
+                summary.fatalityFrequencyPerThousand
+              }
             />
             {summary.byBusinessType.map(
               (row: OccupationalAccidentBusinessTypeSummary) => (
@@ -197,6 +200,12 @@ function GeneralInformationTable({
                   totalEmployees={row.totalEmployees}
                   femaleEmployees={row.femaleEmployees}
                   accidentSummary={row.accidentSummary}
+                  accidentFrequencyPerThousand={
+                    row.accidentFrequencyPerThousand
+                  }
+                  fatalityFrequencyPerThousand={
+                    row.fatalityFrequencyPerThousand
+                  }
                 />
               ),
             )}

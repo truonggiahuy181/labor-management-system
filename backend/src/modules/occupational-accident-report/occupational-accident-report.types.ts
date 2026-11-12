@@ -85,7 +85,14 @@ export interface AdminOccupationalAccidentReportPage {
   pageSize: number;
 }
 
-export interface OccupationalAccidentBusinessTypeSummary {
+export interface AccidentFrequencyMetrics {
+  /** Số người bị nạn trên 1.000 lao động (‰), chưa làm tròn. */
+  accidentFrequencyPerThousand: number;
+  /** Số người chết trên 1.000 lao động (‰), chưa làm tròn. */
+  fatalityFrequencyPerThousand: number;
+}
+
+export interface OccupationalAccidentBusinessTypeSummary extends AccidentFrequencyMetrics {
   code: string;
   name: string;
   totalEnterpriseCount: number;
@@ -96,7 +103,7 @@ export interface OccupationalAccidentBusinessTypeSummary {
   accidentSummary: AccidentSummary;
 }
 
-export interface AdminOccupationalAccidentSummary {
+export interface AdminOccupationalAccidentSummary extends AccidentFrequencyMetrics {
   reportCount: number;
   registeredEnterpriseCount: number;
   enterpriseCount: number;

@@ -580,6 +580,121 @@ describe('OccupationalAccidentReportService', () => {
         },
       ],
     });
+    expect(result.accidentFrequencyPerThousand).toBeCloseTo(166.66666666666666);
+    expect(result.fatalityFrequencyPerThousand).toBeCloseTo(33.333333333333336);
+    expect(result.byBusinessType[0].accidentFrequencyPerThousand).toBe(
+      result.accidentFrequencyPerThousand,
+    );
+    expect(result.byBusinessType[0].fatalityFrequencyPerThousand).toBe(
+      result.fatalityFrequencyPerThousand,
+    );
+  });
+
+  it('calculates frequencies from aggregated counts and workforce for each scope', async () => {
+    const reports = [
+      makeReport({ status: OccupationalAccidentReportStatus.RECEIVED }),
+      makeReport({
+        id: 21,
+        enterpriseId: 3,
+        status: OccupationalAccidentReportStatus.RECEIVED,
+        totalEmployees: 70,
+        noAccidentsDeclared: true,
+        article39Summary: null,
+        cases: [],
+      }),
+      makeReport({
+        id: 22,
+        enterpriseId: 4,
+        status: OccupationalAccidentReportStatus.RECEIVED,
+        totalEmployees: 200,
+        businessTypeCode: 'TNHH',
+        businessTypeName: 'Công ty trách nhiệm hữu hạn',
+      }),
+    ];
+    reportRepository.createQueryBuilder.mockReturnValue(
+      makeAdminQueryBuilder(reports),
+    );
+
+    const result = await service.getAdminSummary();
+
+    expect(result.totalEmployees).toBe(300);
+    expect(result.accidentFrequencyPerThousand).toBeCloseTo(
+      33.333333333333336,
+      10,
+    );
+    expect(result.fatalityFrequencyPerThousand).toBeCloseTo(
+      6.666666666666667,
+      10,
+    );
+    expect(result.byBusinessType).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'CTCP',
+          totalEmployees: 100,
+          accidentFrequencyPerThousand: 50,
+          fatalityFrequencyPerThousand: 10,
+        }),
+        expect.objectContaining({
+          code: 'TNHH',
+          totalEmployees: 200,
+          accidentFrequencyPerThousand: 25,
+          fatalityFrequencyPerThousand: 5,
+        }),
+      ]),
+    );
+  });
+
+  it('returns zero frequencies for an empty summary and registered-only business types', async () => {
+    reportRepository.createQueryBuilder.mockReturnValue(
+      makeAdminQueryBuilder([]),
+    );
+    enterpriseRepository.find.mockResolvedValue([
+      {
+        id: 2,
+        isActive: true,
+        businessType: { typeCode: 'CTCP', typeName: 'Công ty cổ phần' },
+      },
+    ]);
+
+    const result = await service.getAdminSummary();
+
+    expect(result).toMatchObject({
+      totalEmployees: 0,
+      accidentFrequencyPerThousand: 0,
+      fatalityFrequencyPerThousand: 0,
+      byBusinessType: [
+        {
+          code: 'CTCP',
+          totalEmployees: 0,
+          accidentFrequencyPerThousand: 0,
+          fatalityFrequencyPerThousand: 0,
+        },
+      ],
+    });
+  });
+
+  it('returns zero frequencies when the reported workforce is zero', async () => {
+    reportRepository.createQueryBuilder.mockReturnValue(
+      makeAdminQueryBuilder([
+        makeReport({
+          status: OccupationalAccidentReportStatus.RECEIVED,
+          totalEmployees: 0,
+        }),
+      ]),
+    );
+
+    const result = await service.getAdminSummary();
+
+    expect(result).toMatchObject({
+      accidentFrequencyPerThousand: 0,
+      fatalityFrequencyPerThousand: 0,
+      byBusinessType: [
+        {
+          accidentFrequencyPerThousand: 0,
+          fatalityFrequencyPerThousand: 0,
+        },
+      ],
+    });
   });
 
   it('allows an admin to receive a submitted report and records history', async () => {
