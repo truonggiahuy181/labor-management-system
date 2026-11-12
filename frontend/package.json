@@ -7,7 +7,8 @@
     "dev:local": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:accident-cases": "node --test tests/occupational-accident-cases.test.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

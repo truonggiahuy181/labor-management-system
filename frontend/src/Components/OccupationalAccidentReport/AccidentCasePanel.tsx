@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -8,6 +9,11 @@ import {
   Box,
   Button,
   Card,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   Stack,
@@ -19,7 +25,22 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import type { OccupationalAccidentCase } from "@/services/occupationalAccidentReport";
+import type {
+  AccidentCaseBody,
+  OccupationalAccidentCase,
+} from "@/services/occupationalAccidentReport";
+import AccidentCaseForm, {
+  type AccidentCaseFormProps,
+} from "./AccidentCaseForm";
+import {
+  getAccidentCaseErrors,
+  isEmptyAccidentCase,
+} from "./accidentCaseValidation";
+import {
+  MAX_CASES_PER_ADD,
+  parseAdditionalCaseCount,
+  type AccidentCaseDraft,
+} from "./accidentCaseDrafts";
 
 const formatDate = (value: string) => {
   const [year, month, day] = value.slice(0, 10).split("-");
@@ -73,7 +94,23 @@ interface AccidentCasePanelProps {
   cases: OccupationalAccidentCase[];
   noAccidentsDeclared: boolean;
   readOnly: boolean;
-  onAdd: () => void;
+  drafts: AccidentCaseDraft[];
+  editorProps: Pick<
+    AccidentCaseFormProps,
+    | "causes"
+    | "injuryFactors"
+    | "occupations"
+    | "totalEmployees"
+    | "femaleEmployees"
+    | "minDate"
+    | "maxDate"
+    | "saving"
+  >;
+  draftStorageFailed: boolean;
+  onAdd: (count: number) => string;
+  onChangeDraft: (clientId: string, body: AccidentCaseBody) => void;
+  onSaveDraft: (clientId: string, body: AccidentCaseBody) => Promise<boolean>;
+  onRemoveDraft: (clientId: string) => void;
   onEdit: (item: OccupationalAccidentCase) => void;
   onRemove: (item: OccupationalAccidentCase) => void;
 }
@@ -82,10 +119,63 @@ export default function AccidentCasePanel({
   cases,
   noAccidentsDeclared,
   readOnly,
+  drafts,
+  editorProps,
+  draftStorageFailed,
   onAdd,
+  onChangeDraft,
+  onSaveDraft,
+  onRemoveDraft,
   onEdit,
   onRemove,
 }: AccidentCasePanelProps) {
+  const [quantityOpen, setQuantityOpen] = useState(false);
+  const [quantity, setQuantity] = useState("1");
+  const [quantityTouched, setQuantityTouched] = useState(false);
+  const [expandedDraft, setExpandedDraft] = useState<string | null>(
+    () => drafts[0]?.clientId ?? null,
+  );
+  const [focusDraftId, setFocusDraftId] = useState<string | null>(null);
+  const [attemptedDrafts, setAttemptedDrafts] = useState<Set<string>>(
+    new Set(),
+  );
+  const additionalCount = parseAdditionalCaseCount(quantity);
+
+  useEffect(() => {
+    if (!focusDraftId) return;
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById(`draft-case-${focusDraftId}`);
+      element?.scrollIntoView({ behavior: "smooth", block: "start" });
+      element
+        ?.querySelector<HTMLInputElement>(
+          'input:not([type="hidden"]):not([aria-hidden="true"])',
+        )
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusDraftId]);
+
+  const addDrafts = () => {
+    setQuantityTouched(true);
+    if (additionalCount === null || editorProps.saving) return;
+    const firstId = onAdd(additionalCount);
+    setQuantityOpen(false);
+    setExpandedDraft(firstId);
+    setFocusDraftId(firstId);
+  };
+
+  const saveDraft = async (
+    draft: AccidentCaseDraft,
+    index: number,
+    moveNext: boolean,
+  ) => {
+    const nextId = drafts[index + 1]?.clientId;
+    if (await onSaveDraft(draft.clientId, draft.body)) {
+      setExpandedDraft(moveNext && nextId ? nextId : null);
+      if (moveNext && nextId) setFocusDraftId(nextId);
+    }
+  };
+
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" sx={{ alignItems: "center" }}>
@@ -93,7 +183,16 @@ export default function AccidentCasePanel({
           Chi tiết các vụ tai nạn lao động
         </Typography>
         {!readOnly && !noAccidentsDeclared && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            disabled={editorProps.saving}
+            onClick={() => {
+              setQuantity("1");
+              setQuantityTouched(false);
+              setQuantityOpen(true);
+            }}
+          >
             Thêm vụ tai nạn
           </Button>
         )}
@@ -119,17 +218,32 @@ export default function AccidentCasePanel({
         return (
           <Accordion
             key={item.id}
-            defaultExpanded={index === 0}
+            defaultExpanded={index === 0 && drafts.length === 0}
             disableGutters
             variant="outlined"
             sx={{ "&:before": { display: "none" } }}
           >
             {/* Nút sửa/xóa đặt cạnh AccordionSummary (không lồng bên trong) vì AccordionSummary là <button> */}
-            <Stack direction="row" sx={{ alignItems: "center", pr: readOnly ? 0 : 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ flex: 1, minWidth: 0 }}>
+            <Stack
+              direction="row"
+              sx={{ alignItems: "center", pr: readOnly ? 0 : 1 }}
+            >
+              <AccordionSummary
+                id={`saved-case-summary-${item.id}`}
+                aria-controls={`saved-case-details-${item.id}`}
+                expandIcon={<ExpandMoreIcon />}
+                sx={{ flex: 1, minWidth: 0 }}
+              >
                 <Typography sx={{ fontWeight: 700 }}>
                   Chi tiết vụ tai nạn số {index + 1}
                 </Typography>
+                <Chip
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  label="Đã lưu"
+                  sx={{ ml: 1.5 }}
+                />
               </AccordionSummary>
               {!readOnly && (
                 <>
@@ -137,6 +251,7 @@ export default function AccidentCasePanel({
                     <IconButton
                       size="small"
                       color="primary"
+                      disabled={editorProps.saving}
                       aria-label={`Chỉnh sửa vụ tai nạn số ${index + 1}`}
                       onClick={() => onEdit(item)}
                     >
@@ -147,6 +262,7 @@ export default function AccidentCasePanel({
                     <IconButton
                       size="small"
                       color="error"
+                      disabled={editorProps.saving}
                       aria-label={`Xóa vụ tai nạn số ${index + 1}`}
                       onClick={() => onRemove(item)}
                     >
@@ -260,7 +376,118 @@ export default function AccidentCasePanel({
         );
       })}
 
-      {!noAccidentsDeclared && cases.length === 0 && (
+      {!readOnly && drafts.length > 0 && (
+        <>
+          {noAccidentsDeclared && (
+            <Alert severity="warning">
+              Để lưu các vụ đang nhập, hãy bỏ xác nhận không phát sinh tai nạn
+              trong thông tin doanh nghiệp. Bạn vẫn có thể xóa các vụ chưa lưu
+              bên dưới.
+            </Alert>
+          )}
+          <Alert severity={draftStorageFailed ? "warning" : "info"}>
+            Còn {drafts.length} vụ chưa lưu, chưa tính vào số liệu tổng hợp.{" "}
+            {draftStorageFailed
+              ? "Không thể tự lưu nháp trên trình duyệt. Hãy lưu từng vụ trước khi rời trang."
+              : "Nội dung đang nhập được tự lưu nháp trên trình duyệt này."}
+          </Alert>
+          {drafts.map((draft, index) => {
+            const number = cases.length + index + 1;
+            const empty = isEmptyAccidentCase(draft.body);
+            const invalid =
+              attemptedDrafts.has(draft.clientId) &&
+              Object.keys(getAccidentCaseErrors(draft.body, editorProps))
+                .length > 0;
+            return (
+              <Accordion
+                key={draft.clientId}
+                id={`draft-case-${draft.clientId}`}
+                expanded={expandedDraft === draft.clientId}
+                onChange={(_, expanded) =>
+                  setExpandedDraft(expanded ? draft.clientId : null)
+                }
+                disableGutters
+                variant="outlined"
+                sx={{ scrollMarginTop: 96, "&:before": { display: "none" } }}
+              >
+                <Stack direction="row" sx={{ alignItems: "center", pr: 1 }}>
+                  <AccordionSummary
+                    id={`draft-case-summary-${draft.clientId}`}
+                    aria-controls={`draft-case-details-${draft.clientId}`}
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{ flex: 1, minWidth: 0 }}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
+                      sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5 }}
+                    >
+                      <Typography sx={{ fontWeight: 700 }}>
+                        Chi tiết vụ tai nạn số {number}
+                      </Typography>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={
+                          invalid
+                            ? "Cần kiểm tra"
+                            : empty
+                              ? "Chưa nhập"
+                              : "Đang nhập"
+                        }
+                        color={
+                          invalid ? "error" : empty ? "default" : "warning"
+                        }
+                      />
+                    </Stack>
+                  </AccordionSummary>
+                  <Tooltip title="Xóa vụ chưa lưu">
+                    <IconButton
+                      color="error"
+                      size="small"
+                      disabled={editorProps.saving}
+                      aria-label={`Xóa vụ tai nạn số ${number}`}
+                      onClick={() => {
+                        if (
+                          !empty &&
+                          !window.confirm(
+                            `Xóa nội dung đang nhập của vụ tai nạn số ${number}?`,
+                          )
+                        )
+                          return;
+                        onRemoveDraft(draft.clientId);
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+                <AccordionDetails sx={{ pt: 0 }}>
+                  {expandedDraft === draft.clientId && (
+                    <AccidentCaseForm
+                      {...editorProps}
+                      value={draft.body}
+                      initialAttempted={attemptedDrafts.has(draft.clientId)}
+                      showSaveAndNext={index < drafts.length - 1}
+                      onChange={(body) => onChangeDraft(draft.clientId, body)}
+                      onInvalid={() =>
+                        setAttemptedDrafts((current) =>
+                          new Set(current).add(draft.clientId),
+                        )
+                      }
+                      onSave={(_, moveNext) => {
+                        void saveDraft(draft, index, moveNext);
+                      }}
+                    />
+                  )}
+                </AccordionDetails>
+              </Accordion>
+            );
+          })}
+        </>
+      )}
+
+      {!noAccidentsDeclared && cases.length === 0 && drafts.length === 0 && (
         <Card
           variant="outlined"
           sx={{ py: 6, textAlign: "center", color: "text.secondary" }}
@@ -269,6 +496,62 @@ export default function AccidentCasePanel({
           tổng hợp số liệu.
         </Card>
       )}
+
+      <Dialog
+        open={quantityOpen}
+        onClose={() => setQuantityOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        disableRestoreFocus
+      >
+        <Box
+          component="form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            addDrafts();
+          }}
+        >
+          <DialogTitle>Thêm vụ tai nạn</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Nhập số vụ muốn thêm mới. Các vụ đã có được giữ nguyên.
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              required
+              type="number"
+              label="Số vụ cần thêm"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              onFocus={(event) => event.target.select()}
+              onBlur={() => setQuantityTouched(true)}
+              error={quantityTouched && additionalCount === null}
+              helperText={
+                quantityTouched && additionalCount === null
+                  ? `Vui lòng nhập số nguyên từ 1 đến ${MAX_CASES_PER_ADD}.`
+                  : `Có thể thêm tối đa ${MAX_CASES_PER_ADD} vụ mỗi lần và tiếp tục thêm khi cần.`
+              }
+              slotProps={{
+                htmlInput: { min: 1, max: MAX_CASES_PER_ADD, step: 1 },
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setQuantityOpen(false)}>Hủy</Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={additionalCount === null || editorProps.saving}
+            >
+              {additionalCount === null
+                ? "Thêm vụ"
+                : `Thêm ${additionalCount} vụ`}
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
     </Stack>
   );
 }
