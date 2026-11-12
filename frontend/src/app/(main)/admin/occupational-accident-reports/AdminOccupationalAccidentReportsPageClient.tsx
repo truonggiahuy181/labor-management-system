@@ -24,6 +24,7 @@ import {
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useSnackbar } from "notistack";
 import { ADMIN_REPORT_STATUS } from "@/Components/AdminOccupationalAccidentReport/status";
+import ReportBulkActions from "@/Components/AdminOccupationalAccidentReport/ReportBulkActions";
 import TableFilterAutocomplete from "@/Components/TableFilterAutocomplete";
 import useAuth from "@/Hooks/useAuth";
 import useLocations from "@/Hooks/useLocations";
@@ -78,6 +79,7 @@ export default function AdminOccupationalAccidentReportsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<number[]>([]);
+  const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
     if (provinceId) void ensureWards(provinceId);
@@ -122,6 +124,7 @@ export default function AdminOccupationalAccidentReportsPage() {
   useEffect(() => {
     if (!isAdmin || !periodsLoaded) return;
     let cancelled = false;
+    let pageAdjusted = false;
     adminOccupationalAccidentReportApi
       .list({
         ...(enterpriseName.trim() && { enterpriseName: enterpriseName.trim() }),
@@ -136,8 +139,18 @@ export default function AdminOccupationalAccidentReportsPage() {
       })
       .then((result) => {
         if (!cancelled) {
+          const lastPage = Math.max(1, Math.ceil(result.total / pageSize));
+          if (page > lastPage) {
+            pageAdjusted = true;
+            setSelected([]);
+            setPage(lastPage);
+            return;
+          }
           setRows(result.data);
           setTotal(result.total);
+          setSelected((current) =>
+            current.filter((id) => result.data.some((row) => row.id === id)),
+          );
         }
       })
       .catch((error) => {
@@ -151,7 +164,7 @@ export default function AdminOccupationalAccidentReportsPage() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !pageAdjusted) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -164,6 +177,7 @@ export default function AdminOccupationalAccidentReportsPage() {
     pageSize,
     periodsLoaded,
     provinceId,
+    reloadCount,
     reportPeriodId,
     status,
     taxCode,
@@ -310,6 +324,19 @@ export default function AdminOccupationalAccidentReportsPage() {
           />
         </Stack>
 
+        <ReportBulkActions
+          reports={rows.filter((row) => selected.includes(row.id))}
+          disabled={loading}
+          onClear={() => setSelected([])}
+          onProcessed={(successfulIds) => {
+            setSelected((current) =>
+              current.filter((id) => !successfulIds.includes(id)),
+            );
+            setLoading(true);
+            setReloadCount((current) => current + 1);
+          }}
+        />
+
         <TableContainer sx={{ flex: 1 }}>
           <Table stickyHeader size="small" sx={{ minWidth: 960 }}>
             <TableHead
@@ -319,6 +346,7 @@ export default function AdminOccupationalAccidentReportsPage() {
                 <TableCell padding="checkbox" rowSpan={2}>
                   <Checkbox
                     size="small"
+                    disabled={loading || pageIds.length === 0}
                     checked={allChecked}
                     indeterminate={someChecked}
                     onChange={toggleAll}
@@ -411,6 +439,7 @@ export default function AdminOccupationalAccidentReportsPage() {
                     <TableCell padding="checkbox">
                       <Checkbox
                         size="small"
+                        disabled={loading}
                         checked={checked}
                         onChange={() => toggleOne(row.id)}
                         slotProps={{
