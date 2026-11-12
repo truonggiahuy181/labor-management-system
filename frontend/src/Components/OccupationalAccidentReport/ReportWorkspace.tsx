@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert,
@@ -53,6 +53,12 @@ import RegularAccidentSummary from "./RegularAccidentSummary";
 import ReportHeaderForm from "./ReportHeaderForm";
 import SignedDocumentPanel from "./SignedDocumentPanel";
 import { printOccupationalAccidentReport } from "./reportPrint";
+import {
+  createAccidentCaseDrafts,
+  getCaseDraftStorageKey,
+  parseAccidentCaseDrafts,
+  type AccidentCaseDraft,
+} from "./accidentCaseDrafts";
 
 const STATUS = {
   DRAFT: { label: "Đang khai báo", color: "info" as const },
@@ -69,6 +75,10 @@ const REPORT_SECTIONS = [
 ] as const;
 
 export default function ReportWorkspace({ reportId }: { reportId: number }) {
+  return <ReportWorkspaceContent key={reportId} reportId={reportId} />;
+}
+
+function ReportWorkspaceContent({ reportId }: { reportId: number }) {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const [report, setReport] = useState<OccupationalAccidentReport | null>(null);
@@ -84,6 +94,10 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
   const [section, setSection] = useState(0);
   const [regularTab, setRegularTab] = useState(0);
   const [caseDialogOpen, setCaseDialogOpen] = useState(false);
+  const [caseDrafts, setCaseDrafts] = useState<AccidentCaseDraft[]>([]);
+  const caseDraftsRef = useRef<AccidentCaseDraft[]>([]);
+  const savingCaseRef = useRef(false);
+  const [draftStorageFailed, setDraftStorageFailed] = useState(false);
   // Hành động đang chờ người dùng xác nhận bỏ dữ liệu chưa lưu (hủy bỏ / chuyển mục)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -93,11 +107,11 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
 
   // Đóng tab / tải lại trang khi form còn thay đổi chưa lưu → trình duyệt hỏi lại
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !(draftStorageFailed && caseDrafts.length > 0)) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  }, [dirty, draftStorageFailed, caseDrafts.length]);
 
   // Chuyển mục: còn thay đổi chưa lưu thì hỏi trước, không thì làm luôn
   const guard = (action: () => void) => {
@@ -137,6 +151,17 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           setCauses(nextCauses);
           setInjuryFactors(nextFactors);
           setOccupations(nextOccupations);
+          try {
+            const drafts = parseAccidentCaseDrafts(
+              window.localStorage.getItem(
+                getCaseDraftStorageKey(nextReport.enterpriseId, reportId),
+              ),
+            );
+            caseDraftsRef.current = drafts;
+            setCaseDrafts(drafts);
+          } catch {
+            setDraftStorageFailed(true);
+          }
         },
       )
       .catch((error) => {
@@ -174,11 +199,19 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
     }
   };
 
-  const saveHeader = (body: UpdateReportHeaderBody) =>
-    runAndRefresh(
+  const saveHeader = (body: UpdateReportHeaderBody) => {
+    if (body.noAccidentsDeclared && caseDraftsRef.current.length > 0) {
+      enqueueSnackbar(
+        "Hãy xóa các vụ đang nhập trước khi xác nhận không phát sinh tai nạn.",
+        { variant: "warning" },
+      );
+      return Promise.resolve(false);
+    }
+    return runAndRefresh(
       () => occupationalAccidentReportApi.updateHeader(reportId, body),
       "Đã lưu thông tin doanh nghiệp.",
     );
+  };
 
   const saveArticle39 = (body: Article39SummaryBody) =>
     runAndRefresh(
@@ -204,6 +237,76 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
     }
   };
 
+  const updateCaseDrafts = (drafts: AccidentCaseDraft[]) => {
+    caseDraftsRef.current = drafts;
+    setCaseDrafts(drafts);
+    if (!report) return;
+    try {
+      const key = getCaseDraftStorageKey(report.enterpriseId, reportId);
+      if (drafts.length)
+        window.localStorage.setItem(key, JSON.stringify(drafts));
+      else window.localStorage.removeItem(key);
+      setDraftStorageFailed(false);
+    } catch {
+      setDraftStorageFailed(true);
+    }
+  };
+
+  const saveDraftCase = async (clientId: string, body: AccidentCaseBody) => {
+    if (savingCaseRef.current) return false;
+    if (report?.noAccidentsDeclared) {
+      enqueueSnackbar(
+        "Bỏ xác nhận không phát sinh tai nạn trong thông tin doanh nghiệp trước khi lưu vụ tai nạn.",
+        { variant: "warning" },
+      );
+      return false;
+    }
+    savingCaseRef.current = true;
+    setSaving(true);
+    try {
+      const created = await occupationalAccidentReportApi.createCase(
+        reportId,
+        body,
+      );
+      // Remove the local draft as soon as the server accepts it. A failed refresh must not create it twice.
+      updateCaseDrafts(
+        caseDraftsRef.current.filter((draft) => draft.clientId !== clientId),
+      );
+      setReport((current) =>
+        current
+          ? {
+              ...current,
+              cases: [...current.cases, created],
+              signedDocument: null,
+              version: current.version + 1,
+            }
+          : current,
+      );
+      try {
+        await refresh();
+        enqueueSnackbar("Đã lưu vụ tai nạn.", { variant: "success" });
+      } catch {
+        enqueueSnackbar(
+          "Đã lưu vụ tai nạn. Chưa tải lại được số liệu tổng hợp, vui lòng tải lại trang để cập nhật.",
+          { variant: "warning" },
+        );
+      }
+      return true;
+    } catch (error) {
+      enqueueSnackbar(
+        getErrorMessage(
+          error,
+          "Không thể lưu vụ tai nạn. Nội dung đang nhập được giữ lại.",
+        ),
+        { variant: "error" },
+      );
+      return false;
+    } finally {
+      savingCaseRef.current = false;
+      setSaving(false);
+    }
+  };
+
   const removeCase = async (item: OccupationalAccidentCase) => {
     if (!window.confirm("Xóa vụ tai nạn này khỏi bản nháp?")) return;
     await runAndRefresh(
@@ -213,6 +316,15 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
   };
 
   const submit = async () => {
+    if (caseDraftsRef.current.length > 0) {
+      enqueueSnackbar(
+        "Hãy lưu hoặc xóa các vụ đang nhập trước khi gửi báo cáo.",
+        { variant: "warning" },
+      );
+      setSection(1);
+      setRegularTab(1);
+      return;
+    }
     if (
       !window.confirm(
         "Gửi báo cáo? Sau khi gửi, doanh nghiệp không thể chỉnh sửa.",
@@ -322,7 +434,9 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           <Button
             variant="outlined"
             startIcon={<PrintOutlinedIcon />}
-            onClick={() => printOccupationalAccidentReport(report, overview, causes)}
+            onClick={() =>
+              printOccupationalAccidentReport(report, overview, causes)
+            }
           >
             In báo cáo
           </Button>
@@ -333,7 +447,12 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
             startIcon={
               submitting ? <CircularProgress size={16} /> : <SendOutlinedIcon />
             }
-            disabled={submitting || saving || !report.signedDocument?.isDraft}
+            disabled={
+              submitting ||
+              saving ||
+              caseDrafts.length > 0 ||
+              !report.signedDocument?.isDraft
+            }
             onClick={submit}
           >
             Gửi báo cáo
@@ -346,6 +465,31 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
         report.status !== "RECEIVED" && (
           <Alert severity="warning">
             Kỳ báo cáo hiện đã đóng; dữ liệu chỉ được phép xem.
+          </Alert>
+        )}
+
+      {!readOnly &&
+        caseDrafts.length > 0 &&
+        !(section === 1 && regularTab === 1) && (
+          <Alert
+            severity="warning"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() =>
+                  guard(() => {
+                    setSection(1);
+                    setRegularTab(1);
+                  })
+                }
+              >
+                Tiếp tục nhập
+              </Button>
+            }
+          >
+            Còn {caseDrafts.length} vụ tai nạn chưa lưu. Hãy hoàn tất hoặc xóa
+            các vụ này trước khi gửi báo cáo.
           </Alert>
         )}
 
@@ -407,10 +551,38 @@ export default function ReportWorkspace({ reportId }: { reportId: number }) {
           cases={report.cases}
           noAccidentsDeclared={report.noAccidentsDeclared}
           readOnly={readOnly}
-          onAdd={() => {
-            setEditingCase(null);
-            setCaseDialogOpen(true);
+          drafts={caseDrafts}
+          draftStorageFailed={draftStorageFailed}
+          editorProps={{
+            causes,
+            injuryFactors,
+            occupations,
+            totalEmployees: report.totalEmployees,
+            femaleEmployees: report.femaleEmployees,
+            minDate: coverage.startDate,
+            maxDate: coverage.endDate,
+            saving,
           }}
+          onAdd={(count) => {
+            const added = createAccidentCaseDrafts(count);
+            updateCaseDrafts([...caseDraftsRef.current, ...added]);
+            return added[0].clientId;
+          }}
+          onChangeDraft={(clientId, body) =>
+            updateCaseDrafts(
+              caseDraftsRef.current.map((draft) =>
+                draft.clientId === clientId ? { ...draft, body } : draft,
+              ),
+            )
+          }
+          onSaveDraft={saveDraftCase}
+          onRemoveDraft={(clientId) =>
+            updateCaseDrafts(
+              caseDraftsRef.current.filter(
+                (draft) => draft.clientId !== clientId,
+              ),
+            )
+          }
           onEdit={(item) => {
             setEditingCase(item);
             setCaseDialogOpen(true);
