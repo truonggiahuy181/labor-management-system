@@ -176,7 +176,7 @@ export default function ReportBulkActions({
             </Box>
             <Box aria-live="polite">
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                báo cáo đã chọn
+                Báo cáo đã chọn
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {eligible.length > 0
