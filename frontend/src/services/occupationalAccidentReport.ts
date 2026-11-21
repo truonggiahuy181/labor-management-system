@@ -1,5 +1,21 @@
 import api from "./api";
 import type { BackendResponse } from "./user";
+import type {
+  ReportReviewFlag,
+  ReportReviewFlagCounts,
+  ReportReviewFlagFilter,
+  ReportReviewLabel,
+} from "@/constants/reportReviewFlags";
+
+export interface ReportReviewMetadata {
+  reviewFlags: ReportReviewFlag[];
+  reviewNote: string;
+  reviewUpdatedBy: number | null;
+  reviewUpdatedAt: string | null;
+}
+
+export type AdminOccupationalAccidentReport = OccupationalAccidentReport &
+  ReportReviewMetadata & { reviewLabels: ReportReviewLabel[] };
 
 export type OccupationalAccidentReportStatus =
   "NOT_STARTED" | "DRAFT" | "SUBMITTED" | "RECEIVED" | "RETURNED";
@@ -38,6 +54,8 @@ export type ReviewableOccupationalAccidentReportStatus = Exclude<
 >;
 
 export interface AdminOccupationalAccidentReportListItem {
+  version: number;
+  reviewFlags: ReportReviewFlag[];
   id: number;
   enterpriseId: number;
   enterpriseName: string;
@@ -57,6 +75,8 @@ export interface AdminOccupationalAccidentReportListItem {
 }
 
 export interface AdminOccupationalAccidentReportPage {
+  reviewLabels: ReportReviewLabel[];
+  flagCounts: ReportReviewFlagCounts;
   data: AdminOccupationalAccidentReportListItem[];
   total: number;
   page: number;
@@ -64,6 +84,7 @@ export interface AdminOccupationalAccidentReportPage {
 }
 
 export interface AdminOccupationalAccidentReportFilters {
+  reviewFlag?: ReportReviewFlagFilter;
   search?: string;
   enterpriseName?: string;
   taxCode?: string;
@@ -163,7 +184,6 @@ export interface AccidentVictimGroupBody {
 }
 
 export interface AccidentCaseBody {
-  accidentDate: string;
   primaryCauseId: number;
   injuryFactorId: number;
   medicalCostVnd: string;
@@ -176,7 +196,7 @@ export interface AccidentCaseBody {
 
 export interface OccupationalAccidentCase {
   id: number;
-  accidentDate: string;
+  accidentDate: string | null;
   accidentCause: {
     id: number;
     code: string;
@@ -289,6 +309,10 @@ export interface OccupationalAccidentReport {
     reason: string | null;
     performedBy: number | null;
     performedAt: string;
+    reviewFlags?: ReportReviewFlag[];
+    reviewNote?: string;
+    reviewUpdatedBy?: number | null;
+    reviewUpdatedAt?: string | null;
   }>;
 }
 
@@ -393,6 +417,12 @@ export const occupationalAccidentReportApi = {
 };
 
 export const adminOccupationalAccidentReportApi = {
+  reviewLabels: () => api
+    .get<BackendResponse<ReportReviewLabel[]>>("/admin/occupational-accident-reports/review-labels")
+    .then(response => response.data.data),
+  createReviewLabel: (label: string) => api
+    .post<BackendResponse<ReportReviewLabel>>("/admin/occupational-accident-reports/review-labels", { label })
+    .then(response => response.data.data),
   list: (params: AdminOccupationalAccidentReportFilters = {}) =>
     api
       .get<BackendResponse<AdminOccupationalAccidentReportPage>>(
@@ -402,7 +432,7 @@ export const adminOccupationalAccidentReportApi = {
       .then((response) => response.data.data),
   get: (id: number) =>
     api
-      .get<BackendResponse<OccupationalAccidentReport>>(
+      .get<BackendResponse<AdminOccupationalAccidentReport>>(
         `/admin/occupational-accident-reports/${id}`,
       )
       .then((response) => response.data.data),
@@ -418,17 +448,28 @@ export const adminOccupationalAccidentReportApi = {
         `/admin/occupational-accident-reports/${id}/signed-document/access-url`,
       )
       .then((response) => response.data.data),
-  receive: (id: number) =>
+  updateReviewFlags: (
+    id: number,
+    body: { flags: ReportReviewFlag[]; note?: string; version: number },
+  ) =>
     api
-      .post<BackendResponse<OccupationalAccidentReport>>(
-        `/admin/occupational-accident-reports/${id}/receive`,
+      .patch<BackendResponse<AdminOccupationalAccidentReport>>(
+        `/admin/occupational-accident-reports/${id}/review-flags`,
+        body,
       )
       .then((response) => response.data.data),
-  returnForSupplement: (id: number, reason: string) =>
+  receive: (id: number, version?: number) =>
     api
-      .post<BackendResponse<OccupationalAccidentReport>>(
+      .post<BackendResponse<AdminOccupationalAccidentReport>>(
+        `/admin/occupational-accident-reports/${id}/receive`,
+        { version },
+      )
+      .then((response) => response.data.data),
+  returnForSupplement: (id: number, reason: string, version?: number) =>
+    api
+      .post<BackendResponse<AdminOccupationalAccidentReport>>(
         `/admin/occupational-accident-reports/${id}/return`,
-        { reason },
+        { reason, version },
       )
       .then((response) => response.data.data),
   summary: (

@@ -1,5 +1,6 @@
 import type { OccupationalAccidentReportListStatus } from './occupational-accident-report.constants.js';
 import type { OccupationalAccidentReportStatus } from './occupational-accident-report.constants.js';
+import type { ReportReviewFlag, ReportReviewFlagCounts, ReportReviewLabel } from './report-review-flags.js';
 
 export interface AccidentCountMetrics {
   totalCases: number;
@@ -60,6 +61,8 @@ export interface OccupationalAccidentReportListItem {
 }
 
 export interface AdminOccupationalAccidentReportListItem {
+  version: number;
+  reviewFlags: ReportReviewFlag[];
   id: number;
   enterpriseId: number;
   enterpriseName: string;
@@ -79,6 +82,8 @@ export interface AdminOccupationalAccidentReportListItem {
 }
 
 export interface AdminOccupationalAccidentReportPage {
+  reviewLabels: ReportReviewLabel[];
+  flagCounts: ReportReviewFlagCounts;
   data: AdminOccupationalAccidentReportListItem[];
   total: number;
   page: number;

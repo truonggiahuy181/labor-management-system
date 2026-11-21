@@ -27,6 +27,7 @@ import { LocationService } from '../location/location.service.js';
 import { FileService } from '../file/file.service.js';
 import type { MultipartFile } from '../file/file.types.js';
 import type { EnterpriseFileType } from './dto/enterprise-file-param.dto.js';
+import { synchronizeEnterpriseAccountStatus } from './enterprise-account-status.js';
 
 const INITIAL_ENTERPRISE_PASSWORD = '12345678';
 
@@ -236,9 +237,8 @@ export class EnterpriseService {
     updaterId?: number,
   ): Promise<EnterpriseResponse> {
     await this.findEntityOrFail(id);
-    await this.enterpriseRepository.update(id, {
-      isActive,
-      updatedBy: updaterId ?? null,
+    await this.dataSource.transaction(async (manager) => {
+      await synchronizeEnterpriseAccountStatus(manager, id, isActive, updaterId);
     });
     return this.toResponse(await this.findEntityOrFail(id));
   }

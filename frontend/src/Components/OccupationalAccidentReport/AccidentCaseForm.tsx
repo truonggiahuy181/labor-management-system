@@ -18,8 +18,6 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
-import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
-import AppDateField from "@/Components/AppDateField";
 import type { InjuryFactor, Occupation } from "@/services/accidentCatalog";
 import type {
   AccidentCaseBody,
@@ -54,10 +52,9 @@ export interface AccidentCaseFormProps extends AccidentCaseConstraints {
   injuryFactors: InjuryFactor[];
   occupations: Occupation[];
   saving: boolean;
-  showSaveAndNext?: boolean;
   initialAttempted?: boolean;
   onChange: (body: AccidentCaseBody) => void;
-  onSave: (body: AccidentCaseBody, moveNext: boolean) => void;
+  onSave: (body: AccidentCaseBody) => void;
   onCancel?: () => void;
   onInvalid?: () => void;
 }
@@ -69,10 +66,7 @@ export default function AccidentCaseForm({
   occupations,
   totalEmployees,
   femaleEmployees,
-  minDate,
-  maxDate,
   saving,
-  showSaveAndNext = false,
   initialAttempted = false,
   onChange,
   onSave,
@@ -85,8 +79,6 @@ export default function AccidentCaseForm({
   const errors = getAccidentCaseErrors(form, {
     totalEmployees,
     femaleEmployees,
-    minDate,
-    maxDate,
   });
   const fieldError = (key: string) =>
     attempted || touched[key] ? errors[key] : undefined;
@@ -110,10 +102,9 @@ export default function AccidentCaseForm({
       ),
     );
 
-  const save = (moveNext: boolean) => {
+  const save = () => {
     if (saving) return;
     setAttempted(true);
-    // Check the displayed date too: a partially typed date may not have an ISO value yet.
     if (
       Object.keys(errors).length ||
       formRef.current?.querySelector('[aria-invalid="true"]')
@@ -128,7 +119,7 @@ export default function AccidentCaseForm({
       });
       return;
     }
-    onSave(form, moveNext);
+    onSave(form);
   };
 
   return (
@@ -138,7 +129,7 @@ export default function AccidentCaseForm({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        save(false);
+        save();
       }}
       onBlurCapture={(event) => {
         const name =
@@ -155,20 +146,10 @@ export default function AccidentCaseForm({
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+              gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
               gap: 2,
             }}
           >
-            <AppDateField
-              required
-              label="Ngày xảy ra tai nạn"
-              value={form.accidentDate}
-              onChange={(value) => setField("accidentDate", value)}
-              min={minDate}
-              max={maxDate}
-              disabled={saving}
-              {...errorProps("accidentDate")}
-            />
             <Autocomplete
               size="small"
               options={causes}
@@ -437,22 +418,12 @@ export default function AccidentCaseForm({
             )}
             <Button
               type="submit"
-              variant={showSaveAndNext ? "outlined" : "contained"}
-              startIcon={<SaveOutlinedIcon />}
+              variant="contained"
+              endIcon={<NavigateNextIcon />}
               disabled={saving}
             >
-              {saving ? "Đang lưu..." : "Lưu"}
+              {saving ? "Đang lưu..." : "Sang vụ tiếp theo"}
             </Button>
-            {showSaveAndNext && (
-              <Button
-                variant="contained"
-                endIcon={<NavigateNextIcon />}
-                disabled={saving}
-                onClick={() => save(true)}
-              >
-                Lưu và sang vụ tiếp theo
-              </Button>
-            )}
           </Stack>
         </Stack>
       </Box>

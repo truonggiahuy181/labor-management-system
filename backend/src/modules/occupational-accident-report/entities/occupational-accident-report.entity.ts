@@ -22,6 +22,7 @@ import { OccupationalAccidentArticle39SummaryEntity } from './occupational-accid
 import { OccupationalAccidentReportHistoryEntity } from './occupational-accident-report-history.entity.js';
 import { OccupationalAccidentReportSubmissionEntity } from './occupational-accident-report-submission.entity.js';
 import { OccupationalAccidentReportDraftDocumentEntity } from './occupational-accident-report-draft-document.entity.js';
+import type { ReportReviewFlag } from '../report-review-flags.js';
 
 @Index('uq_oa_reports_enterprise_period', ['enterpriseId', 'reportPeriodId'], {
   unique: true,
@@ -152,6 +153,18 @@ export class OccupationalAccidentReportEntity extends BaseEntity {
     nullable: true,
   })
   returnedReason: string | null;
+
+  @Column({ name: 'review_flags', type: 'jsonb', default: () => "'[]'::jsonb" })
+  reviewFlags: ReportReviewFlag[];
+
+  @Column({ name: 'review_note', type: 'varchar', length: 500, default: '' })
+  reviewNote: string;
+
+  @Column({ name: 'review_updated_by', type: 'int', nullable: true })
+  reviewUpdatedBy: number | null;
+
+  @Column({ name: 'review_updated_at', type: 'timestamptz', nullable: true })
+  reviewUpdatedAt: Date | null;
 
   @VersionColumn({ name: 'version', type: 'int', default: 1 })
   version: number;

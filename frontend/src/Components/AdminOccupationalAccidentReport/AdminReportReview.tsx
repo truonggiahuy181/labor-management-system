@@ -34,7 +34,7 @@ import {
   adminOccupationalAccidentReportApi,
   getOccupationalAccidentCoverage,
   type OccupationalAccidentOverview,
-  type OccupationalAccidentReport,
+  type AdminOccupationalAccidentReport,
   type OccupationalAccidentReportStatus,
   type ReviewableOccupationalAccidentReportStatus,
 } from '@/services/occupationalAccidentReport';
@@ -49,6 +49,12 @@ import {
   formatReportDateTime,
   formatReportMoney,
 } from './status';
+import ReportReviewFlagsEditor from './ReportReviewFlagsEditor';
+import ReviewFlagChips from './ReviewFlagChips';
+import {
+  combineReviewReason,
+  getReviewReasonDraft,
+} from '@/constants/reportReviewFlags';
 
 const statusLabel = (status: OccupationalAccidentReportStatus | null) => {
   if (!status) return 'Khởi tạo';
@@ -60,7 +66,9 @@ const statusLabel = (status: OccupationalAccidentReportStatus | null) => {
 export default function AdminReportReview({ reportId }: { reportId: number }) {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
-  const [report, setReport] = useState<OccupationalAccidentReport | null>(null);
+  const [report, setReport] = useState<AdminOccupationalAccidentReport | null>(
+    null,
+  );
   const [overview, setOverview] = useState<OccupationalAccidentOverview | null>(
     null,
   );
@@ -100,7 +108,12 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
   const receive = async () => {
     setProcessing(true);
     try {
-      setReport(await adminOccupationalAccidentReportApi.receive(reportId));
+      setReport(
+        await adminOccupationalAccidentReportApi.receive(
+          reportId,
+          report?.version,
+        ),
+      );
       setReceiveOpen(false);
       enqueueSnackbar('Đã tiếp nhận báo cáo.', { variant: 'success' });
     } catch (error) {
@@ -121,6 +134,7 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         await adminOccupationalAccidentReportApi.returnForSupplement(
           reportId,
           reason,
+          report?.version,
         ),
       );
       setReturnOpen(false);
@@ -156,7 +170,14 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         square
         elevation={1}
         className="no-print"
-        sx={{ px: 2, py: 1.25, display: 'flex', alignItems: 'center', gap: 1 }}
+        sx={{
+          px: 2,
+          py: 1.25,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          flexWrap: 'wrap',
+        }}
       >
         <IconButton
           size="small"
@@ -171,7 +192,8 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {report.enterprise.enterpriseName} ·{' '}
-            {getReportPeriodLabel(report.reportPeriod.periodCode)} {report.reportPeriod.reportYear}
+            {getReportPeriodLabel(report.reportPeriod.periodCode)}{' '}
+            {report.reportPeriod.reportYear}
           </Typography>
         </Box>
         {statusMeta && (
@@ -191,17 +213,36 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
         </Button>
         {canReview && (
           <>
+            <ReportReviewFlagsEditor
+              report={report}
+              disabled={processing}
+              onSaved={setReport}
+            />
             <Button
               color="warning"
               variant="outlined"
               startIcon={<AssignmentReturnOutlinedIcon />}
-              onClick={() => setReturnOpen(true)}
+              disabled={processing}
+              onClick={() => {
+                const draft = getReviewReasonDraft(
+                  [report],
+                  undefined,
+                  report.reviewLabels,
+                );
+                setReturnReason(
+                  combineReviewReason(
+                    draft.reason,
+                    draft.additionalReasons[report.id],
+                  ),
+                );
+                setReturnOpen(true);
+              }}
             >
               Yêu cầu bổ sung
             </Button>
             <Button
               variant="contained"
-              disabled={!report.signedDocument}
+              disabled={processing || !report.signedDocument}
               startIcon={<CheckCircleOutlinedIcon />}
               onClick={() => setReceiveOpen(true)}
             >
@@ -210,6 +251,24 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
           </>
         )}
       </Card>
+
+      {report.reviewFlags.length > 0 && (
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          className="no-print"
+          sx={{ px: 2, py: 0.5, alignItems: 'center', flexWrap: 'wrap' }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            Cần bổ sung:
+          </Typography>
+          <ReviewFlagChips
+            flags={report.reviewFlags}
+            labels={report.reviewLabels}
+          />
+        </Stack>
+      )}
 
       {report.status === 'RETURNED' && report.returnedReason && (
         <Alert severity="warning">
@@ -305,7 +364,9 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
       <OverviewPanel
         overview={overview}
         report={report}
-        headerContent={<SignedDocumentPanel report={report} mode="admin" readOnly compact />}
+        headerContent={
+          <SignedDocumentPanel report={report} mode="admin" readOnly compact />
+        }
       />
 
       <Card variant="outlined" sx={{ p: 2 }}>
@@ -328,7 +389,22 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
                   </TableCell>
                   <TableCell>{statusLabel(item.fromStatus)}</TableCell>
                   <TableCell>{statusLabel(item.toStatus)}</TableCell>
-                  <TableCell>{item.reason ?? '—'}</TableCell>
+                  <TableCell>
+                    <Stack spacing={0.75}>
+                      <Typography
+                        variant="body2"
+                        sx={{ whiteSpace: 'pre-wrap' }}
+                      >
+                        {item.reason ?? '—'}
+                      </Typography>
+                      <Box className="no-print">
+                        <ReviewFlagChips
+                          flags={item.reviewFlags ?? []}
+                          labels={report.reviewLabels}
+                        />
+                      </Box>
+                    </Stack>
+                  </TableCell>
                 </TableRow>
               ))}
               {(report.history ?? []).length === 0 && (
@@ -355,6 +431,12 @@ export default function AdminReportReview({ reportId }: { reportId: number }) {
       >
         <DialogTitle>Tiếp nhận báo cáo</DialogTitle>
         <DialogContent>
+          {report.reviewFlags.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              Báo cáo đang được đánh dấu cần bổ sung. Kiểm tra các cờ trước khi
+              tiếp nhận.
+            </Alert>
+          )}
           Báo cáo sẽ được ghi nhận là đã tiếp nhận và đưa vào số liệu tổng hợp.
         </DialogContent>
         <DialogActions>

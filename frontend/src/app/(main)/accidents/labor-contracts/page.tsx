@@ -31,24 +31,10 @@ import { hasRole } from "@/constants/roles";
 import {
   occupationalAccidentReportApi,
   type OccupationalAccidentReportListItem,
-  type OccupationalAccidentReportStatus,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
 import { getReportPeriodLabel } from "@/services/reportPeriod";
-
-const STATUS: Record<
-  OccupationalAccidentReportStatus,
-  {
-    label: string;
-    color: "default" | "info" | "primary" | "success" | "warning";
-  }
-> = {
-  NOT_STARTED: { label: "Chưa khai báo", color: "default" },
-  DRAFT: { label: "Đang khai báo", color: "info" },
-  SUBMITTED: { label: "Đã gửi", color: "primary" },
-  RECEIVED: { label: "Đã tiếp nhận", color: "success" },
-  RETURNED: { label: "Yêu cầu bổ sung", color: "warning" },
-};
+import { getReportStatus } from "@/Components/OccupationalAccidentReport/reportStatus";
 
 const formatDate = (value: string) => {
   const [year, month, day] = value.slice(0, 10).split("-");
@@ -67,8 +53,8 @@ export default function OccupationalAccidentReportsPage() {
   const [openingPeriodId, setOpeningPeriodId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  const isEnterprise = hasRole(user, 'ENTERPRISE');
-  const isAdmin = hasRole(user, 'ADMIN');
+  const isEnterprise = hasRole(user, "ENTERPRISE");
+  const isAdmin = hasRole(user, "ADMIN");
 
   // Admin duyệt báo cáo ở màn hình riêng (cũng là mục trên menu)
   useEffect(() => {
@@ -108,7 +94,13 @@ export default function OccupationalAccidentReportsPage() {
 
   const openReport = async (row: OccupationalAccidentReportListItem) => {
     if (row.id) {
-      router.push(`/accidents/labor-contracts/${row.id}`);
+      const viewOnly =
+        row.status === "SUBMITTED" ||
+        row.status === "RECEIVED" ||
+        !row.isSubmissionOpen;
+      router.push(
+        `/accidents/labor-contracts/${row.id}${viewOnly ? "?section=overview" : ""}`,
+      );
       return;
     }
     if (!row.isSubmissionOpen) {
@@ -227,8 +219,11 @@ export default function OccupationalAccidentReportsPage() {
             </TableHead>
             <TableBody>
               {pageRows.map((row) => {
+                const displayStatus = getReportStatus(row.status, row.submissionEndDate);
                 const readOnly =
-                  row.status === "SUBMITTED" || row.status === "RECEIVED";
+                  row.status === "SUBMITTED" ||
+                  row.status === "RECEIVED" ||
+                  !row.isSubmissionOpen;
                 const opening = openingPeriodId === row.reportPeriodId;
                 return (
                   <TableRow key={row.reportPeriodId} hover>
@@ -257,16 +252,19 @@ export default function OccupationalAccidentReportsPage() {
                     </TableCell>
                     <TableCell>{row.reportName}</TableCell>
                     <TableCell>{row.reportYear}</TableCell>
-                    <TableCell>{getReportPeriodLabel(row.periodCode)}</TableCell>
                     <TableCell>
-                      {formatDate(row.submissionStartDate)} – {formatDate(row.submissionEndDate)}
+                      {getReportPeriodLabel(row.periodCode)}
+                    </TableCell>
+                    <TableCell>
+                      {formatDate(row.submissionStartDate)} –{" "}
+                      {formatDate(row.submissionEndDate)}
                     </TableCell>
                     <TableCell>
                       <Chip
                         size="small"
                         variant="outlined"
-                        label={STATUS[row.status].label}
-                        color={STATUS[row.status].color}
+                        label={displayStatus.label}
+                        color={displayStatus.color}
                       />
                     </TableCell>
                   </TableRow>

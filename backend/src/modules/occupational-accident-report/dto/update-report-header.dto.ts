@@ -14,7 +14,7 @@ export class UpdateReportHeaderDto {
   @ApiProperty({ example: 100 })
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  @Min(1, { message: 'Tổng số lao động phải lớn hơn 0.' })
   @Max(2_147_483_647)
   totalEmployees: number;
 
@@ -25,10 +25,12 @@ export class UpdateReportHeaderDto {
   @Max(2_147_483_647)
   femaleEmployees: number;
 
-  @ApiProperty({ example: '1200000000', description: 'Số tiền VND' })
+  @ApiProperty({ example: '1200000000', description: 'Số tiền VND lớn hơn 0' })
   @IsString()
   @MaxLength(19)
-  @Matches(/^\d{1,19}$/)
+  @Matches(/^(?=.*[1-9])\d{1,19}$/, {
+    message: 'Tổng quỹ lương phải là số nguyên lớn hơn 0.',
+  })
   payrollFundVnd: string;
 
   @ApiProperty({ example: false })

@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsInt,
+  IsOptional,
   IsString,
   Matches,
   Max,
@@ -11,16 +12,17 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccidentVictimGroupDto } from './accident-victim-group.dto.js';
 
 const MONEY_PATTERN = /^\d{1,19}$/;
 
 export class SaveAccidentCaseDto {
-  @ApiProperty({ example: '2026-03-15', format: 'date' })
+  @ApiPropertyOptional({ example: '2026-03-15', format: 'date' })
+  @IsOptional()
   @IsDateString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  accidentDate: string;
+  accidentDate?: string;
 
   @ApiProperty({ example: 1 })
   @Type(() => Number)

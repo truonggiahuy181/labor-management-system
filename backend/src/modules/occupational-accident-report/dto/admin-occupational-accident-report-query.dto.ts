@@ -11,6 +11,10 @@ import {
   Min,
 } from 'class-validator';
 import { OccupationalAccidentReportStatus } from '../occupational-accident-report.constants.js';
+import {
+  REPORT_REVIEW_FLAG_SOURCE,
+  type ReportReviewFlagFilter,
+} from '../report-review-flags.js';
 
 const REVIEW_STATUSES = [
   OccupationalAccidentReportStatus.SUBMITTED,
@@ -28,7 +32,10 @@ export class AdminOccupationalAccidentReportQueryDto {
   @MaxLength(255)
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Tìm theo tên doanh nghiệp.', maxLength: 255 })
+  @ApiPropertyOptional({
+    description: 'Tìm theo tên doanh nghiệp.',
+    maxLength: 255,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -59,6 +66,12 @@ export class AdminOccupationalAccidentReportQueryDto {
   @IsOptional()
   @IsIn(REVIEW_STATUSES)
   status?: (typeof REVIEW_STATUSES)[number];
+
+  @ApiPropertyOptional({ description: 'Mã nhãn, flagged hoặc unflagged.' })
+  @IsOptional()
+  @IsString()
+  @Matches(new RegExp(`^(?:flagged|unflagged|${REPORT_REVIEW_FLAG_SOURCE})$`))
+  reviewFlag?: ReportReviewFlagFilter;
 
   @ApiPropertyOptional({
     description: 'Mã tỉnh/thành phố của doanh nghiệp (trụ sở chính).',

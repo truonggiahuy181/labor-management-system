@@ -41,12 +41,9 @@ const {
 const constraints = {
   totalEmployees: 10,
   femaleEmployees: 4,
-  minDate: "2026-01-01",
-  maxDate: "2026-12-31",
 };
 const validCase = () => ({
   ...createEmptyAccidentCase(),
-  accidentDate: "2026-10-26",
   primaryCauseId: 1,
   injuryFactorId: 2,
   victimGroups: [
@@ -95,7 +92,6 @@ test("adding three drafts preserves two existing cases and creates independent e
 
 test("unfinished drafts survive storage round trips and remain isolated by report and enterprise", () => {
   const drafts = createAccidentCaseDrafts(3);
-  drafts[1].body.accidentDate = "2026-11-01";
   drafts[1].body.primaryCauseId = 8;
   assert.deepEqual(parseAccidentCaseDrafts(JSON.stringify(drafts)), drafts);
   assert.notEqual(getCaseDraftStorageKey(1, 2), getCaseDraftStorageKey(1, 3));
@@ -126,7 +122,6 @@ test("empty cases have no inferred date, categories, occupation or victim and ca
   const body = createEmptyAccidentCase();
   const errors = getAccidentCaseErrors(body, constraints);
   for (const key of [
-    "accidentDate",
     "primaryCauseId",
     "injuryFactorId",
     "victimGroups.0.occupationId",
@@ -136,27 +131,25 @@ test("empty cases have no inferred date, categories, occupation or victim and ca
   assert.deepEqual(getAccidentCaseErrors(validCase(), constraints), {});
 });
 
-test("case dates must be real calendar dates within the reporting period", () => {
-  for (const date of [
-    "2025-12-31",
-    "2027-01-01",
-    "2026-02-30",
-    "2026-13-01",
-    "26/10/2026",
-  ])
-    assert.ok(
-      getAccidentCaseErrors({ ...validCase(), accidentDate: date }, constraints)
-        .accidentDate,
-      date,
-    );
-  for (const date of ["2026-01-01", "2026-12-31"])
-    assert.deepEqual(
-      getAccidentCaseErrors(
-        { ...validCase(), accidentDate: date },
-        constraints,
-      ),
-      {},
-    );
+test("cases can be completed without an accident date and legacy drafts drop the removed field", () => {
+  const body = validCase();
+  assert.equal("accidentDate" in body, false);
+  assert.deepEqual(getAccidentCaseErrors(body, constraints), {});
+  const [draft] = createAccidentCaseDrafts(1);
+  draft.body.accidentDate = "";
+  const [restored] = parseAccidentCaseDrafts(JSON.stringify([draft]));
+  assert.equal("accidentDate" in restored.body, false);
+  assert.equal(isEmptyAccidentCase(restored.body), true);
+});
+
+test("inline edits retain their saved case id across reloads and reject duplicate case edits", () => {
+  const edit = { clientId: "saved-30", caseId: 30, body: validCase() };
+  const duplicate = { ...edit, clientId: "other-id" };
+  const invalid = { ...edit, clientId: "invalid-id", caseId: 0 };
+  assert.deepEqual(
+    parseAccidentCaseDrafts(JSON.stringify([edit, duplicate, invalid])),
+    [edit],
+  );
 });
 
 test("female victims and combined fatal and severe injuries cannot exceed the group total", () => {
@@ -168,7 +161,33 @@ test("female victims and combined fatal and severe injuries cannot exceed the gr
   });
   const errors = getAccidentCaseErrors(body, constraints);
   assert.ok(errors["victimGroups.0.femaleCount"]);
+  assert.ok(errors["victimGroups.0.deathCount"]);
   assert.ok(errors["victimGroups.0.severeCount"]);
+});
+
+test("an excessive death count reports its own field without blaming a valid severe count", () => {
+  const body = validCase();
+  Object.assign(body.victimGroups[0], {
+    victimCount: 32,
+    femaleCount: 23,
+    deathCount: 1_000_000,
+    severeCount: 12,
+  });
+  const errors = getAccidentCaseErrors(body, {
+    totalEmployees: 100,
+    femaleEmployees: 50,
+  });
+  assert.match(errors["victimGroups.0.deathCount"], /Số người chết/);
+  assert.equal(errors["victimGroups.0.severeCount"], undefined);
+});
+
+test("an excessive severe count reports its own field without blaming a valid death count", () => {
+  const body = validCase();
+  body.victimGroups[0].deathCount = 0;
+  body.victimGroups[0].severeCount = 1_000_000;
+  const errors = getAccidentCaseErrors(body, constraints);
+  assert.match(errors["victimGroups.0.severeCount"], /Số người thương nặng/);
+  assert.equal(errors["victimGroups.0.deathCount"], undefined);
 });
 
 test("fractional and overflowing counts cannot be saved", () => {
@@ -223,9 +242,13 @@ test("editing saved data preserves every victim group and exact money values", (
     })),
   };
   const result = toAccidentCaseBody(saved);
-  assert.equal(result.accidentDate, "2026-10-26");
+  assert.equal("accidentDate" in result, false);
   assert.equal(result.medicalCostVnd, "9007199254740993");
   assert.deepEqual(result.victimGroups, body.victimGroups);
   result.victimGroups[0].victimCount = 9;
   assert.equal(saved.victimGroups[0].victimCount, 2);
+  assert.deepEqual(
+    toAccidentCaseBody({ ...saved, accidentDate: null }),
+    toAccidentCaseBody(saved),
+  );
 });

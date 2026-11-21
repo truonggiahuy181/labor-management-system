@@ -6,6 +6,9 @@ import {
 } from '../occupational-accident-report.constants.js';
 import { OccupationalAccidentReportService } from '../occupational-accident-report.service.js';
 import { OccupationalAccidentReportSubmissionEntity } from '../entities/occupational-accident-report-submission.entity.js';
+import { OccupationalAccidentCaseEntity } from '../entities/occupational-accident-case.entity.js';
+import { SaveAccidentCaseDto } from '../dto/save-accident-case.dto.js';
+import { QueryFailedError } from 'typeorm';
 
 const makeQueryBuilder = (rows: unknown[]) => ({
   innerJoinAndSelect: vi.fn().mockReturnThis(),
@@ -17,6 +20,13 @@ const makeQueryBuilder = (rows: unknown[]) => ({
 });
 
 const makeAdminQueryBuilder = (rows: unknown[], total = rows.length) => ({
+  clone: vi.fn(() => ({
+    andWhere: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    addSelect: vi.fn().mockReturnThis(),
+    setParameter: vi.fn().mockReturnThis(),
+    getRawOne: vi.fn().mockResolvedValue({ flagged: '2', unflagged: '1', MISSING_WORKFORCE: '2', MISSING_SIGNATURE: '1' }),
+  })),
   innerJoinAndSelect: vi.fn().mockReturnThis(),
   innerJoin: vi.fn().mockReturnThis(),
   leftJoinAndSelect: vi.fn().mockReturnThis(),
@@ -175,6 +185,7 @@ const makeReport = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('OccupationalAccidentReportService', () => {
+  let caseRepository: Record<string, ReturnType<typeof vi.fn>>;
   let reportRepository: Record<string, ReturnType<typeof vi.fn>>;
   let reportPeriodRepository: Record<string, ReturnType<typeof vi.fn>>;
   let causeRepository: Record<string, ReturnType<typeof vi.fn>>;
@@ -194,7 +205,8 @@ describe('OccupationalAccidentReportService', () => {
     create: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
   };
-  let dataSource: { transaction: ReturnType<typeof vi.fn> };
+  let dataSource: { transaction: ReturnType<typeof vi.fn>; getRepository: ReturnType<typeof vi.fn> };
+  let labelRepository: Record<string, ReturnType<typeof vi.fn>>;
   let fileService: {
     upload: ReturnType<typeof vi.fn>;
     deleteEnterpriseFile: ReturnType<typeof vi.fn>;
@@ -203,6 +215,7 @@ describe('OccupationalAccidentReportService', () => {
   let service: OccupationalAccidentReportService;
 
   beforeEach(() => {
+    caseRepository = { findOne: vi.fn() };
     reportRepository = {
       findOne: vi.fn(),
       update: vi.fn(),
@@ -257,7 +270,18 @@ describe('OccupationalAccidentReportService', () => {
       ),
       delete: vi.fn().mockResolvedValue(undefined),
     };
+    labelRepository = {
+      find: vi.fn().mockResolvedValue([
+        { value: 'MISSING_WORKFORCE', label: 'Thiếu số liệu lao động', reason: 'Bổ sung số liệu lao động.' },
+        { value: 'MISSING_SIGNATURE', label: 'Tài liệu thiếu chữ ký', reason: 'Bổ sung chữ ký.' },
+        { value: 'INCONSISTENT_DATA', label: 'Số liệu không khớp', reason: 'Kiểm tra số liệu.' },
+      ]),
+      findOne: vi.fn().mockResolvedValue(null),
+      create: vi.fn(value => value),
+      save: vi.fn(async value => value),
+    };
     dataSource = {
+      getRepository: vi.fn(() => labelRepository),
       transaction: vi.fn(async (callback) => callback(transactionManager)),
     };
     fileService = {
@@ -270,7 +294,7 @@ describe('OccupationalAccidentReportService', () => {
 
     service = new OccupationalAccidentReportService(
       reportRepository as never,
-      { findOne: vi.fn() } as never,
+      caseRepository as never,
       {} as never,
       {} as never,
       article39Repository as never,
@@ -490,6 +514,144 @@ describe('OccupationalAccidentReportService', () => {
       'enterprise.ward_id = :wardId',
       { wardId: '26740' },
     );
+  });
+
+  it('filters by flags on the server and counts before flag filtering or pagination', async () => {
+    const builder = makeAdminQueryBuilder([]);
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+    const result = await service.getAdminReports({ reviewFlag: 'MISSING_WORKFORCE', page: 2, pageSize: 1 });
+    expect(builder.andWhere).toHaveBeenCalledWith('report.review_flags @> CAST(:reviewFlags AS jsonb)', {
+      reviewFlags: '["MISSING_WORKFORCE"]',
+    });
+    expect(result.flagCounts).toEqual({ flagged: 2, unflagged: 1, MISSING_WORKFORCE: 2, MISSING_SIGNATURE: 1, INCONSISTENT_DATA: 0 });
+    const counts = builder.clone.mock.results[0].value;
+    expect(counts.andWhere).toHaveBeenCalledExactlyOnceWith('report.status = :reviewStatus', { reviewStatus: 'SUBMITTED' });
+    expect(builder.skip).toHaveBeenCalledWith(1);
+  });
+
+  it.each(['flagged', 'unflagged'] as const)('filters the %s review queue', async (reviewFlag) => {
+    const builder = makeAdminQueryBuilder([]);
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+    await service.getAdminReports({ reviewFlag, page: 1, pageSize: 10 });
+    expect(builder.andWhere).toHaveBeenCalledWith(`report.review_flags ${reviewFlag === 'flagged' ? '<>' : '='} '[]'::jsonb`);
+  });
+
+  it('saves review metadata without changing status or adding a business transition', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3 }));
+    reportRepository.update.mockResolvedValue({ affected: 1 });
+    await service.updateReviewFlags(99, 20, { flags: ['MISSING_WORKFORCE', 'MISSING_SIGNATURE'], note: ' Nội bộ ', version: 3 });
+    expect(reportRepository.update).toHaveBeenCalledWith(
+      { id: 20, status: 'SUBMITTED', version: 3 },
+      { reviewFlags: ['MISSING_WORKFORCE', 'MISSING_SIGNATURE'], reviewNote: 'Nội bộ', reviewUpdatedBy: 99, reviewUpdatedAt: expect.any(Date), updatedBy: 99 },
+    );
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(historyRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('allows removing all flags and clearing the internal note', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3 }));
+    reportRepository.update.mockResolvedValue({ affected: 1 });
+    await service.updateReviewFlags(99, 20, { flags: [], note: '', version: 3 });
+    expect(reportRepository.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewFlags: [], reviewNote: '' }));
+  });
+
+  it('creates reusable custom labels with normalized names and stable codes', async () => {
+    const result = await service.createReviewLabel(99, { label: '  Thiếu   số liệu quý III  ' });
+    expect(result).toMatchObject({ label: 'Thiếu số liệu quý III', value: expect.stringMatching(/^CUSTOM_[A-F0-9]{32}$/) });
+    expect(labelRepository.save).toHaveBeenCalledWith(expect.objectContaining({ normalizedLabel: 'thiếu số liệu quý iii', createdBy: 99 }));
+    expect(result.reason).toContain('Thiếu số liệu quý III');
+  });
+
+  it('reuses an existing label regardless of capitalization or repeated spaces', async () => {
+    const existing = { value: 'MISSING_SIGNATURE', label: 'Tài liệu thiếu chữ ký', reason: 'Bổ sung chữ ký.' };
+    labelRepository.findOne.mockResolvedValue(existing);
+    expect(await service.createReviewLabel(99, { label: '  TÀI LIỆU   thiếu chữ ký  ' })).toEqual(existing);
+    expect(labelRepository.findOne).toHaveBeenCalledWith({ where: { normalizedLabel: 'tài liệu thiếu chữ ký' } });
+    expect(labelRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('reuses the canonical label when two admins create the same name concurrently', async () => {
+    const canonical = { value: `CUSTOM_${'A'.repeat(32)}`, label: 'Thiếu số liệu quý III', reason: 'Bổ sung số liệu quý III.' };
+    labelRepository.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(canonical);
+    labelRepository.save.mockRejectedValue(new QueryFailedError('INSERT', [], Object.assign(new Error('duplicate'), { code: '23505' })));
+    expect(await service.createReviewLabel(99, { label: 'Thiếu số liệu quý III' })).toEqual(canonical);
+  });
+
+  it('applies registered custom labels without requiring a note or removing legacy notes', async () => {
+    const value = `CUSTOM_${'A'.repeat(32)}`;
+    labelRepository.find.mockResolvedValue([{ value, label: 'Thiếu số liệu quý III', reason: 'Bổ sung quý III.' }]);
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3, reviewNote: 'Ghi chú cũ' }));
+    reportRepository.update.mockResolvedValue({ affected: 1 });
+    await service.updateReviewFlags(99, 20, { flags: [value], version: 3 });
+    expect(reportRepository.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewFlags: [value], reviewNote: 'Ghi chú cũ' }));
+  });
+
+  it('rejects an unregistered custom label before updating a report', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3 }));
+    await expect(service.updateReviewFlags(99, 20, { flags: [`CUSTOM_${'A'.repeat(32)}`], version: 3 })).rejects.toThrow(BadRequestException);
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('filters and counts custom labels across the filtered queue', async () => {
+    const value = `CUSTOM_${'A'.repeat(32)}`;
+    const label = { value, label: 'Thiếu số liệu quý III', reason: 'Bổ sung quý III.' };
+    labelRepository.find.mockResolvedValue([label]);
+    const builder = makeAdminQueryBuilder([]);
+    builder.clone.mockImplementation(() => ({
+      andWhere: vi.fn().mockReturnThis(), select: vi.fn().mockReturnThis(), addSelect: vi.fn().mockReturnThis(), setParameter: vi.fn().mockReturnThis(),
+      getRawOne: vi.fn().mockResolvedValue({ flagged: '2', unflagged: '1', [value]: '2' }),
+    }));
+    reportRepository.createQueryBuilder.mockReturnValue(builder);
+    const result = await service.getAdminReports({ reviewFlag: value, page: 1, pageSize: 1 });
+    expect(result.reviewLabels).toEqual([label]);
+    expect(result.flagCounts[value]).toBe(2);
+    expect(builder.andWhere).toHaveBeenCalledWith('report.review_flags @> CAST(:reviewFlags AS jsonb)', { reviewFlags: JSON.stringify([value]) });
+  });
+
+  it('rejects concurrent flag changes', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 4 }));
+    reportRepository.update.mockResolvedValue({ affected: 0 });
+    await expect(service.updateReviewFlags(99, 20, { flags: [], note: '', version: 3 })).rejects.toThrow(ConflictException);
+  });
+
+  it.each(['RETURNED', 'RECEIVED', 'DRAFT'])('does not flag a %s report', async status => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status }));
+    await expect(service.updateReviewFlags(99, 20, { flags: [], note: '', version: 3 })).rejects.toThrow(ConflictException);
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('does not expose internal flags or notes in enterprise responses or submission snapshots', async () => {
+    const report = makeReport({ reviewFlags: ['MISSING_SIGNATURE'], reviewNote: 'Chỉ nội bộ', reviewUpdatedBy: 99, reviewUpdatedAt: new Date() });
+    reportRepository.findOne.mockResolvedValue(report);
+    const enterpriseResponse = await service.getMyReport(1, 20);
+    const adminResponse = await service.getAdminReport(20);
+    const snapshot = (service as any).buildSubmissionSnapshot(report, new Date());
+    for (const key of ['reviewFlags', 'reviewNote', 'reviewUpdatedBy', 'reviewUpdatedAt']) {
+      expect(enterpriseResponse).not.toHaveProperty(key);
+      expect(snapshot).not.toHaveProperty(key);
+      expect(adminResponse).toHaveProperty(key);
+    }
+  });
+
+  it('archives internal review metadata on return and clears the active flags atomically', async () => {
+    const metadata = { reviewFlags: ['MISSING_SIGNATURE'], reviewNote: 'Chỉ nội bộ', reviewUpdatedBy: 98, reviewUpdatedAt: new Date() };
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3, ...metadata }));
+    await service.returnReport(99, 20, 'Vui lòng bổ sung bản có chữ ký.', 3);
+    expect(transactionManager.update).toHaveBeenCalledWith(expect.anything(), { id: 20, status: 'SUBMITTED', version: 3 }, expect.objectContaining({ reviewFlags: [], reviewNote: '', reviewUpdatedAt: null, reviewUpdatedBy: null }));
+    expect(historyRepository.save).toHaveBeenCalledWith(expect.objectContaining({ ...metadata, reason: 'Vui lòng bổ sung bản có chữ ký.' }));
+  });
+
+  it('rejects a bulk decision made before another admin changed the review flags', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 4 }));
+    await expect(service.returnReport(99, 20, 'Vui lòng bổ sung bản có chữ ký.', 3)).rejects.toThrow(ConflictException);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a concurrent transition without writing a stale review history', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ status: 'SUBMITTED', version: 3 }));
+    transactionManager.update.mockResolvedValue({ affected: 0 });
+    await expect(service.returnReport(99, 20, 'Vui lòng bổ sung bản có chữ ký.', 3)).rejects.toThrow(ConflictException);
+    expect(historyRepository.save).not.toHaveBeenCalled();
   });
 
   it('filters the admin queue by enterprise name and tax code separately', async () => {
@@ -793,6 +955,28 @@ describe('OccupationalAccidentReportService', () => {
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects zero employees even when no accidents are declared', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ cases: [] }));
+
+    await expect(
+      service.updateHeader(1, 20, {
+        totalEmployees: 0,
+        femaleEmployees: 0,
+        payrollFundVnd: '0',
+        noAccidentsDeclared: true,
+      }),
+    ).rejects.toThrow('Tổng số lao động phải lớn hơn 0.');
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
+  it.each(['0', '0000'])('rejects zero payroll %s even when no accidents are declared', async (payrollFundVnd) => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ cases: [] }));
+    await expect(service.updateHeader(1, 20, {
+      totalEmployees: 10, femaleEmployees: 0, payrollFundVnd, noAccidentsDeclared: true,
+    })).rejects.toThrow('Tổng quỹ lương phải lớn hơn 0.');
+    expect(reportRepository.update).not.toHaveBeenCalled();
+  });
+
   it('rejects inconsistent workforce totals', async () => {
     reportRepository.findOne.mockResolvedValue(makeReport());
 
@@ -859,6 +1043,89 @@ describe('OccupationalAccidentReportService', () => {
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
+  it.each(['create', 'update'] as const)(
+    'can %s a case without a date and preserves historical dates on update',
+    async (operation) => {
+      const report = makeReport();
+      reportRepository.findOne.mockResolvedValue(report);
+      caseRepository.findOne.mockResolvedValue(report.cases[0]);
+      causeRepository.findOne.mockResolvedValue({ id: 1, isActive: true });
+      injuryFactorRepository.findOne.mockResolvedValue({
+        id: 3,
+        isActive: true,
+      });
+      occupationRepository.find.mockResolvedValue([
+        { id: 100, level: 4, isActive: true },
+      ]);
+      const storedCase = {
+        create: vi.fn((value) => value),
+        save: vi.fn(async (value) => ({ ...value, id: 30 })),
+        update: vi.fn(),
+      };
+      const storedGroups = {
+        create: vi.fn((value) => value),
+        save: vi.fn(),
+        delete: vi.fn(),
+        update: vi.fn(),
+      };
+      transactionManager.getRepository.mockImplementation((entity) =>
+        entity === OccupationalAccidentCaseEntity ? storedCase : storedGroups,
+      );
+      const body: SaveAccidentCaseDto = {
+        primaryCauseId: 1,
+        injuryFactorId: 3,
+        medicalCostVnd: '0',
+        salaryCostVnd: '0',
+        compensationCostVnd: '0',
+        propertyDamageVnd: '0',
+        lostWorkDays: 0,
+        victimGroups: [
+          {
+            occupationId: 100,
+            isUnderEnterpriseManagement: true,
+            victimCount: 1,
+            femaleCount: 0,
+            deathCount: 0,
+            severeCount: 0,
+          },
+        ],
+      };
+      if (operation === 'create') {
+        await service.createCase(1, 20, body);
+        expect(storedCase.save).toHaveBeenCalledWith(
+          expect.objectContaining({ accidentDate: null }),
+        );
+      } else {
+        await service.updateCase(1, 20, 30, body);
+        expect(storedCase.update).toHaveBeenCalledWith(
+          30,
+          expect.objectContaining({ primaryCauseId: 1 }),
+        );
+        expect(storedCase.update.mock.calls[0][1]).not.toHaveProperty(
+          'accidentDate',
+        );
+      }
+    },
+  );
+
+  it('returns dated and undated cases in stable case order', async () => {
+    const report = makeReport();
+    const original = report.cases[0];
+    reportRepository.findOne.mockResolvedValue({
+      ...report,
+      cases: [
+        { ...original, id: 32, accidentDate: null },
+        { ...original, id: 31, accidentDate: '2026-01-01' },
+        original,
+      ],
+    });
+    const response = await service.getMyReport(1, 20);
+    expect(response.cases.map((item: { id: number }) => item.id)).toEqual([
+      30, 31, 32,
+    ]);
+    expect(response.cases[2].accidentDate).toBeNull();
+  });
+
   it('rejects money values beyond the PostgreSQL BIGINT limit', async () => {
     reportRepository.findOne.mockResolvedValue(makeReport());
 
@@ -879,6 +1146,14 @@ describe('OccupationalAccidentReportService', () => {
     );
 
     await expect(service.submit(1, 20)).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires positive payroll before submitting an existing draft', async () => {
+    reportRepository.findOne.mockResolvedValue(makeReport({ payrollFundVnd: '0' }));
+    await expect(service.submit(1, 20)).rejects.toThrow('Vui lòng hoàn thành thông tin lao động và quỹ lương trước khi gửi báo cáo.');
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    const response = await service.getMyReport(1, 20);
+    expect(response.headerCompleted).toBe(false);
   });
 
   it('rejects submission when an existing case exceeds the workforce', async () => {

@@ -36,8 +36,8 @@ export class OccupationalAccidentCaseEntity extends BaseEntity {
   })
   report: Relation<OccupationalAccidentReportEntity>;
 
-  @Column({ name: 'accident_date', type: 'date' })
-  accidentDate: string;
+  @Column({ name: 'accident_date', type: 'date', nullable: true })
+  accidentDate: string | null;
 
   @Column({ name: 'primary_cause_id', type: 'int' })
   primaryCauseId: number;

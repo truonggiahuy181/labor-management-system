@@ -14,7 +14,7 @@ import {
   Repository,
   type SelectQueryBuilder,
 } from 'typeorm';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ErrorCode } from '../../commons/constants/error-codes.js';
 import { AccidentCauseEntity } from '../accident-cause/accident-cause.entity.js';
 import { EnterpriseEntity } from '../enterprise/enterprise.entity.js';
@@ -35,6 +35,14 @@ import { OccupationalAccidentReportQueryDto } from './dto/occupational-accident-
 import { SaveAccidentCaseDto } from './dto/save-accident-case.dto.js';
 import { UpdateArticle39SummaryDto } from './dto/update-article39-summary.dto.js';
 import { UpdateReportHeaderDto } from './dto/update-report-header.dto.js';
+import { UpdateReportReviewFlagsDto } from './dto/update-report-review-flags.dto.js';
+import {
+  normalizeReviewLabel,
+  type ReportReviewFlagCounts,
+  type ReportReviewLabel,
+} from './report-review-flags.js';
+import { ReportReviewLabelEntity } from './entities/report-review-label.entity.js';
+import { CreateReportReviewLabelDto } from './dto/create-report-review-label.dto.js';
 import { OccupationalAccidentCaseEntity } from './entities/occupational-accident-case.entity.js';
 import { OccupationalAccidentReportHistoryEntity } from './entities/occupational-accident-report-history.entity.js';
 import { OccupationalAccidentReportEntity } from './entities/occupational-accident-report.entity.js';
@@ -226,6 +234,51 @@ export class OccupationalAccidentReportService {
     }
     this.applyEnterpriseLocationFilter(builder, query);
 
+    const reviewLabels = await this.getReviewLabels();
+    if (query.reviewFlag && !['flagged', 'unflagged'].includes(query.reviewFlag)
+      && !reviewLabels.some(label => label.value === query.reviewFlag)) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Nhãn đã chọn không tồn tại. Vui lòng tải lại danh sách.',
+      });
+    }
+
+    // Count the entire filtered queue before applying the flag filter or pagination.
+    const countBuilder = builder
+      .clone()
+      .andWhere('report.status = :reviewStatus', {
+        reviewStatus: OccupationalAccidentReportStatus.SUBMITTED,
+      })
+      .select("COUNT(*) FILTER (WHERE review_flags <> '[]'::jsonb)", 'flagged')
+      .addSelect("COUNT(*) FILTER (WHERE review_flags = '[]'::jsonb)", 'unflagged');
+    for (const [index, flag] of reviewLabels.entries()) {
+      countBuilder.addSelect(
+        `COUNT(*) FILTER (WHERE review_flags @> CAST(:reviewLabelCount${index} AS jsonb))`,
+        flag.value,
+      ).setParameter(`reviewLabelCount${index}`, JSON.stringify([flag.value]));
+    }
+    const rawCounts = await countBuilder.getRawOne<Record<string, string>>();
+    const flagCounts = Object.fromEntries(
+      ['flagged', 'unflagged', ...reviewLabels.map(label => label.value)].map((key) => [
+        key,
+        Number(rawCounts?.[key] ?? 0),
+      ]),
+    ) as ReportReviewFlagCounts;
+    if (query.reviewFlag) {
+      builder.andWhere('report.status = :reviewStatus', {
+        reviewStatus: OccupationalAccidentReportStatus.SUBMITTED,
+      });
+      if (query.reviewFlag === 'flagged' || query.reviewFlag === 'unflagged') {
+        builder.andWhere(
+          `report.review_flags ${query.reviewFlag === 'flagged' ? '<>' : '='} '[]'::jsonb`,
+        );
+      } else {
+        builder.andWhere('report.review_flags @> CAST(:reviewFlags AS jsonb)', {
+          reviewFlags: JSON.stringify([query.reviewFlag]),
+        });
+      }
+    }
+
     builder
       .orderBy('report.submitted_at', 'DESC', 'NULLS LAST')
       .addOrderBy('report.id', 'DESC')
@@ -236,6 +289,8 @@ export class OccupationalAccidentReportService {
     return {
       data: reports.map((report) => ({
         id: report.id,
+        version: report.version,
+        reviewFlags: report.reviewFlags ?? [],
         enterpriseId: report.enterpriseId,
         enterpriseName: report.enterpriseName,
         taxCode: report.taxCode,
@@ -253,6 +308,8 @@ export class OccupationalAccidentReportService {
         updatedAt: report.updatedAt,
       })),
       total,
+      flagCounts,
+      reviewLabels,
       page,
       pageSize,
     };
@@ -485,9 +542,13 @@ export class OccupationalAccidentReportService {
   }
 
   async getAdminReport(reportId: number): Promise<any> {
-    const report = await this.findAdminReport(reportId);
+    const [report, reviewLabels] = await Promise.all([
+      this.findAdminReport(reportId), this.getReviewLabels(),
+    ]);
     return {
       ...this.toResponse(report),
+      ...this.reviewMetadata(report),
+      reviewLabels,
       history: [...(report.histories ?? [])]
         .sort(
           (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
@@ -499,6 +560,7 @@ export class OccupationalAccidentReportService {
           reason: row.reason,
           performedBy: row.createdBy,
           performedAt: row.createdAt,
+          ...this.reviewMetadata(row),
         })),
     };
   }
@@ -513,12 +575,17 @@ export class OccupationalAccidentReportService {
     return this.buildOverview(report, causes);
   }
 
-  async receiveReport(userId: number, reportId: number): Promise<any> {
+  async receiveReport(
+    userId: number,
+    reportId: number,
+    version?: number,
+  ): Promise<any> {
     return this.transitionSubmittedReport(
       userId,
       reportId,
       OccupationalAccidentReportStatus.RECEIVED,
       null,
+      version,
     );
   }
 
@@ -526,6 +593,7 @@ export class OccupationalAccidentReportService {
     userId: number,
     reportId: number,
     reason: string,
+    version?: number,
   ): Promise<any> {
     const normalizedReason = reason.trim();
     if (normalizedReason.length < 10 || normalizedReason.length > 1000) {
@@ -539,7 +607,102 @@ export class OccupationalAccidentReportService {
       reportId,
       OccupationalAccidentReportStatus.RETURNED,
       normalizedReason,
+      version,
     );
+  }
+
+  async updateReviewFlags(
+    userId: number,
+    reportId: number,
+    dto: UpdateReportReviewFlagsDto,
+  ): Promise<any> {
+    const report = await this.findAdminReport(reportId);
+    if (report.status !== OccupationalAccidentReportStatus.SUBMITTED) {
+      throw new ConflictException({
+        code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INVALID_STATUS,
+        message: 'Chỉ có thể gắn nhãn cho báo cáo ở trạng thái Đã gửi.',
+      });
+    }
+    const labels = await this.getReviewLabels();
+    if (dto.flags.some(flag => !labels.some(label => label.value === flag))) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Một số nhãn không tồn tại. Vui lòng tải lại danh sách.',
+      });
+    }
+    const result = await this.reportRepository.update(
+      {
+        id: reportId,
+        status: OccupationalAccidentReportStatus.SUBMITTED,
+        version: dto.version,
+      },
+      {
+        reviewFlags: dto.flags,
+        reviewNote: dto.note?.trim() ?? report.reviewNote ?? '',
+        reviewUpdatedBy: userId,
+        reviewUpdatedAt: new Date(),
+        updatedBy: userId,
+      },
+    );
+    if (result.affected !== 1) this.throwReviewConflict();
+    return this.getAdminReport(reportId);
+  }
+
+  async getReviewLabels(): Promise<ReportReviewLabel[]> {
+    const labels = await this.dataSource.getRepository(ReportReviewLabelEntity).find({
+      order: { sortOrder: 'ASC', createdAt: 'ASC', value: 'ASC' },
+    });
+    return labels.map(({ value, label, reason }) => ({ value, label, reason }));
+  }
+
+  async createReviewLabel(userId: number, dto: CreateReportReviewLabelDto): Promise<ReportReviewLabel> {
+    const label = normalizeReviewLabel(dto.label) as string;
+    if (typeof label !== 'string' || label.length < 2 || label.length > 100 || /[\u0000-\u001f\u007f]/u.test(label)) {
+      throw new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message: 'Tên nhãn phải có từ 2 đến 100 ký tự.' });
+    }
+    const repository = this.dataSource.getRepository(ReportReviewLabelEntity);
+    const normalizedLabel = label.toLocaleLowerCase('vi');
+    const existing = await repository.findOne({ where: { normalizedLabel } });
+    if (existing) return { value: existing.value, label: existing.label, reason: existing.reason };
+    try {
+      const created = await repository.save(repository.create({
+        value: `CUSTOM_${randomUUID().replaceAll('-', '').toUpperCase()}`,
+        label,
+        normalizedLabel,
+        reason: `Vui lòng kiểm tra và bổ sung nội dung: ${label}.`,
+        sortOrder: 100,
+        createdBy: userId,
+      }));
+      return { value: created.value, label: created.label, reason: created.reason };
+    } catch (error) {
+      if (error instanceof QueryFailedError && error.driverError?.code === '23505') {
+        const concurrent = await repository.findOne({ where: { normalizedLabel } });
+        if (concurrent) return { value: concurrent.value, label: concurrent.label, reason: concurrent.reason };
+      }
+      throw error;
+    }
+  }
+
+  private reviewMetadata(
+    report: Pick<
+      OccupationalAccidentReportEntity,
+      'reviewFlags' | 'reviewNote' | 'reviewUpdatedBy' | 'reviewUpdatedAt'
+    >,
+  ) {
+    return {
+      reviewFlags: report.reviewFlags ?? [],
+      reviewNote: report.reviewNote ?? '',
+      reviewUpdatedBy: report.reviewUpdatedBy ?? null,
+      reviewUpdatedAt: report.reviewUpdatedAt ?? null,
+    };
+  }
+
+  private throwReviewConflict(): never {
+    throw new ConflictException({
+      code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INVALID_STATUS,
+      message:
+        'Báo cáo hoặc nhãn đã được người khác thay đổi. Vui lòng tải lại để kiểm tra trước khi xử lý.',
+    });
   }
 
   async createDraft(
@@ -715,6 +878,12 @@ export class OccupationalAccidentReportService {
     this.assertEditable(report);
     this.assertMoneyFitsDatabase(dto.payrollFundVnd);
 
+    if (dto.totalEmployees <= 0) {
+      this.throwInvalidMetrics('Tổng số lao động phải lớn hơn 0.');
+    }
+    if (BigInt(dto.payrollFundVnd) <= 0n) {
+      this.throwInvalidMetrics('Tổng quỹ lương phải lớn hơn 0.');
+    }
     if (dto.femaleEmployees > dto.totalEmployees) {
       this.throwInvalidMetrics(
         'Số lao động nữ không được lớn hơn tổng số lao động.',
@@ -772,7 +941,7 @@ export class OccupationalAccidentReportService {
       const accidentCase = await caseRepository.save(
         caseRepository.create({
           reportId: report.id,
-          accidentDate: dto.accidentDate,
+          accidentDate: dto.accidentDate ?? null,
           primaryCauseId: dto.primaryCauseId,
           injuryFactorId: dto.injuryFactorId,
           medicalCostVnd: dto.medicalCostVnd,
@@ -823,7 +992,9 @@ export class OccupationalAccidentReportService {
       await manager
         .getRepository(OccupationalAccidentCaseEntity)
         .update(caseId, {
-          accidentDate: dto.accidentDate,
+          ...(dto.accidentDate != null
+            ? { accidentDate: dto.accidentDate }
+            : {}),
           primaryCauseId: dto.primaryCauseId,
           injuryFactorId: dto.injuryFactorId,
           medicalCostVnd: dto.medicalCostVnd,
@@ -923,7 +1094,7 @@ export class OccupationalAccidentReportService {
     const enterprise = await this.resolveEnterprise(userId);
     const report = await this.findOwnedReport(enterprise.id, reportId);
     this.assertEditable(report);
-    if (report.totalEmployees <= 0) {
+    if (report.totalEmployees <= 0 || BigInt(report.payrollFundVnd) <= 0n) {
       throw new BadRequestException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INCOMPLETE,
         message:
@@ -972,6 +1143,10 @@ export class OccupationalAccidentReportService {
           receivedAt: null,
           returnedAt: null,
           returnedReason: null,
+          reviewFlags: [],
+          reviewNote: '',
+          reviewUpdatedBy: null,
+          reviewUpdatedAt: null,
           updatedBy: userId,
         },
       );
@@ -1190,8 +1365,12 @@ export class OccupationalAccidentReportService {
       | typeof OccupationalAccidentReportStatus.RECEIVED
       | typeof OccupationalAccidentReportStatus.RETURNED,
     reason: string | null,
+    version?: number,
   ): Promise<any> {
     const report = await this.findAdminReport(reportId);
+    if (version !== undefined && report.version !== version) {
+      this.throwReviewConflict();
+    }
     if (report.status !== OccupationalAccidentReportStatus.SUBMITTED) {
       throw new ConflictException({
         code: ErrorCode.OCCUPATIONAL_ACCIDENT_REPORT_INVALID_STATUS,
@@ -1216,22 +1395,21 @@ export class OccupationalAccidentReportService {
         {
           id: report.id,
           status: OccupationalAccidentReportStatus.SUBMITTED,
+          ...(report.version !== undefined && { version: report.version }),
         },
-        toStatus === OccupationalAccidentReportStatus.RECEIVED
-          ? {
-              status: toStatus,
-              receivedAt: actionAt,
-              returnedAt: null,
-              returnedReason: null,
-              updatedBy: userId,
-            }
-          : {
-              status: toStatus,
-              receivedAt: null,
-              returnedAt: actionAt,
-              returnedReason: reason,
-              updatedBy: userId,
-            },
+        {
+          status: toStatus,
+          receivedAt:
+            toStatus === OccupationalAccidentReportStatus.RECEIVED ? actionAt : null,
+          returnedAt:
+            toStatus === OccupationalAccidentReportStatus.RETURNED ? actionAt : null,
+          returnedReason: reason,
+          reviewFlags: [],
+          reviewNote: '',
+          reviewUpdatedBy: null,
+          reviewUpdatedAt: null,
+          updatedBy: userId,
+        },
       );
       if (result.affected !== 1) {
         throw new ConflictException({
@@ -1251,6 +1429,7 @@ export class OccupationalAccidentReportService {
           fromStatus: OccupationalAccidentReportStatus.SUBMITTED,
           toStatus,
           reason,
+          ...this.reviewMetadata(report),
           createdBy: userId,
         }),
       );
@@ -1285,7 +1464,10 @@ export class OccupationalAccidentReportService {
     const [coverageStart, coverageEnd] = this.getCoverageDateRange(
       report.reportPeriod,
     );
-    if (dto.accidentDate < coverageStart || dto.accidentDate > coverageEnd) {
+    if (
+      dto.accidentDate &&
+      (dto.accidentDate < coverageStart || dto.accidentDate > coverageEnd)
+    ) {
       this.throwInvalidMetrics('Ngày xảy ra tai nạn không thuộc kỳ báo cáo.');
     }
 
@@ -1486,7 +1668,7 @@ export class OccupationalAccidentReportService {
       femaleEmployees: report.femaleEmployees,
       payrollFundVnd: report.payrollFundVnd,
       noAccidentsDeclared: report.noAccidentsDeclared,
-      headerCompleted: report.totalEmployees > 0,
+      headerCompleted: report.totalEmployees > 0 && BigInt(report.payrollFundVnd) > 0n,
       signedDocument: this.documentMetadata(report),
       submissions: [...(report.submissions ?? [])]
         .sort((left, right) => right.submissionNo - left.submissionNo)
@@ -1501,9 +1683,7 @@ export class OccupationalAccidentReportService {
         })),
       article39Summary: this.article39Summary(report),
       cases: [...report.cases]
-        .sort((left, right) =>
-          left.accidentDate.localeCompare(right.accidentDate),
-        )
+        .sort((left, right) => left.id - right.id)
         .map((row) => ({
           id: row.id,
           accidentDate: row.accidentDate,

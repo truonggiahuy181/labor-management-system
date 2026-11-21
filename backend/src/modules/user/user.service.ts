@@ -19,6 +19,7 @@ import { UserQueryDto } from './dto/user-query.dto.js';
 import { RoleCode } from '../../commons/constants/role-codes.js';
 import { FileService } from '../file/file.service.js';
 import { LocationService } from '../location/location.service.js';
+import { synchronizeEnterpriseAccountStatus } from '../enterprise/enterprise-account-status.js';
 
 @Injectable()
 export class UserService extends BaseService<UserEntity> {
@@ -241,6 +242,9 @@ export class UserService extends BaseService<UserEntity> {
     dto: UpdateUserDto,
     adminId?: number,
   ): Promise<UserResponse> {
+    if (dto.isActive === false && adminId === id) {
+      throw new BadRequestException('Bạn không thể tự khóa tài khoản của chính mình.');
+    }
     const user = await this.findOneOrFail({ where: { id } });
 
     if (dto.provinceId !== undefined || dto.wardId !== undefined) {
@@ -303,17 +307,30 @@ export class UserService extends BaseService<UserEntity> {
         delete (updateData as any)[key],
     );
 
-    // Tài khoản chính của doanh nghiệp (tên đăng nhập = mã số thuế): đổi email thì đổi cùng email doanh nghiệp.
-    // Chiều ngược lại nằm ở EnterpriseService.update → hai trang Quản lý doanh nghiệp / tài khoản luôn khớp
+    // Trạng thái tài khoản và doanh nghiệp phải đổi trong cùng giao dịch.
+    // Tài khoản chính (tên đăng nhập = mã số thuế) còn đồng bộ email liên hệ.
     const enterpriseId = user.enterpriseId;
-    if (emailChanged && enterpriseId) {
+    if (enterpriseId && (emailChanged || dto.isActive !== undefined)) {
       await this.userRepository.manager.transaction(async (manager) => {
-        await manager.update(UserEntity, id, updateData);
-        await manager.update(
-          EnterpriseEntity,
-          { id: enterpriseId, taxCode: user.username },
-          { email: newEmail, updatedBy: adminId ?? null },
-        );
+        if (dto.isActive !== undefined) {
+          await synchronizeEnterpriseAccountStatus(
+            manager,
+            enterpriseId,
+            dto.isActive,
+            adminId,
+            updateData,
+          );
+        }
+        if (emailChanged) {
+          await manager.update(
+            EnterpriseEntity,
+            { id: enterpriseId, taxCode: user.username },
+            { email: newEmail, updatedBy: adminId ?? null },
+          );
+        }
+        if (dto.isActive === undefined) {
+          await manager.update(UserEntity, id, updateData);
+        }
       });
       return this.toResponse(await this.findOneOrFail({ where: { id } }));
     }
@@ -330,22 +347,7 @@ export class UserService extends BaseService<UserEntity> {
     isActive: boolean,
     adminId?: number,
   ): Promise<UserResponse> {
-    // 1. Không cho phép tự khóa tài khoản của chính mình
-    if (adminId && id === adminId && !isActive) {
-      throw new BadRequestException(
-        'Bạn không thể tự khóa tài khoản của chính mình.',
-      );
-    }
-
-    // 2. Kiểm tra người dùng có tồn tại không
-    await this.findOneOrFail({ where: { id } });
-
-    // 3. Cập nhật trạng thái
-    const updatedUser = await this.update(id, {
-      isActive,
-      updatedBy: adminId ?? null,
-    });
-    return this.toResponse(updatedUser);
+    return this.updateUser(id, { isActive }, adminId);
   }
 
   async remove(id: number, currentUserId: number): Promise<void> {

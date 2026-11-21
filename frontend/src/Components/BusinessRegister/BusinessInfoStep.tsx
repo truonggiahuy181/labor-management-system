@@ -44,7 +44,6 @@ import {
 import { fileAccessUrl } from "@/services/enterprise";
 import { notBlank, stripSpaces } from "@/services/text";
 import { type CatalogOptions, type Option } from "./options";
-import IndustryTreeSelect from "./IndustryTreeSelect";
 import AppDateField from "@/Components/AppDateField";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -268,24 +267,6 @@ export default function BusinessInfoStep({
               if (def.name === "operatingProvince")
                 setValue("operatingWard", "");
             };
-
-            if (def.name === "mainIndustry" && catalog.industryTree?.length) {
-              return (
-                <IndustryTreeSelect
-                  value={field.value}
-                  onChange={selectValue}
-                  onBlur={field.onBlur}
-                  industries={catalog.industryTree}
-                  label={def.label}
-                  required={def.required}
-                  disabled={disabled}
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  inputRef={field.ref}
-                  name={field.name}
-                />
-              );
-            }
 
             if (def.options) {
               const unknownOption =

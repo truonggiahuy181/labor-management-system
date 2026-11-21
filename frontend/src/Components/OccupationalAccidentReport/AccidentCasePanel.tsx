@@ -23,7 +23,6 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import type {
   AccidentCaseBody,
@@ -35,17 +34,13 @@ import AccidentCaseForm, {
 import {
   getAccidentCaseErrors,
   isEmptyAccidentCase,
+  toAccidentCaseBody,
 } from "./accidentCaseValidation";
 import {
   MAX_CASES_PER_ADD,
   parseAdditionalCaseCount,
   type AccidentCaseDraft,
 } from "./accidentCaseDrafts";
-
-const formatDate = (value: string) => {
-  const [year, month, day] = value.slice(0, 10).split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
-};
 
 const formatMoney = (value: string) =>
   new Intl.NumberFormat("vi-VN").format(BigInt(value || "0"));
@@ -102,16 +97,21 @@ interface AccidentCasePanelProps {
     | "occupations"
     | "totalEmployees"
     | "femaleEmployees"
-    | "minDate"
-    | "maxDate"
     | "saving"
   >;
   draftStorageFailed: boolean;
   onAdd: (count: number) => string;
-  onChangeDraft: (clientId: string, body: AccidentCaseBody) => void;
-  onSaveDraft: (clientId: string, body: AccidentCaseBody) => Promise<boolean>;
+  onChangeDraft: (
+    clientId: string,
+    body: AccidentCaseBody,
+    caseId?: number,
+  ) => void;
+  onSaveDraft: (
+    clientId: string,
+    body: AccidentCaseBody,
+    caseId?: number,
+  ) => Promise<boolean>;
   onRemoveDraft: (clientId: string) => void;
-  onEdit: (item: OccupationalAccidentCase) => void;
   onRemove: (item: OccupationalAccidentCase) => void;
 }
 
@@ -126,20 +126,30 @@ export default function AccidentCasePanel({
   onChangeDraft,
   onSaveDraft,
   onRemoveDraft,
-  onEdit,
   onRemove,
 }: AccidentCasePanelProps) {
   const [quantityOpen, setQuantityOpen] = useState(false);
   const [quantity, setQuantity] = useState("1");
   const [quantityTouched, setQuantityTouched] = useState(false);
   const [expandedDraft, setExpandedDraft] = useState<string | null>(
-    () => drafts[0]?.clientId ?? null,
+    () => drafts[0]?.clientId ?? (cases[0] ? `saved-${cases[0].id}` : null),
   );
   const [focusDraftId, setFocusDraftId] = useState<string | null>(null);
   const [attemptedDrafts, setAttemptedDrafts] = useState<Set<string>>(
     new Set(),
   );
   const additionalCount = parseAdditionalCaseCount(quantity);
+  const editableCases: AccidentCaseDraft[] = [
+    ...cases.map(
+      (item) =>
+        drafts.find((draft) => draft.caseId === item.id) ?? {
+          clientId: `saved-${item.id}`,
+          caseId: item.id,
+          body: toAccidentCaseBody(item),
+        },
+    ),
+    ...drafts.filter((draft) => draft.caseId === undefined),
+  ];
 
   useEffect(() => {
     if (!focusDraftId) return;
@@ -164,15 +174,17 @@ export default function AccidentCasePanel({
     setFocusDraftId(firstId);
   };
 
-  const saveDraft = async (
-    draft: AccidentCaseDraft,
-    index: number,
-    moveNext: boolean,
-  ) => {
-    const nextId = drafts[index + 1]?.clientId;
-    if (await onSaveDraft(draft.clientId, draft.body)) {
-      setExpandedDraft(moveNext && nextId ? nextId : null);
-      if (moveNext && nextId) setFocusDraftId(nextId);
+  const saveDraft = async (draft: AccidentCaseDraft, index: number) => {
+    const nextId = editableCases[index + 1]?.clientId;
+    const unchanged =
+      draft.caseId !== undefined &&
+      !drafts.some((item) => item.clientId === draft.clientId);
+    if (
+      unchanged ||
+      (await onSaveDraft(draft.clientId, draft.body, draft.caseId))
+    ) {
+      setExpandedDraft(nextId ?? null);
+      if (nextId) setFocusDraftId(nextId);
     }
   };
 
@@ -204,195 +216,168 @@ export default function AccidentCasePanel({
         </Alert>
       )}
 
-      {cases.map((item, index) => {
-        const counts = getCounts(item);
-        const occupations = Array.from(
-          new Map(
-            item.victimGroups.map((group) => [
-              group.occupation.id,
-              `${group.occupation.code} - ${group.occupation.name}`,
-            ]),
-          ).values(),
-        ).join("; ");
+      {readOnly &&
+        cases.map((item, index) => {
+          const counts = getCounts(item);
+          const occupations = Array.from(
+            new Map(
+              item.victimGroups.map((group) => [
+                group.occupation.id,
+                `${group.occupation.code} - ${group.occupation.name}`,
+              ]),
+            ).values(),
+          ).join("; ");
 
-        return (
-          <Accordion
-            key={item.id}
-            defaultExpanded={index === 0 && drafts.length === 0}
-            disableGutters
-            variant="outlined"
-            sx={{ "&:before": { display: "none" } }}
-          >
-            {/* Nút sửa/xóa đặt cạnh AccordionSummary (không lồng bên trong) vì AccordionSummary là <button> */}
-            <Stack
-              direction="row"
-              sx={{ alignItems: "center", pr: readOnly ? 0 : 1 }}
+          return (
+            <Accordion
+              key={item.id}
+              defaultExpanded={index === 0 && drafts.length === 0}
+              disableGutters
+              variant="outlined"
+              sx={{ "&:before": { display: "none" } }}
             >
-              <AccordionSummary
-                id={`saved-case-summary-${item.id}`}
-                aria-controls={`saved-case-details-${item.id}`}
-                expandIcon={<ExpandMoreIcon />}
-                sx={{ flex: 1, minWidth: 0 }}
+              <Stack
+                direction="row"
+                sx={{ alignItems: "center", pr: readOnly ? 0 : 1 }}
               >
-                <Typography sx={{ fontWeight: 700 }}>
-                  Chi tiết vụ tai nạn số {index + 1}
+                <AccordionSummary
+                  id={`saved-case-summary-${item.id}`}
+                  aria-controls={`saved-case-details-${item.id}`}
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{ flex: 1, minWidth: 0 }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>
+                    Chi tiết vụ tai nạn số {index + 1}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                    label="Đã lưu"
+                    sx={{ ml: 1.5 }}
+                  />
+                </AccordionSummary>
+              </Stack>
+              <AccordionDetails sx={{ pt: 0 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+                    gap: 1.5,
+                  }}
+                >
+                  <TextField
+                    size="small"
+                    label="1. Phân theo nguyên nhân xảy ra TNLĐ"
+                    value={item.accidentCause.name}
+                    slotProps={{ input: { readOnly: true } }}
+                  />
+                  <TextField
+                    size="small"
+                    label="2. Phân theo yếu tố gây chấn thương"
+                    value={item.injuryFactor.name}
+                    slotProps={{ input: { readOnly: true } }}
+                  />
+                  <TextField
+                    size="small"
+                    label="3. Phân theo nghề nghiệp"
+                    value={occupations}
+                    slotProps={{ input: { readOnly: true } }}
+                  />
+                </Box>
+
+                <Typography sx={{ mt: 2, mb: 1.5, fontWeight: 700 }}>
+                  4. Chi tiết vụ tai nạn số {index + 1}
                 </Typography>
-                <Chip
-                  size="small"
-                  color="success"
-                  variant="outlined"
-                  label="Đã lưu"
-                  sx={{ ml: 1.5 }}
-                />
-              </AccordionSummary>
-              {!readOnly && (
-                <>
-                  <Tooltip title="Chỉnh sửa">
-                    <IconButton
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, 1fr)",
+                      lg: "repeat(4, 1fr)",
+                    },
+                    gap: 1.5,
+                  }}
+                >
+                  {CASE_COUNT_FIELDS.map(([key, label]) => (
+                    <TextField
+                      key={key}
                       size="small"
-                      color="primary"
-                      disabled={editorProps.saving}
-                      aria-label={`Chỉnh sửa vụ tai nạn số ${index + 1}`}
-                      onClick={() => onEdit(item)}
-                    >
-                      <EditOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Xóa">
-                    <IconButton
-                      size="small"
-                      color="error"
-                      disabled={editorProps.saving}
-                      aria-label={`Xóa vụ tai nạn số ${index + 1}`}
-                      onClick={() => onRemove(item)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-            </Stack>
-            <AccordionDetails sx={{ pt: 0 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
-                  gap: 1.5,
-                }}
-              >
-                <TextField
-                  size="small"
-                  label="1. Phân theo nguyên nhân xảy ra TNLĐ"
-                  value={item.accidentCause.name}
-                  slotProps={{ input: { readOnly: true } }}
-                />
-                <TextField
-                  size="small"
-                  label="2. Phân theo yếu tố gây chấn thương"
-                  value={item.injuryFactor.name}
-                  slotProps={{ input: { readOnly: true } }}
-                />
-                <TextField
-                  size="small"
-                  label="3. Phân theo nghề nghiệp"
-                  value={occupations}
-                  slotProps={{ input: { readOnly: true } }}
-                />
-                <TextField
-                  size="small"
-                  label="Ngày xảy ra tai nạn"
-                  value={formatDate(item.accidentDate)}
-                  slotProps={{ input: { readOnly: true } }}
-                />
-              </Box>
+                      label={label}
+                      value={counts[key]}
+                      slotProps={{ input: { readOnly: true } }}
+                    />
+                  ))}
+                </Box>
 
-              <Typography sx={{ mt: 2, mb: 1.5, fontWeight: 700 }}>
-                4. Chi tiết vụ tai nạn số {index + 1}
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, 1fr)",
-                    lg: "repeat(4, 1fr)",
-                  },
-                  gap: 1.5,
-                }}
-              >
-                {CASE_COUNT_FIELDS.map(([key, label]) => (
+                <Divider sx={{ my: 2 }} />
+                <Typography sx={{ mb: 1.5, fontWeight: 700 }}>
+                  5. Thiệt hại do tai nạn lao động số {index + 1}
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, 1fr)",
+                      lg: "repeat(4, 1fr)",
+                    },
+                    gap: 1.5,
+                  }}
+                >
+                  {[
+                    ["Chi phí y tế", item.medicalCostVnd],
+                    [
+                      "Chi phí trả lương trong thời gian điều trị",
+                      item.salaryCostVnd,
+                    ],
+                    ["Chi phí bồi thường, trợ cấp", item.compensationCostVnd],
+                    ["Tổng số tiền chi phí", item.totalCostVnd],
+                    ["Thiệt hại tài sản", item.propertyDamageVnd],
+                  ].map(([label, value]) => (
+                    <TextField
+                      key={label}
+                      size="small"
+                      label={`${label} (VND)`}
+                      value={formatMoney(value)}
+                      slotProps={{ input: { readOnly: true } }}
+                    />
+                  ))}
                   <TextField
-                    key={key}
                     size="small"
-                    label={label}
-                    value={counts[key]}
+                    label="Tổng số ngày nghỉ vì TNLĐ"
+                    value={item.lostWorkDays}
                     slotProps={{ input: { readOnly: true } }}
                   />
-                ))}
-              </Box>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
 
-              <Divider sx={{ my: 2 }} />
-              <Typography sx={{ mb: 1.5, fontWeight: 700 }}>
-                5. Thiệt hại do tai nạn lao động số {index + 1}
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, 1fr)",
-                    lg: "repeat(4, 1fr)",
-                  },
-                  gap: 1.5,
-                }}
-              >
-                {[
-                  ["Chi phí y tế", item.medicalCostVnd],
-                  [
-                    "Chi phí trả lương trong thời gian điều trị",
-                    item.salaryCostVnd,
-                  ],
-                  ["Chi phí bồi thường, trợ cấp", item.compensationCostVnd],
-                  ["Tổng số tiền chi phí", item.totalCostVnd],
-                  ["Thiệt hại tài sản", item.propertyDamageVnd],
-                ].map(([label, value]) => (
-                  <TextField
-                    key={label}
-                    size="small"
-                    label={`${label} (VND)`}
-                    value={formatMoney(value)}
-                    slotProps={{ input: { readOnly: true } }}
-                  />
-                ))}
-                <TextField
-                  size="small"
-                  label="Tổng số ngày nghỉ vì TNLĐ"
-                  value={item.lostWorkDays}
-                  slotProps={{ input: { readOnly: true } }}
-                />
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-        );
-      })}
-
-      {!readOnly && drafts.length > 0 && (
+      {!readOnly && editableCases.length > 0 && (
         <>
-          {noAccidentsDeclared && (
+          {noAccidentsDeclared && drafts.length > 0 && (
             <Alert severity="warning">
               Để lưu các vụ đang nhập, hãy bỏ xác nhận không phát sinh tai nạn
               trong thông tin doanh nghiệp. Bạn vẫn có thể xóa các vụ chưa lưu
               bên dưới.
             </Alert>
           )}
-          <Alert severity={draftStorageFailed ? "warning" : "info"}>
-            Còn {drafts.length} vụ chưa lưu, chưa tính vào số liệu tổng hợp.{" "}
-            {draftStorageFailed
-              ? "Không thể tự lưu nháp trên trình duyệt. Hãy lưu từng vụ trước khi rời trang."
-              : "Nội dung đang nhập được tự lưu nháp trên trình duyệt này."}
-          </Alert>
-          {drafts.map((draft, index) => {
-            const number = cases.length + index + 1;
+          {drafts.length > 0 && (
+            <Alert severity={draftStorageFailed ? "warning" : "info"}>
+              Còn {drafts.length} vụ chưa hoàn thành yêu cầu nhập.
+              {draftStorageFailed
+                ? " Không thể tự lưu nháp trên trình duyệt. Hãy hoàn thành từng vụ trước khi rời trang."
+                : ""}
+            </Alert>
+          )}
+          {editableCases.map((draft, index) => {
+            const number = index + 1;
+            const pending = drafts.some(
+              (item) => item.clientId === draft.clientId,
+            );
             const empty = isEmptyAccidentCase(draft.body);
             const invalid =
               attemptedDrafts.has(draft.clientId) &&
@@ -429,25 +414,40 @@ export default function AccidentCasePanel({
                         size="small"
                         variant="outlined"
                         label={
-                          invalid
-                            ? "Cần kiểm tra"
-                            : empty
-                              ? "Chưa nhập"
-                              : "Đang nhập"
+                          !pending
+                            ? "Đã lưu"
+                            : invalid
+                              ? "Cần kiểm tra"
+                              : empty
+                                ? "Chưa nhập"
+                                : "Đang nhập"
                         }
                         color={
-                          invalid ? "error" : empty ? "default" : "warning"
+                          !pending
+                            ? "success"
+                            : invalid
+                              ? "error"
+                              : empty
+                                ? "default"
+                                : "warning"
                         }
                       />
                     </Stack>
                   </AccordionSummary>
-                  <Tooltip title="Xóa vụ chưa lưu">
+                  <Tooltip title="Xóa vụ tai nạn">
                     <IconButton
                       color="error"
                       size="small"
                       disabled={editorProps.saving}
                       aria-label={`Xóa vụ tai nạn số ${number}`}
                       onClick={() => {
+                        if (draft.caseId !== undefined) {
+                          const item = cases.find(
+                            (item) => item.id === draft.caseId,
+                          );
+                          if (item) onRemove(item);
+                          return;
+                        }
                         if (
                           !empty &&
                           !window.confirm(
@@ -468,15 +468,16 @@ export default function AccidentCasePanel({
                       {...editorProps}
                       value={draft.body}
                       initialAttempted={attemptedDrafts.has(draft.clientId)}
-                      showSaveAndNext={index < drafts.length - 1}
-                      onChange={(body) => onChangeDraft(draft.clientId, body)}
+                      onChange={(body) =>
+                        onChangeDraft(draft.clientId, body, draft.caseId)
+                      }
                       onInvalid={() =>
                         setAttemptedDrafts((current) =>
                           new Set(current).add(draft.clientId),
                         )
                       }
-                      onSave={(_, moveNext) => {
-                        void saveDraft(draft, index, moveNext);
+                      onSave={() => {
+                        void saveDraft(draft, index);
                       }}
                     />
                   )}

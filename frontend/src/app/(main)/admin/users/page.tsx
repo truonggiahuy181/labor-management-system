@@ -1,6 +1,6 @@
 // src/app/(main)/admin/users/page.tsx
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress,
@@ -17,6 +17,9 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useSnackbar } from 'notistack';
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
+import ActivationConfirmDialog from '@/Components/ActivationConfirmDialog';
+import useAccountStatusSync from '@/Hooks/useAccountStatusSync';
+import { notifyAccountStatusChanged } from '@/services/accountStatusEvents';
 import { USERS_PATH } from '@/Components/UserManagement/UserDetailForm';
 import useRoles from '@/Hooks/useRoles';
 import useAuth from '@/Hooks/useAuth';
@@ -70,12 +73,16 @@ export default function UsersPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [resetting, setResetting] = useState<Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<{ row: Profile; isActive: boolean } | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const statusBusy = useRef(false);
+  const statusRevision = useAccountStatusSync();
   const isAdmin = hasRole(user, 'ADMIN');
 
   const { roleId, isActive } = debouncedFilters;
   const query = useMemo(() => toParams(roleId, isActive), [roleId, isActive]);
   // Mỗi lần query đổi hoặc bấm tải lại là một request mới; loading đến khi request đó xong
-  const requestKey = `${JSON.stringify(query)}#${reloadCount}`;
+  const requestKey = `${JSON.stringify(query)}#${reloadCount}#${statusRevision}`;
   const loading = isAdmin && loadedKey !== requestKey;
   const load = () => setReloadCount((n) => n + 1);
 
@@ -111,13 +118,21 @@ export default function UsersPage() {
   const toggleAll = () => setSelected((s) => (allChecked ? s.filter((id) => !pageIds.includes(id)) : [...new Set([...s, ...pageIds])]));
   const toggleOne = (id: number) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const toggleActive = async (row: Profile, isActive: boolean) => {
-    setAllRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive } : r)));
-     try {
-       await adminUserApi.update(row.id, { isActive });
-     } catch (err) {
-      setAllRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive: !isActive } : r)));
+  const confirmStatus = async () => {
+    if (!pendingStatus || statusBusy.current) return;
+    statusBusy.current = true;
+    setChangingStatus(true);
+    try {
+      const updated = await adminUserApi.updateStatus(pendingStatus.row.id, pendingStatus.isActive);
+      setAllRows(rs => rs.map(row => row.id === updated.id ? updated : row));
+      setPendingStatus(null);
+      notifyAccountStatusChanged();
+      enqueueSnackbar(translate('activation.success'), { variant: 'success' });
+    } catch (err) {
       enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    } finally {
+      statusBusy.current = false;
+      setChangingStatus(false);
     }
   };
 
@@ -259,8 +274,8 @@ export default function UsersPage() {
                   <TableCell>{roles.labelOf(r.roleId)}</TableCell>
                   <TableCell>{r.title}</TableCell>
                   <TableCell>
-                    <Switch size="small" checked={r.isActive} disabled={r.id === Number(user?.id)}
-                      onChange={(e) => toggleActive(r, e.target.checked)}
+                    <Switch size="small" checked={r.isActive} disabled={loading || changingStatus || r.id === Number(user?.id)}
+                      onChange={(e) => setPendingStatus({ row: r, isActive: e.target.checked })}
                       slotProps={{ input: { 'aria-label': translate('users.status') } }} />
                   </TableCell>
                 </TableRow>
@@ -303,6 +318,16 @@ export default function UsersPage() {
       </Card>
 
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
+      <ActivationConfirmDialog
+        open={Boolean(pendingStatus)}
+        target="user"
+        name={pendingStatus?.row.username ?? ''}
+        isActive={pendingStatus?.isActive ?? false}
+        linked={Boolean(pendingStatus?.row.enterpriseId)}
+        processing={changingStatus}
+        onClose={() => setPendingStatus(null)}
+        onConfirm={confirmStatus}
+      />
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>{translate('users.deleteConfirmTitle')}</DialogTitle>
         <DialogContent>{translate('users.deleteConfirm', { count: selected.length })}</DialogContent>
