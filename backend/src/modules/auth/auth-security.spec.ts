@@ -115,6 +115,39 @@ describe('Auth & Cookie Security Review Test Suite', () => {
         expect.any(String),
         30 * 24 * 60 * 60,
       );
+      expect(result.user.isFirstLogin).toBe(true);
+      expect(userService.update).toHaveBeenCalledWith(1, {
+        lastLoginAt: expect.any(Date),
+      });
+    });
+
+    it('returns isFirstLogin=false when the user has logged in previously', async () => {
+      vi.mocked(userService.findForAuthenticationByUsername!).mockResolvedValue(
+        {
+          id: 2,
+          username: 'enterprise-user',
+          passwordHash: await import('argon2').then((a) =>
+            a.hash('password123'),
+          ),
+          isActive: true,
+          roleId: 2,
+          enterpriseId: 10,
+          lastLoginAt: new Date('2026-10-01T00:00:00.000Z'),
+          role: { roleCode: 'ENTERPRISE_USER', isActive: true },
+          enterprise: { id: 10, isActive: true },
+        } as any,
+      );
+
+      const result = await authService.login({
+        username: 'enterprise-user',
+        password: 'password123',
+        rememberMe: false,
+      });
+
+      expect(result.user.isFirstLogin).toBe(false);
+      expect(userService.update).toHaveBeenCalledWith(2, {
+        lastLoginAt: expect.any(Date),
+      });
     });
 
     it('rejects login when the linked enterprise is inactive', async () => {
@@ -544,8 +577,8 @@ describe('Auth & Cookie Security Review Test Suite', () => {
       );
 
       // Get the ownerId passed to acquireRotationLock
-      const acquiredOwnerId = vi.mocked(redisService.acquireRotationLock).mock
-        .calls[0][1];
+      const acquiredOwnerId = vi.mocked(redisService.acquireRotationLock!).mock
+        .calls[0]?.[1];
 
       // Verify releaseRotationLock was called with the exact same ownerId
       expect(redisService.releaseRotationLock).toHaveBeenCalledWith(

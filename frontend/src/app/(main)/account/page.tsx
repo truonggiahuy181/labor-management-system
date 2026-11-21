@@ -107,6 +107,12 @@ export default function AccountPage() {
       );
   }, [reset, enqueueSnackbar, translate]);
 
+  useEffect(() => {
+    if (user?.email) {
+      setProfile((p) => (p && p.email !== user.email ? { ...p, email: user.email } : p));
+    }
+  }, [user?.email]);
+
   // Tài khoản doanh nghiệp: xem file đính kèm của doanh nghiệp (GET /enterprises/me), chỉ đọc
   useEffect(() => {
     if (!isEnterprise) return;

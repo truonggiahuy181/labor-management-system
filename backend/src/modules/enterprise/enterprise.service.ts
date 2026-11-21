@@ -498,10 +498,13 @@ export class EnterpriseService {
         withDeleted: false,
       }),
     ]);
+    const userConflict =
+      user &&
+      (!excludeEnterpriseId || user.enterpriseId !== excludeEnterpriseId);
     const enterpriseConflict =
       enterprise &&
       (!excludeEnterpriseId || enterprise.id !== excludeEnterpriseId);
-    if (user || enterpriseConflict) {
+    if (userConflict || enterpriseConflict) {
       throw new ConflictException({
         code: ErrorCode.EMAIL_EXISTS,
         message: 'Email đã được sử dụng.',

@@ -114,6 +114,11 @@ export class AuthService {
       refreshTtl,
     );
 
+    const isFirstLogin = !user.lastLoginAt;
+    await this.userService.update(user.id, {
+      lastLoginAt: new Date(),
+    } as any);
+
     const avatarUrl = await this.userService.resolveAvatarUrl(
       user.avatarObjectKey,
     );
@@ -135,6 +140,7 @@ export class AuthService {
         avatarObjectKey: user.avatarObjectKey,
         avatarUrl,
         isActive: user.isActive,
+        isFirstLogin,
       },
     };
   }
@@ -159,6 +165,7 @@ export class AuthService {
       avatarObjectKey: user.avatarObjectKey,
       avatarUrl,
       isActive: user.isActive,
+      isFirstLogin: !user.lastLoginAt,
     };
   }
 
@@ -606,6 +613,12 @@ export class AuthService {
         emailChangeOtpExpires: null,
         updatedBy: userId,
       } as any);
+      if (user.enterpriseId && this.enterpriseRepository) {
+        await this.enterpriseRepository.update(user.enterpriseId, {
+          email: normalizedNewEmail,
+          updatedBy: userId,
+        });
+      }
     }
     await this.redisService.clearOtpAttempts(`ec:${userId}`);
 

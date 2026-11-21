@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Box, Card, CircularProgress } from '@mui/material';
 import LanguageSwitcher from '@/Components/LanguageSwitcher';
 import useAuth from '@/Hooks/useAuth';
+import { getPostLoginPath } from '@/constants/roles';
 
 const WIDE_PAGES = ['/register'];
 
@@ -14,7 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && user) router.replace('/account');
+    if (!loading && user) router.replace(getPostLoginPath(user));
   }, [loading, user, router]);
 
   if (loading || user) {

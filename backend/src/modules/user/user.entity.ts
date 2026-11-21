@@ -155,4 +155,12 @@ export class UserEntity extends BaseEntity {
     nullable: true,
   })
   emailChangePending: string | null;
+
+  @Exclude()
+  @Column({
+    name: 'last_login_at',
+    type: 'timestamp',
+    nullable: true,
+  })
+  lastLoginAt: Date | null;
 }

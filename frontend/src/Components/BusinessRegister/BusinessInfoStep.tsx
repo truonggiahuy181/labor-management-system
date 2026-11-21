@@ -12,7 +12,9 @@ import {
   Box,
   createFilterOptions,
   IconButton,
+  Link,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -84,7 +86,8 @@ type Props = {
   catalog: CatalogOptions;
   locations: LocationCatalog;
   isEdit?: boolean; // cập nhật: đổi tiêu đề, khoá mã số thuế (= tên đăng nhập)
-  lockEmail?: boolean; // doanh nghiệp tự cập nhật: email chỉ đổi qua OTP ở trang Thông tin tài khoản
+  lockEmail?: boolean; // doanh nghiệp tự cập nhật: email chỉ đổi qua OTP
+  onChangeEmail?: () => void; // doanh nghiệp tự cập nhật: mở popup đổi email qua OTP
   accept?: string; // đuôi file cho phép, mặc định theo luồng đăng ký công khai
 };
 
@@ -96,6 +99,7 @@ export default function BusinessInfoStep({
   locations,
   isEdit = false,
   lockEmail = false,
+  onChangeEmail,
   accept = DOCUMENT_ACCEPT,
 }: Props) {
   const { translate } = useLocales();
@@ -338,7 +342,7 @@ export default function BusinessInfoStep({
               ? { htmlInput: { maxLength: def.maxLength } }
               : undefined;
 
-            return (
+            const textField = (
               <TextField
                 {...field}
                 fullWidth
@@ -359,6 +363,24 @@ export default function BusinessInfoStep({
                 slotProps={slotProps}
               />
             );
+
+            if (def.name === "email" && onChangeEmail) {
+              return (
+                <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+                  {textField}
+                  <Link
+                    component="button"
+                    type="button"
+                    onClick={onChangeEmail}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    {translate("account.change")}
+                  </Link>
+                </Stack>
+              );
+            }
+
+            return textField;
           }}
         />
       </Box>

@@ -14,6 +14,7 @@ type MockUser = User & {
   companyName: string;
   taxCode: string;
   phone: string;
+  hasLoggedIn?: boolean;
 };
 
 const SEED_USERS: MockUser[] = [
@@ -48,7 +49,13 @@ const loadUsers = (): MockUser[] => {
 const saveUsers = (users: MockUser[]) => localStorage.setItem(DB_KEY, JSON.stringify(users));
 
 // Không bao giờ trả password ra ngoài, giống server thật
-const toUser = ({ id, username, email, roleId }: MockUser): User => ({ id, username, email, roleId });
+const toUser = ({ id, username, email, roleId, isFirstLogin }: MockUser): User => ({
+  id,
+  username,
+  email,
+  roleId,
+  ...(isFirstLogin !== undefined && { isFirstLogin }),
+});
 
 // Server thật đọc cookie; mock đọc id đã lưu lúc login
 const currentUser = () => {
@@ -67,10 +74,13 @@ const fail = (code: string) => respond<never>({ success: false, data: null as ne
 // ---------- Các hàm giống hệt authApi thật ----------
 export const mockAuthApi: AuthApi = {
   login: ({ username, password }) => {
-    const user = loadUsers().find((u) => u.username === username && u.password === password);
+    const users = loadUsers();
+    const user = users.find((u) => u.username === username && u.password === password);
     if (!user) return fail('WRONG_PASSWORD');
+    const isFirstLogin = !user.hasLoggedIn;
+    saveUsers(users.map((u) => (u.id === user.id ? { ...u, hasLoggedIn: true } : u)));
     localStorage.setItem(SESSION_KEY, user.id);
-    return ok({ user: toUser(user) });
+    return ok({ user: toUser({ ...user, isFirstLogin }) });
   },
 
   logout: () => {

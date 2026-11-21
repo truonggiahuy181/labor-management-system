@@ -117,4 +117,62 @@ describe('AuthService – OTP error codes and limits', () => {
       resetPasswordExpires: null,
     });
   });
+
+  it('confirmEmailChange updates both user and enterprise email in a transaction', async () => {
+    const manager = { update: vi.fn().mockResolvedValue({ affected: 1 }) };
+    const dataSource = {
+      transaction: vi.fn((cb: (m: typeof manager) => unknown) => cb(manager)),
+    };
+    const enterpriseRepository = {
+      findOne: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+    };
+    const serviceWithEnterprise = new AuthService(
+      userService as any,
+      new JwtService({ secret: 'test-secret-test-secret-test-secret' }),
+      new ConfigService({}),
+      redisService as any,
+      undefined,
+      enterpriseRepository as any,
+      dataSource as any,
+    );
+
+    userService.findOneOrFail.mockResolvedValue(
+      activeUser({
+        enterpriseId: 15,
+        emailChangeOtp: '654321',
+        emailChangeOtpExpires: new Date(Date.now() + 60_000),
+      }),
+    );
+    userService.findByEmail.mockResolvedValue(null);
+
+    const res = await serviceWithEnterprise.confirmEmailChange(7, {
+      newEmail: 'NewEnterprise@Example.com',
+      otp: '654321',
+    });
+
+    expect(res).toEqual({ message: 'Cập nhật email thành công.' });
+    expect(dataSource.transaction).toHaveBeenCalledOnce();
+    expect(manager.update).toHaveBeenCalledTimes(2);
+    expect(manager.update).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      7,
+      expect.objectContaining({
+        email: 'newenterprise@example.com',
+        emailChangeOtp: null,
+        emailChangeOtpExpires: null,
+        updatedBy: 7,
+      }),
+    );
+    expect(manager.update).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      15,
+      expect.objectContaining({
+        email: 'newenterprise@example.com',
+        updatedBy: 7,
+      }),
+    );
+  });
 });
