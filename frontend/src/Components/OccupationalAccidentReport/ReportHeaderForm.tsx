@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
-  Button,
   Card,
   Checkbox,
   FormControlLabel,
@@ -12,75 +11,64 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import SaveOutlinedIcon from "@mui/icons-material/SaveOutlined";
 import type {
   OccupationalAccidentReport,
   UpdateReportHeaderBody,
 } from "@/services/occupationalAccidentReport";
 import { formatVnd, sanitizeVndInput } from "@/services/money";
+import { getReportHeaderErrors, MAX_EMPLOYEES } from "./reportHeaderValidation";
 
-const count = (value: string) =>
-  Math.max(0, Math.min(2_147_483_647, Number(value) || 0));
+type HeaderFormValues = Omit<
+  UpdateReportHeaderBody,
+  "totalEmployees" | "femaleEmployees"
+> & { totalEmployees: string; femaleEmployees: string };
 
 interface ReportHeaderFormProps {
+  id: string;
   report: OccupationalAccidentReport;
   readOnly: boolean;
   saving: boolean;
   /** Trả về true khi lưu thành công → form coi dữ liệu hiện tại là đã lưu */
   onSave: (body: UpdateReportHeaderBody) => Promise<boolean>;
+  onContinue: () => void;
   /** Báo cho trang cha biết form có thay đổi chưa lưu (để cảnh báo khi chuyển mục) */
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-const toBody = (report: OccupationalAccidentReport): UpdateReportHeaderBody => ({
-  totalEmployees: report.totalEmployees,
-  femaleEmployees: report.femaleEmployees,
+const toForm = (report: OccupationalAccidentReport): HeaderFormValues => ({
+  totalEmployees: String(report.totalEmployees),
+  femaleEmployees: String(report.femaleEmployees),
   payrollFundVnd: report.payrollFundVnd,
   noAccidentsDeclared: report.noAccidentsDeclared,
 });
 
 export default function ReportHeaderForm({
+  id,
   report,
   readOnly,
   saving,
   onSave,
+  onContinue,
   onDirtyChange,
 }: ReportHeaderFormProps) {
   // Mốc so sánh "đã lưu": dữ liệu lúc mở form, cập nhật lại mỗi lần lưu thành công
-  const [saved, setSaved] = useState(() => toBody(report));
-  const [form, setForm] = useState<UpdateReportHeaderBody>(saved);
+  const [saved, setSaved] = useState(() => toForm(report));
+  const [form, setForm] = useState<HeaderFormValues>(saved);
+  const totalInputRef = useRef<HTMLInputElement>(null);
+  const femaleInputRef = useRef<HTMLInputElement>(null);
+  const payrollInputRef = useRef<HTMLInputElement>(null);
+  const continuingRef = useRef(false);
   const dirty = !readOnly && JSON.stringify(form) !== JSON.stringify(saved);
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
-  const workforceRequirements = report.cases.reduce(
-    (required, accidentCase) => {
-      const managed = accidentCase.victimGroups.reduce(
-        (total, group) => {
-          if (group.isUnderEnterpriseManagement) {
-            total.victims += group.victimCount;
-            total.femaleVictims += group.femaleCount;
-          }
-          return total;
-        },
-        { victims: 0, femaleVictims: 0 },
-      );
-      required.employees = Math.max(required.employees, managed.victims);
-      required.femaleEmployees = Math.max(
-        required.femaleEmployees,
-        managed.femaleVictims,
-      );
-      return required;
-    },
-    { employees: 0, femaleEmployees: 0 },
+  const errors = getReportHeaderErrors(
+    form.totalEmployees,
+    form.femaleEmployees,
+    report.cases,
+    form.payrollFundVnd,
   );
-  const totalEmployeesError =
-    form.totalEmployees < workforceRequirements.employees;
-  const femaleEmployeesError =
-    form.femaleEmployees > form.totalEmployees ||
-    form.femaleEmployees < workforceRequirements.femaleEmployees;
-  const invalid = totalEmployeesError || femaleEmployeesError;
 
   return (
     <Stack spacing={1.5}>
@@ -89,7 +77,46 @@ export default function ReportHeaderForm({
           Yêu cầu bổ sung: {report.returnedReason}
         </Alert>
       )}
-      <Card variant="outlined" sx={{ p: 2 }}>
+      <Card
+        component="form"
+        id={id}
+        noValidate
+        variant="outlined"
+        sx={{ p: 2 }}
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (readOnly || saving || continuingRef.current) return;
+          if (Object.keys(errors).length > 0) {
+            const input = errors.totalEmployees
+              ? totalInputRef.current
+              : errors.femaleEmployees
+                ? femaleInputRef.current
+                : payrollInputRef.current;
+            input?.focus();
+            input?.scrollIntoView({ block: "center", behavior: "smooth" });
+            return;
+          }
+          if (!dirty) {
+            onContinue();
+            return;
+          }
+          continuingRef.current = true;
+          try {
+            if (
+              await onSave({
+                ...form,
+                totalEmployees: Number(form.totalEmployees),
+                femaleEmployees: Number(form.femaleEmployees),
+              })
+            ) {
+              setSaved(form);
+              onContinue();
+            }
+          } finally {
+            continuingRef.current = false;
+          }
+        }}
+      >
         <Typography sx={{ mb: 0.75, fontWeight: 700 }}>
           1. Thông tin công ty
         </Typography>
@@ -128,20 +155,17 @@ export default function ReportHeaderForm({
             type="number"
             label="Tổng số lao động của cơ sở"
             value={form.totalEmployees}
-            disabled={readOnly}
-            error={totalEmployeesError}
-            helperText={
-              totalEmployeesError
-                ? `Không được nhỏ hơn ${workforceRequirements.employees} nạn nhân thuộc quyền quản lý trong một vụ.`
-                : undefined
-            }
+            inputRef={totalInputRef}
+            disabled={readOnly || saving}
+            error={!readOnly && !!errors.totalEmployees}
+            helperText={!readOnly ? errors.totalEmployees : undefined}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
-                totalEmployees: count(event.target.value),
+                totalEmployees: event.target.value,
               }))
             }
-            slotProps={{ htmlInput: { min: 0 } }}
+            slotProps={{ htmlInput: { min: 1, max: MAX_EMPLOYEES, step: 1 } }}
           />
           <TextField
             required
@@ -149,29 +173,27 @@ export default function ReportHeaderForm({
             type="number"
             label="Tổng số lao động nữ"
             value={form.femaleEmployees}
-            disabled={readOnly}
-            error={femaleEmployeesError}
-            helperText={
-              form.femaleEmployees > form.totalEmployees
-                ? "Không được lớn hơn tổng số lao động."
-                : form.femaleEmployees < workforceRequirements.femaleEmployees
-                  ? `Không được nhỏ hơn ${workforceRequirements.femaleEmployees} lao động nữ bị nạn thuộc quyền quản lý trong một vụ.`
-                  : undefined
-            }
+            inputRef={femaleInputRef}
+            disabled={readOnly || saving}
+            error={!readOnly && !!errors.femaleEmployees}
+            helperText={!readOnly ? errors.femaleEmployees : undefined}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
-                femaleEmployees: count(event.target.value),
+                femaleEmployees: event.target.value,
               }))
             }
-            slotProps={{ htmlInput: { min: 0 } }}
+            slotProps={{ htmlInput: { min: 0, max: MAX_EMPLOYEES, step: 1 } }}
           />
           <TextField
             required
             size="small"
             label="Tổng quỹ lương (VND)"
             value={formatVnd(form.payrollFundVnd)}
-            disabled={readOnly}
+            inputRef={payrollInputRef}
+            disabled={readOnly || saving}
+            error={!readOnly && !!errors.payrollFundVnd}
+            helperText={!readOnly ? errors.payrollFundVnd : undefined}
             onChange={(event) =>
               setForm((current) => ({
                 ...current,
@@ -187,6 +209,7 @@ export default function ReportHeaderForm({
                 checked={form.noAccidentsDeclared}
                 disabled={
                   readOnly ||
+                  saving ||
                   report.cases.length > 0 ||
                   report.article39Summary.totalCases > 0
                 }
@@ -201,21 +224,6 @@ export default function ReportHeaderForm({
             label="Doanh nghiệp không phát sinh tai nạn lao động trong kỳ báo cáo"
           />
         </Box>
-        {!readOnly && (
-          <Box sx={{ mt: 2, textAlign: "right" }}>
-            <Button
-              variant="contained"
-              startIcon={<SaveOutlinedIcon />}
-              disabled={saving || invalid}
-              onClick={async () => {
-                const body = form;
-                if (await onSave(body)) setSaved(body);
-              }}
-            >
-              Lưu thông tin
-            </Button>
-          </Box>
-        )}
       </Card>
     </Stack>
   );

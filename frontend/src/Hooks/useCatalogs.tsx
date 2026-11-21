@@ -45,7 +45,7 @@ export default function useCatalogs() {
       .map((industry) => ({ value: String(industry.id), label: `${industry.industryCode} - ${industry.industryName}` }));
     const find = (options: Option[], value: string | number | null | undefined) =>
       options.find((o) => o.value === String(value ?? ''))?.label ?? '';
-    const catalog: CatalogOptions = { businessTypes: businessTypeOptions, industries: industryOptions, industryTree: industries };
+    const catalog: CatalogOptions = { businessTypes: businessTypeOptions, industries: industryOptions };
     return {
       catalog,       // truyền vào form dùng chung (EnterpriseForm / ConfirmStep)
       businessTypeOptions,

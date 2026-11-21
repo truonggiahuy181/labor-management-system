@@ -12,6 +12,7 @@ import type { Relation } from 'typeorm';
 import type { OccupationalAccidentReportStatus } from '../occupational-accident-report.constants.js';
 import { OccupationalAccidentReportEntity } from './occupational-accident-report.entity.js';
 import { OccupationalAccidentReportSubmissionEntity } from './occupational-accident-report-submission.entity.js';
+import type { ReportReviewFlag } from '../report-review-flags.js';
 
 @Index('idx_oa_report_histories_report', ['reportId'])
 @Index('idx_oa_report_histories_submission', ['submissionId'])
@@ -62,6 +63,18 @@ export class OccupationalAccidentReportHistoryEntity {
 
   @Column({ name: 'reason', type: 'varchar', length: 1000, nullable: true })
   reason: string | null;
+
+  @Column({ name: 'review_flags', type: 'jsonb', default: () => "'[]'::jsonb" })
+  reviewFlags: ReportReviewFlag[];
+
+  @Column({ name: 'review_note', type: 'varchar', length: 500, default: '' })
+  reviewNote: string;
+
+  @Column({ name: 'review_updated_by', type: 'int', nullable: true })
+  reviewUpdatedBy: number | null;
+
+  @Column({ name: 'review_updated_at', type: 'timestamptz', nullable: true })
+  reviewUpdatedAt: Date | null;
 
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy: number | null;

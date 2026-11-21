@@ -3,7 +3,7 @@
 //   user = null → thêm mới (POST /users), user có giá trị → sửa (PATCH /users/:id, không đổi tên đăng nhập / mật khẩu / email)
 // Giao diện dùng chung với trang Thông tin tài khoản (Components/UserProfile)
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useSnackbar } from "notistack";
@@ -27,6 +27,8 @@ import {
 import useRoles from "@/Hooks/useRoles";
 import { getLocalToday, isNotFutureDate } from "@/services/date";
 import { notBlank, stripSpaces } from "@/services/text";
+import ActivationConfirmDialog from "@/Components/ActivationConfirmDialog";
+import { notifyAccountStatusChanged } from "@/services/accountStatusEvents";
 
 type Form = {
   username: string;
@@ -97,6 +99,11 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
   const isEdit = !!user;
+  const [pendingStatusValues, setPendingStatusValues] = useState<Form | null>(
+    null,
+  );
+  const [saving, setSaving] = useState(false);
+  const saveBusy = useRef(false);
   const [uploadedAvatar, setUploadedAvatar] = useState<{
     userId: number;
     url: string | null;
@@ -159,7 +166,10 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
     message: translate("common.maxLength", { max: value }),
   });
 
-  const onSubmit = async (values: Form) => {
+  const saveUser = async (values: Form) => {
+    if (saveBusy.current) return;
+    saveBusy.current = true;
+    setSaving(true);
     const { username, password, email, roleId, isActive } = values;
     const fullName = values.fullName.trim();
     try {
@@ -169,7 +179,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
           email.trim().toLowerCase() !== (user.email ?? "").toLowerCase();
         await adminUserApi.update(user.id, {
           fullName,
-          isActive,
+          ...(isActive !== user.isActive && { isActive }),
           ...(emailChanged && { email: email.trim() }),
           ...optional(values),
           provinceId: values.provinceId || null,
@@ -201,13 +211,26 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
           }
         }
       }
+      if (user && isActive !== user.isActive) notifyAccountStatusChanged();
+      setPendingStatusValues(null);
       enqueueSnackbar(translate("common.saveSuccess"), { variant: "success" });
       router.push(USERS_PATH);
     } catch (err) {
       enqueueSnackbar(getErrorMessage(err, translate("common.unknownError")), {
         variant: "error",
       });
+    } finally {
+      saveBusy.current = false;
+      setSaving(false);
     }
+  };
+
+  const onSubmit = async (values: Form) => {
+    if (user && values.isActive !== user.isActive) {
+      setPendingStatusValues(values);
+      return;
+    }
+    await saveUser(values);
   };
 
   // Nhấn Enter để lưu thì ô chưa bị rời (chưa bỏ khoảng trắng) → bỏ ở tên đăng nhập / email trước khi kiểm tra
@@ -420,73 +443,87 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
       ];
 
   return (
-    <ProfileLayout
-      onSubmit={submitForm}
-      header={
-        <ProfileHeader
-          onCancel={() => router.push(USERS_PATH)}
-          saveDisabled={isSubmitting || isUploadingAvatar}
-        />
-      }
-      left={
-        <Controller
-          name="isActive"
-          control={control}
-          render={({ field: f }) => (
-            <AvatarCard
-              avatarUrl={avatarUrl}
-              active={f.value}
-              onActiveChange={f.onChange}
-              onAvatarUpload={handleAvatarUpload}
-              isUploadingAvatar={isUploadingAvatar || isSubmitting}
-            />
-          )}
-        />
-      }
-      right={
-        <ProfileSections
-          personal={personal}
-          province={
-            <FormTextField
-              control={control}
-              name="provinceId"
-              label="account.province"
-              options={locations.provinceOptions}
-              searchable
-              disabled={locations.loadingProvinces}
-              translateLabels={false}
-              onChange={(value) => {
-                setValue("wardId", "");
-                if (!value) clearErrors("wardId");
-              }}
-            />
-          }
-          ward={
-            <FormTextField
-              control={control}
-              name="wardId"
-              label="account.ward"
-              options={currentWards}
-              searchable
-              disabled={
-                !selectedProvince ||
-                locations.isLoadingWards(selectedProvince) ||
-                currentWards.length === 0
-              }
-              translateLabels={false}
-              rules={{ required: selectedProvince ? required : false }}
-            />
-          }
-          address={
-            <FormTextField
-              control={control}
-              name="address"
-              label="account.address"
-              rules={{ maxLength: maxLength(MAX.address) }}
-            />
-          }
-        />
-      }
-    />
+    <>
+      <ProfileLayout
+        onSubmit={submitForm}
+        header={
+          <ProfileHeader
+            onCancel={() => router.push(USERS_PATH)}
+            saveDisabled={isSubmitting || isUploadingAvatar || saving}
+          />
+        }
+        left={
+          <Controller
+            name="isActive"
+            control={control}
+            render={({ field: f }) => (
+              <AvatarCard
+                avatarUrl={avatarUrl}
+                active={f.value}
+                onActiveChange={saving ? undefined : f.onChange}
+                onAvatarUpload={handleAvatarUpload}
+                isUploadingAvatar={isUploadingAvatar || isSubmitting}
+              />
+            )}
+          />
+        }
+        right={
+          <ProfileSections
+            personal={personal}
+            province={
+              <FormTextField
+                control={control}
+                name="provinceId"
+                label="account.province"
+                options={locations.provinceOptions}
+                searchable
+                disabled={locations.loadingProvinces}
+                translateLabels={false}
+                onChange={(value) => {
+                  setValue("wardId", "");
+                  if (!value) clearErrors("wardId");
+                }}
+              />
+            }
+            ward={
+              <FormTextField
+                control={control}
+                name="wardId"
+                label="account.ward"
+                options={currentWards}
+                searchable
+                disabled={
+                  !selectedProvince ||
+                  locations.isLoadingWards(selectedProvince) ||
+                  currentWards.length === 0
+                }
+                translateLabels={false}
+                rules={{ required: selectedProvince ? required : false }}
+              />
+            }
+            address={
+              <FormTextField
+                control={control}
+                name="address"
+                label="account.address"
+                rules={{ maxLength: maxLength(MAX.address) }}
+              />
+            }
+          />
+        }
+      />
+      <ActivationConfirmDialog
+        open={Boolean(pendingStatusValues)}
+        target="user"
+        name={user?.username ?? ""}
+        isActive={pendingStatusValues?.isActive ?? false}
+        linked={Boolean(user?.enterpriseId)}
+        processing={saving}
+        onClose={() => setPendingStatusValues(null)}
+        onConfirm={async () => {
+          if (pendingStatusValues) await saveUser(pendingStatusValues);
+        }}
+      />
+    </>
   );
 }

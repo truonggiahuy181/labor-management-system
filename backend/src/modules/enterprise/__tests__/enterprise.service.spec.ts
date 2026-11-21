@@ -6,6 +6,8 @@ import {
 import { describe, beforeEach, expect, it, vi } from 'vitest';
 import { EnterpriseService } from '../enterprise.service.js';
 import type { CreateEnterpriseDto } from '../dto/create-enterprise.dto.js';
+import { EnterpriseEntity } from '../enterprise.entity.js';
+import { UserEntity } from '../../user/user.entity.js';
 
 vi.mock('argon2', () => ({
   hash: vi.fn().mockResolvedValue('hashed-initial-password'),
@@ -97,6 +99,8 @@ describe('EnterpriseService', () => {
       ),
     };
     transactionManager = {
+      findOne: vi.fn(async (entity: unknown) => entity === EnterpriseEntity ? enterpriseEntity() : { id: 20 }),
+      update: vi.fn().mockResolvedValue({ affected: 1 }),
       create: vi.fn((_: unknown, values: Record<string, unknown>) => values),
       save: vi.fn(async (entity: Record<string, unknown>) =>
         entity.username
@@ -368,22 +372,56 @@ describe('EnterpriseService', () => {
     expect(userService.findByUsername).not.toHaveBeenCalled();
   });
 
-  it('updates enterprise status', async () => {
+  it.each([false, true])('updates enterprise and account status together to %s', async isActive => {
     const existing = enterpriseEntity();
     repository.findOne.mockImplementation(async () => existing);
-    repository.update.mockImplementation(
-      async (_id: number, values: Record<string, unknown>) => {
-        Object.assign(existing, values);
+    transactionManager.update.mockImplementation(
+      async (entity: unknown, _criteria: unknown, values: Record<string, unknown>) => {
+        if (entity === EnterpriseEntity) Object.assign(existing, values);
+        return { affected: 1 };
       },
     );
 
-    const result = await service.updateStatus(10, false, 7);
+    const result = await service.updateStatus(10, isActive, 7);
 
-    expect(repository.update).toHaveBeenCalledWith(10, {
-      isActive: false,
+    expect(transactionManager.update).toHaveBeenNthCalledWith(1, EnterpriseEntity, 10, {
+      isActive,
       updatedBy: 7,
     });
-    expect(result.isActive).toBe(false);
+    expect(transactionManager.update).toHaveBeenNthCalledWith(2, UserEntity, expect.objectContaining({ enterpriseId: 10, deletedAt: expect.anything() }), { isActive, updatedBy: 7 });
+    expect(dataSource.transaction).toHaveBeenCalledOnce();
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(result.isActive).toBe(isActive);
+  });
+
+  it('does not allow deactivating the logged-in account through the enterprise', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+    transactionManager.findOne.mockImplementation(async (entity: unknown) => entity === EnterpriseEntity ? enterpriseEntity() : { id: 7 });
+    await expect(service.updateStatus(10, false, 7)).rejects.toThrow(BadRequestException);
+    expect(transactionManager.update).not.toHaveBeenCalled();
+  });
+
+  it('propagates an account write failure from the shared transaction', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+    transactionManager.update.mockResolvedValueOnce({ affected: 1 }).mockRejectedValueOnce(new Error('account write failed'));
+    await expect(service.updateStatus(10, false, 7)).rejects.toThrow('account write failed');
+    expect(dataSource.transaction).toHaveBeenCalledOnce();
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a concurrent account deletion instead of committing a partial status change', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+    transactionManager.update.mockResolvedValueOnce({ affected: 1 }).mockResolvedValueOnce({ affected: 0 });
+    await expect(service.updateStatus(10, false, 7)).rejects.toThrow(ConflictException);
+    expect(dataSource.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('can update an enterprise without reviving a deleted account', async () => {
+    repository.findOne.mockResolvedValue(enterpriseEntity());
+    transactionManager.findOne.mockImplementation(async (entity: unknown) => entity === EnterpriseEntity ? enterpriseEntity() : null);
+    transactionManager.update.mockResolvedValueOnce({ affected: 1 }).mockResolvedValueOnce({ affected: 0 });
+    await expect(service.updateStatus(10, true, 7)).resolves.toBeDefined();
+    expect(transactionManager.update).toHaveBeenCalledWith(UserEntity, expect.objectContaining({ enterpriseId: 10, deletedAt: expect.anything() }), { isActive: true, updatedBy: 7 });
   });
 
   it('uploads a public file and stores its metadata on the enterprise', async () => {

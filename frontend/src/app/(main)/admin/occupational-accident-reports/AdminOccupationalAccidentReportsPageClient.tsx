@@ -25,6 +25,14 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useSnackbar } from "notistack";
 import { ADMIN_REPORT_STATUS } from "@/Components/AdminOccupationalAccidentReport/status";
 import ReportBulkActions from "@/Components/AdminOccupationalAccidentReport/ReportBulkActions";
+import ReviewFlagChips from "@/Components/AdminOccupationalAccidentReport/ReviewFlagChips";
+import {
+  EMPTY_REVIEW_FLAG_COUNTS,
+  REPORT_REVIEW_FLAGS,
+  type ReportReviewFlagCounts,
+  type ReportReviewFlagFilter,
+  type ReportReviewLabel,
+} from "@/constants/reportReviewFlags";
 import TableFilterAutocomplete from "@/Components/TableFilterAutocomplete";
 import useAuth from "@/Hooks/useAuth";
 import useLocations from "@/Hooks/useLocations";
@@ -74,6 +82,12 @@ export default function AdminOccupationalAccidentReportsPage() {
   const [status, setStatus] = useState<
     ReviewableOccupationalAccidentReportStatus | ""
   >("");
+  const [reviewFlag, setReviewFlag] = useState<ReportReviewFlagFilter | "">("");
+  const [flagCounts, setFlagCounts] = useState<ReportReviewFlagCounts>(
+    EMPTY_REVIEW_FLAG_COUNTS,
+  );
+  const [reviewLabels, setReviewLabels] =
+    useState<readonly ReportReviewLabel[]>(REPORT_REVIEW_FLAGS);
   const [provinceId, setProvinceId] = useState(DEFAULT_PROVINCE_ID);
   const [wardId, setWardId] = useState("");
   const [page, setPage] = useState(1);
@@ -132,6 +146,7 @@ export default function AdminOccupationalAccidentReportsPage() {
         ...(year && { year: Number(year) }),
         ...(reportPeriodId && { reportPeriodId: Number(reportPeriodId) }),
         ...(status && { status }),
+        ...(reviewFlag && { reviewFlag }),
         ...(provinceId && { provinceId }),
         ...(wardId && { wardId }),
         page,
@@ -147,9 +162,15 @@ export default function AdminOccupationalAccidentReportsPage() {
             return;
           }
           setRows(result.data);
+          setFlagCounts(result.flagCounts);
+          setReviewLabels(result.reviewLabels);
           setTotal(result.total);
           setSelected((current) =>
-            current.filter((id) => result.data.some((row) => row.id === id)),
+            current.filter((id) =>
+              result.data.some(
+                (row) => row.id === id && row.status === "SUBMITTED",
+              ),
+            ),
           );
         }
       })
@@ -157,6 +178,8 @@ export default function AdminOccupationalAccidentReportsPage() {
         if (!cancelled) {
           setRows([]);
           setTotal(0);
+          setFlagCounts(EMPTY_REVIEW_FLAG_COUNTS);
+          setSelected([]);
           enqueueSnackbar(
             getErrorMessage(error, "Không tải được danh sách báo cáo."),
             { variant: "error" },
@@ -179,6 +202,7 @@ export default function AdminOccupationalAccidentReportsPage() {
     provinceId,
     reloadCount,
     reportPeriodId,
+    reviewFlag,
     status,
     taxCode,
     wardId,
@@ -205,7 +229,9 @@ export default function AdminOccupationalAccidentReportsPage() {
     task();
   };
 
-  const pageIds = rows.map((row) => row.id);
+  const pageIds = rows
+    .filter((row) => row.status === "SUBMITTED")
+    .map((row) => row.id);
   const allChecked =
     pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
   const someChecked =
@@ -322,9 +348,38 @@ export default function AdminOccupationalAccidentReportsPage() {
             onChange={(value) => updateFilter(() => setWardId(value))}
             sx={{ flex: 1 }}
           />
+          <TableFilterAutocomplete
+            ariaLabel="Lọc theo nội dung cần bổ sung"
+            label="Nội dung cần bổ sung"
+            placeholder="Tất cả"
+            value={reviewFlag}
+            options={[
+              {
+                value: "flagged",
+                label: `Đã gắn nhãn (${flagCounts.flagged})`,
+              },
+              ...reviewLabels.map((flag) => ({
+                value: flag.value,
+                label: `${flag.label} (${flagCounts[flag.value] ?? 0})`,
+              })),
+              {
+                value: "unflagged",
+                label: `Chưa gắn nhãn (${flagCounts.unflagged})`,
+              },
+            ]}
+            onChange={(value) =>
+              updateFilter(() => {
+                setReviewFlag(value as ReportReviewFlagFilter | "");
+                if (value) setStatus("SUBMITTED");
+              })
+            }
+            sx={{ flex: 1.3 }}
+          />
         </Stack>
 
         <ReportBulkActions
+          reviewFlag={reviewFlag}
+          reviewLabels={reviewLabels}
           reports={rows.filter((row) => selected.includes(row.id))}
           disabled={loading}
           onClear={() => setSelected([])}
@@ -339,9 +394,7 @@ export default function AdminOccupationalAccidentReportsPage() {
 
         <TableContainer sx={{ flex: 1 }}>
           <Table stickyHeader size="small" sx={{ minWidth: 960 }}>
-            <TableHead
-              sx={{ "& .MuiTableCell-head": { bgcolor: "grey.100" } }}
-            >
+            <TableHead sx={{ "& .MuiTableCell-head": { bgcolor: "grey.100" } }}>
               <TableRow>
                 <TableCell padding="checkbox" rowSpan={2}>
                   <Checkbox
@@ -351,7 +404,10 @@ export default function AdminOccupationalAccidentReportsPage() {
                     indeterminate={someChecked}
                     onChange={toggleAll}
                     slotProps={{
-                      input: { "aria-label": "Chọn tất cả báo cáo" },
+                      input: {
+                        "aria-label":
+                          "Chọn tất cả báo cáo Đã gửi trên trang này",
+                      },
                     }}
                   />
                 </TableCell>
@@ -422,7 +478,8 @@ export default function AdminOccupationalAccidentReportsPage() {
                     onChange={(value) =>
                       updateFilter(() =>
                         setStatus(
-                          value as ReviewableOccupationalAccidentReportStatus | "",
+                          value as
+                            ReviewableOccupationalAccidentReportStatus | "",
                         ),
                       )
                     }
@@ -439,7 +496,7 @@ export default function AdminOccupationalAccidentReportsPage() {
                     <TableCell padding="checkbox">
                       <Checkbox
                         size="small"
-                        disabled={loading}
+                        disabled={loading || row.status !== "SUBMITTED"}
                         checked={checked}
                         onChange={() => toggleOne(row.id)}
                         slotProps={{
@@ -464,7 +521,17 @@ export default function AdminOccupationalAccidentReportsPage() {
                         </IconButton>
                       </Tooltip>
                     </TableCell>
-                    <TableCell>{row.enterpriseName}</TableCell>
+                    <TableCell>
+                      <Stack spacing={0.75}>
+                        <Typography variant="body2">
+                          {row.enterpriseName}
+                        </Typography>
+                        <ReviewFlagChips
+                          flags={row.reviewFlags}
+                          labels={reviewLabels}
+                        />
+                      </Stack>
+                    </TableCell>
                     <TableCell>{row.taxCode}</TableCell>
                     <TableCell>
                       {getReportPeriodLabel(row.periodCode)}

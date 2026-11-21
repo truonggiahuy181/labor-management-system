@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import type { Repository } from 'typeorm';
 import { UserService } from '../user.service.js';
-import type { UserEntity } from '../user.entity.js';
+import { UserEntity } from '../user.entity.js';
+import { EnterpriseEntity } from '../../enterprise/enterprise.entity.js';
 import type { CreateUserDto } from '../dto/create-user.dto.js';
 import type { UpdateProfileDto } from '../dto/update-profile.dto.js';
 import type { UpdateUserDto } from '../dto/update-user.dto.js';
@@ -612,6 +613,67 @@ describe('UserService', () => {
   });
 
   describe('updateStatus', () => {
+    it.each([true, false])('đồng bộ tài khoản và doanh nghiệp khi đổi trạng thái thành %s', async isActive => {
+      const user = { id: 5, username: '0100123458', enterpriseId: 10, isActive: !isActive };
+      (repository.findOne as any).mockResolvedValue(user);
+      const manager = {
+        findOne: vi.fn(async (entity: unknown) => entity === EnterpriseEntity ? { id: 10 } : { id: 5 }),
+        update: vi.fn().mockResolvedValue({ affected: 1 }),
+      };
+      (repository as any).manager = { transaction: vi.fn(async callback => callback(manager)) };
+
+      await service.updateStatus(5, isActive, 1);
+
+      expect(manager.findOne).toHaveBeenCalledWith(EnterpriseEntity, { where: { id: 10 }, lock: { mode: 'pessimistic_write' } });
+      expect(manager.update).toHaveBeenNthCalledWith(1, EnterpriseEntity, 10, { isActive, updatedBy: 1 });
+      expect(manager.update).toHaveBeenNthCalledWith(2, UserEntity, expect.objectContaining({ enterpriseId: 10, deletedAt: expect.anything() }), { isActive, updatedBy: 1 });
+      expect((repository as any).manager.transaction).toHaveBeenCalledOnce();
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('đồng bộ trạng thái khi lưu form chi tiết, cùng các thông tin khác', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 5, username: '0100123458', enterpriseId: 10 });
+      const manager = {
+        findOne: vi.fn(async (entity: unknown) => entity === EnterpriseEntity ? { id: 10 } : { id: 5 }),
+        update: vi.fn().mockResolvedValue({ affected: 1 }),
+      };
+      (repository as any).manager = { transaction: vi.fn(async callback => callback(manager)) };
+      await service.updateUser(5, { isActive: false, fullName: 'Tên mới' }, 1);
+      expect(manager.update).toHaveBeenCalledWith(EnterpriseEntity, 10, { isActive: false, updatedBy: 1 });
+      expect(manager.update).toHaveBeenCalledWith(UserEntity, expect.objectContaining({ enterpriseId: 10 }), expect.objectContaining({ isActive: false, fullName: 'Tên mới' }));
+    });
+
+    it('không cho tự khóa bằng API sửa người dùng', async () => {
+      await expect(service.updateUser(1, { isActive: false }, 1)).rejects.toThrow(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('không thay đổi trạng thái doanh nghiệp khi chỉ sửa hồ sơ', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 5, enterpriseId: 10 });
+      const transaction = vi.fn();
+      (repository as any).manager = { transaction };
+      await service.updateUser(5, { fullName: 'Tên mới' }, 1);
+      expect(transaction).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledWith(5, { fullName: 'Tên mới', updatedBy: 1 });
+    });
+
+    it('không cập nhật tài khoản khi doanh nghiệp liên kết không còn tồn tại', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 5, enterpriseId: 10 });
+      const manager = { findOne: vi.fn().mockResolvedValue(null), update: vi.fn() };
+      (repository as any).manager = { transaction: vi.fn(async callback => callback(manager)) };
+      await expect(service.updateStatus(5, true, 1)).rejects.toThrow(NotFoundException);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
+    it('không thay đổi doanh nghiệp nếu tài khoản vừa bị xóa trước giao dịch', async () => {
+      (repository.findOne as any).mockResolvedValue({ id: 5, enterpriseId: 10 });
+      const manager = { findOne: vi.fn(async (entity: unknown) => entity === EnterpriseEntity ? { id: 10 } : null), update: vi.fn() };
+      (repository as any).manager = { transaction: vi.fn(async callback => callback(manager)) };
+      await expect(service.updateStatus(5, true, 1)).rejects.toThrow(NotFoundException);
+      expect(manager.update).not.toHaveBeenCalled();
+    });
+
     it('nên cập nhật trạng thái hoạt động của người dùng thành công', async () => {
       const mockUser: any = {
         id: 2,

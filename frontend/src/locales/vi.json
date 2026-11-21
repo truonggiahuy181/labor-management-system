@@ -1,4 +1,26 @@
 {
+  "activation": {
+    "activate": "Kích hoạt",
+    "deactivate": "Vô hiệu hóa",
+    "processing": "Đang cập nhật…",
+    "success": "Đã cập nhật trạng thái.",
+    "user": {
+      "activateTitle": "Kích hoạt tài khoản?",
+      "deactivateTitle": "Vô hiệu hóa tài khoản?"
+    },
+    "enterprise": {
+      "activateTitle": "Kích hoạt doanh nghiệp?",
+      "deactivateTitle": "Vô hiệu hóa doanh nghiệp?"
+    },
+    "paired": {
+      "activateHint": "Doanh nghiệp và tài khoản liên kết sẽ cùng được kích hoạt.",
+      "deactivateHint": "Doanh nghiệp và tài khoản liên kết sẽ cùng bị vô hiệu hóa. Tài khoản sẽ không thể đăng nhập hoặc tiếp tục sử dụng hệ thống."
+    },
+    "account": {
+      "activateHint": "Tài khoản sẽ được phép đăng nhập và sử dụng hệ thống.",
+      "deactivateHint": "Tài khoản sẽ không thể đăng nhập hoặc tiếp tục sử dụng hệ thống."
+    }
+  },
   "common": {
     "submit": "Xác nhận",
     "logout": "Đăng xuất",

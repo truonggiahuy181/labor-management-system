@@ -1,10 +1,9 @@
 // src/Components/BusinessRegister/options.ts
 import type { BusinessFiles, BusinessInfo } from '@/services/business';
-import type { Industry } from '@/services/enterprise';
 
 export type Option = { value: string; label: string };
 
-export type CatalogOptions = { businessTypes: Option[]; industries: Option[]; industryTree?: Industry[] };
+export type CatalogOptions = { businessTypes: Option[]; industries: Option[] };
 
 export const labelOf = (options: Option[], value: string) =>
   options.find((o) => o.value === value)?.label ?? value;

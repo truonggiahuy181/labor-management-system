@@ -8,7 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:accident-cases": "node --test tests/occupational-accident-cases.test.mjs"
+    "test:accident-cases": "node --test tests/occupational-accident-cases.test.mjs",
+    "test:report-header": "node --test tests/report-header.test.mjs",
+    "test:report-review": "node --test tests/report-review.test.mjs",
+    "test:report-status": "node --test tests/report-status.test.mjs",
+    "test:account-status": "node --test tests/account-status-events.test.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

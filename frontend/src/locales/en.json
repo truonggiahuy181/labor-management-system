@@ -1,4 +1,26 @@
 {
+  "activation": {
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "processing": "Updating…",
+    "success": "Status updated.",
+    "user": {
+      "activateTitle": "Activate account?",
+      "deactivateTitle": "Deactivate account?"
+    },
+    "enterprise": {
+      "activateTitle": "Activate enterprise?",
+      "deactivateTitle": "Deactivate enterprise?"
+    },
+    "paired": {
+      "activateHint": "The enterprise and its linked account will both be activated.",
+      "deactivateHint": "The enterprise and its linked account will both be deactivated. The account will no longer be able to sign in or continue using the system."
+    },
+    "account": {
+      "activateHint": "The account will be able to sign in and use the system.",
+      "deactivateHint": "The account will no longer be able to sign in or continue using the system."
+    }
+  },
   "common": {
     "submit": "Submit",
     "logout": "Log out",

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Box, Button, Card, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress,
@@ -16,6 +16,9 @@ import { useSnackbar } from 'notistack';
 import ConfirmStep from '@/Components/BusinessRegister/ConfirmStep';
 import { COMPANIES_PATH } from '@/Components/EnterpriseManagement/EnterpriseForm';
 import ResetPasswordDialog from '@/Components/UserManagement/ResetPasswordDialog';
+import ActivationConfirmDialog from '@/Components/ActivationConfirmDialog';
+import useAccountStatusSync from '@/Hooks/useAccountStatusSync';
+import { notifyAccountStatusChanged } from '@/services/accountStatusEvents';
 import TableFilterAutocomplete from '@/Components/TableFilterAutocomplete';
 import useAuth from '@/Hooks/useAuth';
 import useCatalogs, { type Option } from '@/Hooks/useCatalogs';
@@ -48,7 +51,7 @@ export default function CompaniesPage() {
   const isAdmin = hasRole(user, 'ADMIN');
 
   const [rows, setRows] = useState<Enterprise[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(0);
@@ -57,7 +60,13 @@ export default function CompaniesPage() {
   const [viewing, setViewing] = useState<Enterprise | null>(null);
   const [resetting, setResetting] = useState<Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const load = () => { setLoading(true); setReloadCount((n) => n + 1); };
+  const [pendingStatus, setPendingStatus] = useState<{ row: Enterprise; isActive: boolean } | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const statusBusy = useRef(false);
+  const statusRevision = useAccountStatusSync();
+  const requestKey = `${reloadCount}#${statusRevision}`;
+  const loading = isAdmin && loadedKey !== requestKey;
+  const load = () => setReloadCount((n) => n + 1);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -67,9 +76,9 @@ export default function CompaniesPage() {
       .catch((err) => {
         if (!cancelled) enqueueSnackbar(getErrorMessage(err, translate('enterprises.loadFailed')), { variant: 'error' });
       })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .finally(() => { if (!cancelled) setLoadedKey(requestKey); });
     return () => { cancelled = true; };
-  }, [isAdmin, reloadCount, enqueueSnackbar, translate]);
+  }, [isAdmin, requestKey, enqueueSnackbar, translate]);
 
   useEffect(() => {
     for (const provinceCode of new Set(rows.map((row) => row.provinceId))) {
@@ -83,7 +92,8 @@ export default function CompaniesPage() {
   }, [ensureWards, rows]);
 
   const filtered = useMemo(() => rows.filter((e) => matches(e, filters)), [rows, filters]);
-  const pageRows = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
+  const pageRows = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
 
   const setFilter = (key: keyof Filters, value: string) => {
     setFilters((f) => ({ ...f, [key]: value }));
@@ -97,13 +107,21 @@ export default function CompaniesPage() {
   const toggleAll = () => setSelected((s) => (allChecked ? s.filter((id) => !pageIds.includes(id)) : [...new Set([...s, ...pageIds])]));
   const toggleOne = (id: number) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  const toggleActive = async (row: Enterprise, isActive: boolean) => {
-    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive } : r)));
+  const confirmStatus = async () => {
+    if (!pendingStatus || statusBusy.current) return;
+    statusBusy.current = true;
+    setChangingStatus(true);
     try {
-      await enterpriseApi.updateStatus(row.id, isActive);
+      const updated = await enterpriseApi.updateStatus(pendingStatus.row.id, pendingStatus.isActive);
+      setRows(rs => rs.map(row => row.id === updated.id ? updated : row));
+      setPendingStatus(null);
+      notifyAccountStatusChanged();
+      enqueueSnackbar(translate('activation.success'), { variant: 'success' });
     } catch (err) {
-      setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, isActive: !isActive } : r)));
       enqueueSnackbar(getErrorMessage(err, translate('common.unknownError')), { variant: 'error' });
+    } finally {
+      statusBusy.current = false;
+      setChangingStatus(false);
     }
   };
 
@@ -252,7 +270,7 @@ export default function CompaniesPage() {
                   <TableCell>{catalogs.industryLabel(r.industryId)}</TableCell>
                   <TableCell>{catalogs.wardLabel(r.provinceId, r.wardId) || r.wardId}</TableCell>
                   <TableCell>
-                    <Switch size="small" checked={r.isActive} onChange={(e) => toggleActive(r, e.target.checked)}
+                    <Switch size="small" checked={r.isActive} disabled={loading || changingStatus} onChange={(e) => setPendingStatus({ row: r, isActive: e.target.checked })}
                       slotProps={{ input: { 'aria-label': translate('users.status') } }} />
                   </TableCell>
                 </TableRow>
@@ -282,7 +300,7 @@ export default function CompaniesPage() {
         )}
 
         <Stack direction="row" sx={{ alignItems: 'center', borderTop: 1, borderColor: 'divider', px: 1 }}>
-          <TablePagination component="div" sx={{ ml: 'auto' }} count={filtered.length} page={page} rowsPerPage={pageSize}
+          <TablePagination component="div" sx={{ ml: 'auto' }} count={filtered.length} page={currentPage} rowsPerPage={pageSize}
             rowsPerPageOptions={[10, 20, 50]} labelRowsPerPage=""
             labelDisplayedRows={({ from, to, count }) => translate('users.of', { from, to, count })}
             onPageChange={(_, p) => setPage(p)}
@@ -291,6 +309,15 @@ export default function CompaniesPage() {
       </Card>
 
       <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
+      <ActivationConfirmDialog
+        open={Boolean(pendingStatus)}
+        target="enterprise"
+        name={pendingStatus?.row.enterpriseName ?? ''}
+        isActive={pendingStatus?.isActive ?? false}
+        processing={changingStatus}
+        onClose={() => setPendingStatus(null)}
+        onConfirm={confirmStatus}
+      />
 
       {/* Xem chi tiết (chỉ đọc) */}
       <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="md" fullWidth scroll="paper">

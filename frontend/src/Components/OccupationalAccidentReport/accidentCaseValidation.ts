@@ -14,7 +14,6 @@ export const createEmptyVictimGroup = (): AccidentVictimGroupBody => ({
 });
 
 export const createEmptyAccidentCase = (): AccidentCaseBody => ({
-  accidentDate: "",
   primaryCauseId: 0,
   injuryFactorId: 0,
   medicalCostVnd: "0",
@@ -30,7 +29,6 @@ export const toAccidentCaseBody = (
 ): AccidentCaseBody =>
   item
     ? {
-        accidentDate: item.accidentDate.slice(0, 10),
         primaryCauseId: item.accidentCause.id,
         injuryFactorId: item.injuryFactor.id,
         medicalCostVnd: item.medicalCostVnd,
@@ -55,37 +53,16 @@ export const isEmptyAccidentCase = (body: AccidentCaseBody) =>
 export interface AccidentCaseConstraints {
   totalEmployees: number;
   femaleEmployees: number;
-  minDate: string;
-  maxDate: string;
 }
 
-const displayDate = (value: string) => value.split("-").reverse().join("/");
 const validCount = (value: number, minimum = 0) =>
   Number.isInteger(value) && value >= minimum && value <= 2_147_483_647;
-const validDate = (value: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return (
-    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
-  );
-};
 
 export const getAccidentCaseErrors = (
   form: AccidentCaseBody,
-  {
-    totalEmployees,
-    femaleEmployees,
-    minDate,
-    maxDate,
-  }: AccidentCaseConstraints,
+  { totalEmployees, femaleEmployees }: AccidentCaseConstraints,
 ): Record<string, string> => {
   const errors: Record<string, string> = {};
-  if (!form.accidentDate)
-    errors.accidentDate = "Vui lòng nhập ngày xảy ra tai nạn.";
-  else if (!validDate(form.accidentDate))
-    errors.accidentDate = "Ngày xảy ra tai nạn không hợp lệ.";
-  else if (form.accidentDate < minDate || form.accidentDate > maxDate)
-    errors.accidentDate = `Ngày xảy ra tai nạn phải từ ${displayDate(minDate)} đến ${displayDate(maxDate)}.`;
   if (!validCount(form.primaryCauseId, 1))
     errors.primaryCauseId = "Vui lòng chọn nguyên nhân xảy ra tai nạn.";
   if (!validCount(form.injuryFactorId, 1))
@@ -114,9 +91,22 @@ export const getAccidentCaseErrors = (
     }
     if (group.femaleCount > group.victimCount)
       errors[`${prefix}.femaleCount`] = "Số nữ không được lớn hơn số nạn nhân.";
-    if (group.deathCount + group.severeCount > group.victimCount)
+    if (group.deathCount > group.victimCount)
+      errors[`${prefix}.deathCount`] =
+        "Số người chết không được lớn hơn số nạn nhân.";
+    if (group.severeCount > group.victimCount)
       errors[`${prefix}.severeCount`] =
+        "Số người thương nặng không được lớn hơn số nạn nhân.";
+    if (
+      !errors[`${prefix}.deathCount`] &&
+      !errors[`${prefix}.severeCount`] &&
+      group.deathCount + group.severeCount > group.victimCount
+    ) {
+      const message =
         "Tổng số người chết và thương nặng không được lớn hơn số nạn nhân.";
+      errors[`${prefix}.deathCount`] = message;
+      errors[`${prefix}.severeCount`] = message;
+    }
     if (group.occupationId > 0) {
       const key = `${group.occupationId}:${group.isUnderEnterpriseManagement}`;
       if (selectedGroups.has(key))

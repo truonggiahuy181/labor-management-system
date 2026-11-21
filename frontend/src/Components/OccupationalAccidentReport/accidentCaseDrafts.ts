@@ -3,6 +3,7 @@ import { createEmptyAccidentCase } from "./accidentCaseValidation";
 
 export interface AccidentCaseDraft {
   clientId: string;
+  caseId?: number;
   body: AccidentCaseBody;
 }
 
@@ -49,8 +50,13 @@ const isDraft = (value: unknown): value is AccidentCaseDraft => {
     !/^[a-zA-Z0-9-]+$/.test(value.clientId)
   )
     return false;
+  if (
+    value.caseId !== undefined &&
+    (!isCount(value.caseId) || value.caseId === 0)
+  )
+    return false;
   const body = value.body;
-  if (!isRecord(body) || typeof body.accidentDate !== "string") return false;
+  if (!isRecord(body)) return false;
   if (
     !["primaryCauseId", "injuryFactorId", "lostWorkDays"].every((key) =>
       isCount(body[key]),
@@ -95,10 +101,22 @@ export const parseAccidentCaseDrafts = (
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     const ids = new Set<string>();
-    return parsed.filter((value): value is AccidentCaseDraft => {
-      if (!isDraft(value) || ids.has(value.clientId)) return false;
+    const caseIds = new Set<number>();
+    return parsed.flatMap((value): AccidentCaseDraft[] => {
+      if (
+        !isDraft(value) ||
+        ids.has(value.clientId) ||
+        (value.caseId !== undefined && caseIds.has(value.caseId))
+      )
+        return [];
       ids.add(value.clientId);
-      return true;
+      if (value.caseId !== undefined) caseIds.add(value.caseId);
+      // Older browser drafts may still contain the removed date field.
+      const body = { ...value.body } as AccidentCaseBody & {
+        accidentDate?: unknown;
+      };
+      delete body.accidentDate;
+      return [{ ...value, body }];
     });
   } catch {
     return [];

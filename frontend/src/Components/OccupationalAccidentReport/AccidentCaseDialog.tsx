@@ -17,7 +17,7 @@ import { toAccidentCaseBody } from "./accidentCaseValidation";
 
 interface AccidentCaseDialogProps extends Omit<
   AccidentCaseFormProps,
-  "value" | "onChange" | "onCancel" | "showSaveAndNext"
+  "value" | "onChange" | "onCancel"
 > {
   open: boolean;
   item: OccupationalAccidentCase | null;

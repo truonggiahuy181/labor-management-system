@@ -330,6 +330,7 @@ export default function ReportPeriodFormDialog({
                 inputRef={field.ref}
                 name={field.name}
                 label={translate("reportPeriods.startDate")}
+                disabled={reportTypeCode === "OCCUPATIONAL_ACCIDENT"}
                 error={!!fieldState.error}
                 helperText={fieldState.error?.message}
                 min={statutoryWindow?.firstSubmissionDate}
@@ -358,6 +359,7 @@ export default function ReportPeriodFormDialog({
                 inputRef={field.ref}
                 name={field.name}
                 label={translate("reportPeriods.endDate")}
+                disabled={reportTypeCode === "OCCUPATIONAL_ACCIDENT"}
                 error={!!fieldState.error}
                 helperText={fieldState.error?.message ?? statutoryWindowMessage}
                 min={statutoryWindow?.firstSubmissionDate}

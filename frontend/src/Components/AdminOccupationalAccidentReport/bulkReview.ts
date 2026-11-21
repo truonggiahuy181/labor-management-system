@@ -3,6 +3,10 @@ import {
   type AdminOccupationalAccidentReportListItem,
 } from "@/services/occupationalAccidentReport";
 import { getErrorMessage } from "@/services/user";
+import {
+  combineReviewReason,
+  isValidReviewReason,
+} from "@/constants/reportReviewFlags";
 
 export type BulkReviewAction = "receive" | "return";
 
@@ -19,6 +23,7 @@ export async function reviewReportBatch(
   action: BulkReviewAction,
   reason: string,
   onProgress: (completed: number) => void,
+  additionalReasons: Record<number, string> = {},
 ) {
   const eligible = reports.filter((report) => report.status === "SUBMITTED");
   const normalizedReason = reason.trim();
@@ -29,6 +34,20 @@ export async function reviewReportBatch(
     throw new Error("Lý do yêu cầu bổ sung phải có từ 10 đến 1.000 ký tự.");
   }
 
+  if (action === "return") {
+    for (const report of eligible) {
+      if (
+        !isValidReviewReason(
+          combineReviewReason(normalizedReason, additionalReasons[report.id]),
+        )
+      ) {
+        throw new Error(
+          `Lý do gửi ${report.enterpriseName} phải có từ 10 đến 1.000 ký tự.`,
+        );
+      }
+    }
+  }
+
   const successfulIds: number[] = [];
   const failures: BulkReviewFailure[] = [];
   for (let offset = 0; offset < eligible.length; offset += CONCURRENT_REVIEWS) {
@@ -36,10 +55,17 @@ export async function reviewReportBatch(
     const results = await Promise.allSettled(
       batch.map((report) =>
         action === "receive"
-          ? adminOccupationalAccidentReportApi.receive(report.id)
+          ? adminOccupationalAccidentReportApi.receive(
+              report.id,
+              report.version,
+            )
           : adminOccupationalAccidentReportApi.returnForSupplement(
               report.id,
-              normalizedReason,
+              combineReviewReason(
+                normalizedReason,
+                additionalReasons[report.id],
+              ),
+              report.version,
             ),
       ),
     );

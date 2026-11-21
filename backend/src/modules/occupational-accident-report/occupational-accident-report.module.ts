@@ -17,6 +17,7 @@ import { OccupationalAccidentVictimGroupEntity } from './entities/occupational-a
 import { OccupationalAccidentReportController } from './occupational-accident-report.controller.js';
 import { OccupationalAccidentReportAdminController } from './occupational-accident-report-admin.controller.js';
 import { OccupationalAccidentReportService } from './occupational-accident-report.service.js';
+import { ReportReviewLabelEntity } from './entities/report-review-label.entity.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { OccupationalAccidentReportService } from './occupational-accident-repor
       OccupationalAccidentReportSubmissionEntity,
       OccupationalAccidentReportDraftDocumentEntity,
       OccupationalAccidentReportHistoryEntity,
+      ReportReviewLabelEntity,
       UserEntity,
       EnterpriseEntity,
       ReportPeriodEntity,

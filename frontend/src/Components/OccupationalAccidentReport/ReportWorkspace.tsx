@@ -33,7 +33,6 @@ import {
 } from "@/services/accidentCatalog";
 import {
   accidentCauseApi,
-  getOccupationalAccidentCoverage,
   occupationalAccidentReportApi,
   type AccidentCaseBody,
   type AccidentCause,
@@ -45,7 +44,6 @@ import {
 } from "@/services/occupationalAccidentReport";
 import { getReportPeriodLabel } from "@/services/reportPeriod";
 import { getErrorMessage } from "@/services/user";
-import AccidentCaseDialog from "./AccidentCaseDialog";
 import AccidentCasePanel from "./AccidentCasePanel";
 import Article39Form from "./Article39Form";
 import OverviewPanel from "./OverviewPanel";
@@ -53,19 +51,13 @@ import RegularAccidentSummary from "./RegularAccidentSummary";
 import ReportHeaderForm from "./ReportHeaderForm";
 import SignedDocumentPanel from "./SignedDocumentPanel";
 import { printOccupationalAccidentReport } from "./reportPrint";
+import { getReportStatus } from "./reportStatus";
 import {
   createAccidentCaseDrafts,
   getCaseDraftStorageKey,
   parseAccidentCaseDrafts,
   type AccidentCaseDraft,
 } from "./accidentCaseDrafts";
-
-const STATUS = {
-  DRAFT: { label: "Đang khai báo", color: "info" as const },
-  SUBMITTED: { label: "Đã gửi", color: "primary" as const },
-  RECEIVED: { label: "Đã tiếp nhận", color: "success" as const },
-  RETURNED: { label: "Yêu cầu bổ sung", color: "warning" as const },
-};
 
 const REPORT_SECTIONS = [
   "Thông tin doanh nghiệp",
@@ -74,11 +66,29 @@ const REPORT_SECTIONS = [
   "Xem tổng quan báo cáo tai nạn lao động",
 ] as const;
 
-export default function ReportWorkspace({ reportId }: { reportId: number }) {
-  return <ReportWorkspaceContent key={reportId} reportId={reportId} />;
+export default function ReportWorkspace({
+  reportId,
+  initialOverview = false,
+}: {
+  reportId: number;
+  initialOverview?: boolean;
+}) {
+  return (
+    <ReportWorkspaceContent
+      key={`${reportId}-${initialOverview}`}
+      reportId={reportId}
+      initialOverview={initialOverview}
+    />
+  );
 }
 
-function ReportWorkspaceContent({ reportId }: { reportId: number }) {
+function ReportWorkspaceContent({
+  reportId,
+  initialOverview,
+}: {
+  reportId: number;
+  initialOverview: boolean;
+}) {
   const router = useRouter();
   const { enqueueSnackbar } = useSnackbar();
   const [report, setReport] = useState<OccupationalAccidentReport | null>(null);
@@ -91,9 +101,8 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [section, setSection] = useState(0);
+  const [section, setSection] = useState(initialOverview ? 3 : 0);
   const [regularTab, setRegularTab] = useState(0);
-  const [caseDialogOpen, setCaseDialogOpen] = useState(false);
   const [caseDrafts, setCaseDrafts] = useState<AccidentCaseDraft[]>([]);
   const caseDraftsRef = useRef<AccidentCaseDraft[]>([]);
   const savingCaseRef = useRef(false);
@@ -102,8 +111,6 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [dirty, setDirty] = useState(false);
   const onDirtyChange = useCallback((value: boolean) => setDirty(value), []);
-  const [editingCase, setEditingCase] =
-    useState<OccupationalAccidentCase | null>(null);
 
   // Đóng tab / tải lại trang khi form còn thay đổi chưa lưu → trình duyệt hỏi lại
   useEffect(() => {
@@ -156,6 +163,10 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
               window.localStorage.getItem(
                 getCaseDraftStorageKey(nextReport.enterpriseId, reportId),
               ),
+            ).filter(
+              (draft) =>
+                draft.caseId === undefined ||
+                nextReport.cases.some((item) => item.id === draft.caseId),
             );
             caseDraftsRef.current = drafts;
             setCaseDrafts(drafts);
@@ -219,24 +230,6 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
       "Đã lưu số liệu Khoản 2 Điều 39.",
     );
 
-  const saveCase = async (body: AccidentCaseBody) => {
-    const success = await runAndRefresh(
-      () =>
-        editingCase
-          ? occupationalAccidentReportApi.updateCase(
-              reportId,
-              editingCase.id,
-              body,
-            )
-          : occupationalAccidentReportApi.createCase(reportId, body),
-      editingCase ? "Đã cập nhật vụ tai nạn." : "Đã thêm vụ tai nạn.",
-    );
-    if (success) {
-      setCaseDialogOpen(false);
-      setEditingCase(null);
-    }
-  };
-
   const updateCaseDrafts = (drafts: AccidentCaseDraft[]) => {
     caseDraftsRef.current = drafts;
     setCaseDrafts(drafts);
@@ -252,7 +245,11 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
     }
   };
 
-  const saveDraftCase = async (clientId: string, body: AccidentCaseBody) => {
+  const saveDraftCase = async (
+    clientId: string,
+    body: AccidentCaseBody,
+    caseId?: number,
+  ) => {
     if (savingCaseRef.current) return false;
     if (report?.noAccidentsDeclared) {
       enqueueSnackbar(
@@ -264,10 +261,14 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
     savingCaseRef.current = true;
     setSaving(true);
     try {
-      const created = await occupationalAccidentReportApi.createCase(
-        reportId,
-        body,
-      );
+      const saved =
+        caseId === undefined
+          ? await occupationalAccidentReportApi.createCase(reportId, body)
+          : await occupationalAccidentReportApi.updateCase(
+              reportId,
+              caseId,
+              body,
+            );
       // Remove the local draft as soon as the server accepts it. A failed refresh must not create it twice.
       updateCaseDrafts(
         caseDraftsRef.current.filter((draft) => draft.clientId !== clientId),
@@ -276,7 +277,12 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
         current
           ? {
               ...current,
-              cases: [...current.cases, created],
+              cases:
+                caseId === undefined
+                  ? [...current.cases, saved]
+                  : current.cases.map((item) =>
+                      item.id === caseId ? saved : item,
+                    ),
               signedDocument: null,
               version: current.version + 1,
             }
@@ -309,16 +315,20 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
 
   const removeCase = async (item: OccupationalAccidentCase) => {
     if (!window.confirm("Xóa vụ tai nạn này khỏi bản nháp?")) return;
-    await runAndRefresh(
+    const removed = await runAndRefresh(
       () => occupationalAccidentReportApi.removeCase(reportId, item.id),
       "Đã xóa vụ tai nạn.",
     );
+    if (removed)
+      updateCaseDrafts(
+        caseDraftsRef.current.filter((draft) => draft.caseId !== item.id),
+      );
   };
 
   const submit = async () => {
     if (caseDraftsRef.current.length > 0) {
       enqueueSnackbar(
-        "Hãy lưu hoặc xóa các vụ đang nhập trước khi gửi báo cáo.",
+        "Hãy hoàn thành yêu cầu nhập hoặc xóa các vụ đang nhập trước khi gửi báo cáo.",
         { variant: "warning" },
       );
       setSection(1);
@@ -354,10 +364,7 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
     report.status === "SUBMITTED" ||
     report.status === "RECEIVED" ||
     !report.reportPeriod.isSubmissionOpen;
-  const coverage = getOccupationalAccidentCoverage(
-    report.reportPeriod.reportYear,
-    report.reportPeriod.periodCode,
-  );
+  const displayStatus = getReportStatus(report.status, report.reportPeriod.submissionEndDate);
 
   const moveNext = () => {
     if (section === 1 && regularTab === 0) {
@@ -405,8 +412,8 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
         <Chip
           size="small"
           variant="outlined"
-          label={STATUS[report.status].label}
-          color={STATUS[report.status].color}
+          label={displayStatus.label}
+          color={displayStatus.color}
         />
         <TextField
           size="small"
@@ -417,6 +424,7 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
         />
         <Button
           color="inherit"
+          disabled={saving || submitting}
           onClick={() => guard(() => router.push("/accidents/labor-contracts"))}
         >
           Hủy bỏ
@@ -425,7 +433,10 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
           <Button
             variant="outlined"
             endIcon={<NavigateNextIcon />}
-            onClick={moveNext}
+            type={section === 0 && !readOnly ? "submit" : "button"}
+            form={section === 0 && !readOnly ? "report-header-form" : undefined}
+            disabled={saving || submitting}
+            onClick={section === 0 && !readOnly ? undefined : moveNext}
           >
             Tiếp tục
           </Button>
@@ -488,14 +499,14 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
               </Button>
             }
           >
-            Còn {caseDrafts.length} vụ tai nạn chưa lưu. Hãy hoàn tất hoặc xóa
-            các vụ này trước khi gửi báo cáo.
+            Còn {caseDrafts.length} vụ chưa hoàn thành yêu cầu nhập.
           </Alert>
         )}
 
       <Card square variant="outlined" sx={{ p: 1.5 }}>
         <Autocomplete
           size="small"
+          disabled={saving || submitting}
           options={[...REPORT_SECTIONS]}
           value={REPORT_SECTIONS[section]}
           autoHighlight
@@ -534,10 +545,16 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
       {section === 0 && (
         <ReportHeaderForm
           key={`header-${report.version}`}
+          id="report-header-form"
           report={report}
           readOnly={readOnly}
           saving={saving}
           onSave={saveHeader}
+          onContinue={() => {
+            setDirty(false);
+            setSection(1);
+            setRegularTab(0);
+          }}
           onDirtyChange={onDirtyChange}
         />
       )}
@@ -559,8 +576,6 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
             occupations,
             totalEmployees: report.totalEmployees,
             femaleEmployees: report.femaleEmployees,
-            minDate: coverage.startDate,
-            maxDate: coverage.endDate,
             saving,
           }}
           onAdd={(count) => {
@@ -568,13 +583,16 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
             updateCaseDrafts([...caseDraftsRef.current, ...added]);
             return added[0].clientId;
           }}
-          onChangeDraft={(clientId, body) =>
+          onChangeDraft={(clientId, body, caseId) => {
+            const drafts = caseDraftsRef.current;
             updateCaseDrafts(
-              caseDraftsRef.current.map((draft) =>
-                draft.clientId === clientId ? { ...draft, body } : draft,
-              ),
-            )
-          }
+              drafts.some((draft) => draft.clientId === clientId)
+                ? drafts.map((draft) =>
+                    draft.clientId === clientId ? { ...draft, body } : draft,
+                  )
+                : [...drafts, { clientId, caseId, body }],
+            );
+          }}
           onSaveDraft={saveDraftCase}
           onRemoveDraft={(clientId) =>
             updateCaseDrafts(
@@ -583,10 +601,6 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
               ),
             )
           }
-          onEdit={(item) => {
-            setEditingCase(item);
-            setCaseDialogOpen(true);
-          }}
           onRemove={removeCase}
         />
       )}
@@ -616,26 +630,6 @@ function ReportWorkspaceContent({ reportId }: { reportId: number }) {
               onReportChange={setReport}
             />
           }
-        />
-      )}
-
-      {caseDialogOpen && (
-        <AccidentCaseDialog
-          open
-          item={editingCase}
-          causes={causes}
-          injuryFactors={injuryFactors}
-          occupations={occupations}
-          totalEmployees={report.totalEmployees}
-          femaleEmployees={report.femaleEmployees}
-          minDate={coverage.startDate}
-          maxDate={coverage.endDate}
-          saving={saving}
-          onClose={() => {
-            setCaseDialogOpen(false);
-            setEditingCase(null);
-          }}
-          onSave={saveCase}
         />
       )}
 

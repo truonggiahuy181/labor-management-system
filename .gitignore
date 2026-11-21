@@ -60,6 +60,8 @@ postman/
 /.codex-tmp/
 /tmp/
 /outputs/
+/backend/outputs/
+/Screenshot *.png
 /tmp_spreadsheet_filter_levels/
 /PROJECT_COMPLETION_CHECKLIST.md
 *.py
