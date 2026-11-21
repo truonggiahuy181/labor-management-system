@@ -20,3 +20,15 @@ export const hasRole = (user: RoleHolder, ...roles: RoleKey[]) =>
 
 export const getRoleKey = (user: RoleHolder): RoleKey | null =>
   (Object.keys(ROLE_CODE) as RoleKey[]).find((role) => hasRole(user, role)) ?? null;
+
+type LoginRedirectHolder = ( NonNullable<RoleHolder> & { isFirstLogin?: boolean | null } ) | null | undefined;
+
+export const getPostLoginPath = (user: LoginRedirectHolder): string => {
+  if (hasRole(user, 'ADMIN')) {
+    return '/admin/occupational-accident-reports';
+  }
+  if (hasRole(user, 'ENTERPRISE')) {
+    return user?.isFirstLogin ? '/company-info' : '/accidents/labor-contracts';
+  }
+  return '/account';
+};

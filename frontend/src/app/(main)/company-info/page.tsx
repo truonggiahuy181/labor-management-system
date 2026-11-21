@@ -32,11 +32,25 @@ export default function CompanyInfoPage() {
     return () => { setEnterprise(null); setFailed(false); };
   }, [isEnterprise, load]);
 
+  useEffect(() => {
+    if (isEnterprise && user?.email) {
+      setEnterprise((prev) => (prev && prev.email !== user.email ? { ...prev, email: user.email } : prev));
+    }
+  }, [isEnterprise, user?.email]);
+
   if (user && !isEnterprise) {
     return <Typography color="text.secondary">{translate('enterprises.enterpriseOnly')}</Typography>;
   }
   if (failed) return <Typography color="text.secondary">{translate('enterprises.myLoadFailed')}</Typography>;
   if (!enterprise) return <Box sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress /></Box>;
   // key theo updatedAt: lưu xong tải lại thì form dựng lại từ dữ liệu mới, về bước 1
-  return <EnterpriseForm key={enterprise.updatedAt} enterprise={enterprise} self onSaved={load} />;
+  return (
+    <EnterpriseForm
+      key={enterprise.updatedAt}
+      enterprise={enterprise}
+      self
+      onSaved={load}
+      onEmailChanged={(newEmail) => setEnterprise((prev) => (prev ? { ...prev, email: newEmail } : prev))}
+    />
+  );
 }

@@ -211,7 +211,7 @@ export default function UserDetailForm({ user }: { user: Profile | null }) {
           }
         }
       }
-      if (user && isActive !== user.isActive) notifyAccountStatusChanged();
+      if (user) notifyAccountStatusChanged();
       setPendingStatusValues(null);
       enqueueSnackbar(translate("common.saveSuccess"), { variant: "success" });
       router.push(USERS_PATH);

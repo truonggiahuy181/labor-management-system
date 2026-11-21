@@ -9,6 +9,7 @@ import { useSnackbar } from 'notistack';
 import PasswordField from '@/Components/PasswordField';
 import useLocales from '@/Hooks/useLocales';
 import useAuth from '@/Hooks/useAuth';
+import { getPostLoginPath } from '@/constants/roles';
 import { authApi, getErrorCode } from '@/services/auth';
 import { notBlank } from '@/services/text';
 
@@ -56,7 +57,7 @@ export default function LoginPage() {
       const res = await authApi.login({ ...body, rememberMe: remember });
       if (!res.success) return showError(res.code);
       login(res.data.user);
-      router.replace('/account');
+      router.replace(getPostLoginPath(res.data.user));
       enqueueSnackbar(translate('login.success'), { variant: 'success' });
     } catch (err) {
       showError(getErrorCode(err));

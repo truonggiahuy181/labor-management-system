@@ -16,8 +16,11 @@ import BusinessInfoStep, { ENTERPRISE_FILE_ACCEPT } from '@/Components/BusinessR
 import ConfirmStep from '@/Components/BusinessRegister/ConfirmStep';
 import CreatedAccountDialog from '@/Components/BusinessRegister/CreatedAccountDialog';
 import { EMPTY_BUSINESS_INFO, EMPTY_BUSINESS_FILES } from '@/Components/BusinessRegister/options';
+import ChangeEmailDialog from '@/Components/ChangeEmailDialog';
+import useAuth from '@/Hooks/useAuth';
 import useCatalogs from '@/Hooks/useCatalogs';
 import useLocales from '@/Hooks/useLocales';
+import { notifyAccountStatusChanged } from '@/services/accountStatusEvents';
 import type { BusinessFiles, BusinessInfo, RegisteredAccount } from '@/services/business';
 import {
   clearedRegistrationKeys,
@@ -33,16 +36,18 @@ import { PROFILE_CARD_SX } from '@/Components/UserProfile/options';
 
 export const COMPANIES_PATH = '/admin/companies';
 
-export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
+export default function EnterpriseForm({ enterprise, self = false, onSaved, onEmailChanged }: {
   enterprise: Enterprise | null;
   self?: boolean;
   onSaved?: () => void;
+  onEmailChanged?: (newEmail: string) => void;
 }) {
   const { translate } = useLocales();
   const t = (key: string) => translate(`businessRegister.${key}`);
   const { enqueueSnackbar } = useSnackbar();
   const router = useRouter();
   const catalogs = useCatalogs();
+  const { user } = useAuth();
   const isEdit = !!enterprise;
 
   const form = useForm<BusinessInfo>({
@@ -56,6 +61,14 @@ export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState<RegisteredAccount | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const currentEmail = form.watch('email') || enterprise?.email || '';
+
+  useEffect(() => {
+    if (self && user?.email && form.getValues('email') !== user.email) {
+      form.setValue('email', user.email, { shouldValidate: true });
+    }
+  }, [self, user?.email, form]);
 
   // cacheComponents giữ trang đã rời (ẩn đi chứ không huỷ) → rời trang thì đưa form về bước 1, dữ liệu ban đầu
   useEffect(() => () => {
@@ -131,6 +144,7 @@ export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
         );
       }
 
+      notifyAccountStatusChanged();
       enqueueSnackbar(
         translate(enterprise ? 'enterprises.updateSuccess' : 'enterprises.createSuccess'),
         { variant: 'success' },
@@ -187,9 +201,23 @@ export default function EnterpriseForm({ enterprise, self = false, onSaved }: {
         {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
         {step === 0
           ? <BusinessInfoStep form={form} files={files} onFilesChange={setFiles} catalog={catalogs.catalog}
-              locations={catalogs.locations} isEdit={isEdit} lockEmail={self} accept={ENTERPRISE_FILE_ACCEPT} />
+              locations={catalogs.locations} isEdit={isEdit} lockEmail={self}
+              onChangeEmail={self ? () => setEmailOpen(true) : undefined}
+              accept={ENTERPRISE_FILE_ACCEPT} />
           : <ConfirmStep info={form.getValues()} files={files} catalog={catalogs.catalog} locations={catalogs.locations} />}
       </Card>
+
+      {self && (
+        <ChangeEmailDialog
+          open={emailOpen}
+          currentEmail={currentEmail}
+          onClose={() => setEmailOpen(false)}
+          onChanged={(newEmail) => {
+            form.setValue('email', newEmail, { shouldValidate: true });
+            onEmailChanged?.(newEmail);
+          }}
+        />
+      )}
 
       <CreatedAccountDialog account={account} onClose={() => { setAccount(null); backToList(); }} />
     </Stack>

@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { Trans } from 'react-i18next';
 import { Button, Dialog, DialogContent, Link, Stack, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import useAuth from '@/Hooks/useAuth';
 import useLocales from '@/Hooks/useLocales';
+import { notifyAccountStatusChanged } from '@/services/accountStatusEvents';
 import { getErrorMessage, userApi } from '@/services/user';
 
 const RESEND_SECONDS = 60;
@@ -20,6 +22,7 @@ export default function ChangeEmailDialog({ open, currentEmail, onClose, onChang
 }) {
   const { translate } = useLocales();
   const { enqueueSnackbar } = useSnackbar();
+  const { user, login } = useAuth();
   const [step, setStep] = useState<Step>('otp');
   const [otp, setOtp] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -75,9 +78,14 @@ export default function ChangeEmailDialog({ open, currentEmail, onClose, onChang
   const saveEmail = async () => {
     setBusy(true);
     try {
-      await userApi.confirmEmailChange({ newEmail, otp });   // backend kiểm tra lại OTP ở bước này
+      const normalizedEmail = newEmail.trim().toLowerCase();
+      await userApi.confirmEmailChange({ newEmail: normalizedEmail, otp });   // backend kiểm tra lại OTP ở bước này
+      if (user) {
+        login({ ...user, email: normalizedEmail });
+      }
+      notifyAccountStatusChanged();
       enqueueSnackbar(translate('changeEmail.success'), { variant: 'success' });
-      onChanged(newEmail);
+      onChanged(normalizedEmail);
       close();
     } catch (err) {
       showError(err);
